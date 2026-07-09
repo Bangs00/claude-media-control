@@ -130,6 +130,15 @@ Two things are *not* plugin files and may remain (both harmless):
   `~/.claude/statusline-media.sh` and restore your previous `"statusLine"`
   value in `settings.json`.
 
+## Roadmap
+
+- **Audio spectrum** (`/media:spectrum`) — opt-in Core Audio process-tap FFT
+  visualization (v0.2.0).
+- **Linux** backend via `playerctl`/MPRIS — the dispatcher is already
+  structured for per-OS backends; contributions welcome.
+- **Windows** backend via SMTC (`GlobalSystemMediaTransportControls`) —
+  contributions welcome.
+
 ## Development
 
 ```bash
