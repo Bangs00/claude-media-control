@@ -1,5 +1,7 @@
 # Now-playing in your statusline
 
+**English** | [한국어](statusline.ko.md) | [日本語](statusline.ja.md) | [简体中文](statusline.zh-CN.md)
+
 Show the current track as an extra line in Claude Code's statusline:
 
 ```

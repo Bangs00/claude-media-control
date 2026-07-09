@@ -6,6 +6,8 @@
 ![Claude Code plugin](https://img.shields.io/badge/Claude%20Code-plugin-d97757)
 ![Zero dependencies](https://img.shields.io/badge/dependencies-zero-brightgreen)
 
+**English** | [한국어](README.ko.md) | [日本語](README.ja.md) | [简体中文](README.zh-CN.md)
+
 See and control **whatever is playing on your Mac** — Spotify, Apple Music,
 browsers, VLC — right from Claude Code. Ask "what song is this?", say "pause
 the music", or open an interactive remote. No OAuth, no API keys, no per-app
