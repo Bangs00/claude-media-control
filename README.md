@@ -43,7 +43,7 @@ Natural language, slash commands, or an interactive menu — all work:
 | Say this | …or run | What happens |
 | --- | --- | --- |
 | "what song is playing?" | `/media:now` | current title / artist / app + progress bar |
-| "pause the music" / "음악 꺼줘" | `/media:pause` · `/media:toggle` | pause / resume the active player |
+| "pause the music" | `/media:pause` · `/media:toggle` | pause / resume the active player |
 | "next track" | `/media:next` · `/media:prev` | skip / go back |
 | "jump to 1:30" | `/media:seek 1:30` | seek to an absolute position |
 | "show the album art" | `/media:artwork` | saves the cover and displays it |
