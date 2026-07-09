@@ -12,12 +12,6 @@ furnished to do so, subject to the following conditions:
 The above copyright notice and this permission notice shall be included in all
 copies or substantial portions of the Software.
 
-Portions of this software (native/adapter.m, native/loader.pl) port techniques
-from ungive/mediaremote-adapter, licensed under the BSD 3-Clause License, and
-reference CLI/JSON conventions from ungive/media-control (which declares the
-BSD 3-Clause License in its README) — see native/NOTICE for the required
-notice.
-
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
