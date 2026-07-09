@@ -5,6 +5,31 @@ All notable changes to this project are documented here. The format follows
 [SemVer](https://semver.org/spec/v2.0.0.html), tracked in
 `.claude-plugin/plugin.json`.
 
+## [Unreleased]
+
+### Added
+
+- `statusline.color` config key (default `on`): the statusline segment is now
+  ANSI-styled — state-colored icon and progress-bar fill (green playing /
+  yellow paused), bold title, italic artist, dim time. Standard 16-color SGR
+  codes only, so the terminal palette stays in charge; the `NO_COLOR`
+  environment variable is honored, and `statusline.color off` restores plain
+  text.
+- `spectrum.style` + `spectrum.color` config keys for the spectrum bars:
+  `solid` (default) tints every bar in one configurable color (`red green
+  yellow blue magenta cyan white`, default `cyan`); `rainbow` applies a fixed
+  front-to-back color cycle by bar position — never by loudness — that
+  marches one step per second (`spectrum.color` is then ignored). The tint
+  shows in the statusline segment and when `media.sh spectrum` runs directly
+  in a terminal; piped/captured spectrum output stays plain.
+
+### Changed
+
+- Skill replies render as styled markdown instead of plain code-block text:
+  `/media:now` shows a bold title, italic artist and a bold elapsed time;
+  playback confirmations, `/media:menu` state lines, seek/volume replies and
+  artwork captions follow the same format.
+
 ## [0.2.0] — 2026-07-09
 
 ### Added

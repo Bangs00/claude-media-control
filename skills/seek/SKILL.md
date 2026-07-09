@@ -20,7 +20,7 @@ Requested position: $ARGUMENTS
 "${CLAUDE_PLUGIN_ROOT}/scripts/media.sh" seek <seconds>
 ```
 
-The command prints the resulting now-playing JSON. Confirm to the user in one compact line including the new position as `m:ss / m:ss` (use `elapsedTimeNow` and `duration`).
+The command prints the resulting now-playing JSON. Confirm to the user in one compact markdown line (not a code block) including the new position as `**m:ss** / m:ss` — new position bold (use `elapsedTimeNow` and `duration`).
 
 - If the JSON is `null`: nothing is playing to seek in.
 - If the command fails or `"degraded": true` appears: relay the stderr hint briefly (usually `/media:doctor`; degraded seek only works for Spotify/Apple Music).

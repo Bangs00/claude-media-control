@@ -282,6 +282,34 @@ do_volume() {
   printf '{"volume":%s,"muted":%s}\n' "$vol" "$muted"
 }
 
+# ---- spectrum coloring ------------------------------------------------------
+
+# Tint spectrum block glyphs (stdin line stream) per the spectrum.style /
+# spectrum.color config. solid wraps each glyph run in the one configured
+# color; rainbow assigns a fixed front-to-back color cycle by bar position —
+# never amplitude — whose phase advances each second so it marches across
+# refreshes. Non-glyph text (Hz labels, peak note) is left untouched.
+spectrum_colorize() {
+  /usr/bin/perl -CS -e '
+    $| = 1;
+    my ($style, $name) = @ARGV;
+    my %sgr = (red=>31, green=>32, yellow=>33, blue=>34,
+               magenta=>35, cyan=>36, white=>37);
+    my @cycle = (31, 33, 32, 36, 34, 35);
+    my $c = $sgr{$name} // 36;
+    while (my $line = <STDIN>) {
+      if ($style eq "rainbow") {
+        my $phase = time() % @cycle;
+        my $i = 0;
+        $line =~ s/([\x{2581}-\x{2588}])/"\e[" . $cycle[($phase + $i++) % @cycle] . "m$1\e[0m"/ge;
+      } else {
+        $line =~ s/([\x{2581}-\x{2588}]+)/\e[${c}m$1\e[0m/g;
+      }
+      print $line;
+    }
+  ' "$(config_get_str spectrum.style solid)" "$(config_get_str spectrum.color cyan)"
+}
+
 # ---- statusline -----------------------------------------------------------------
 
 # Short cache window: a now-read costs ~60ms, so a 1s TTL keeps high-frequency
@@ -309,26 +337,42 @@ do_statusline() {
       return 0
     fi
   fi
-  local fields json line="" multiline sep
+  local fields json line="" multiline sep color
   fields="$(config_get_statusline_fields)"
   multiline="$(config_get statusline.multiline)"
+  # NO_COLOR (https://no-color.org) beats the config key. The cache may serve
+  # a line rendered under the other setting for at most one TTL second.
+  color="$(config_get statusline.color)"
+  [ -n "${NO_COLOR:-}" ] && color=off
   if [ "$multiline" = "on" ]; then sep=$'\n'; else sep="  "; fi
   json="$(do_now 2>/dev/null || echo null)"
   if [ -n "$json" ] && [ "$json" != "null" ]; then
     # Render the chosen fields as groups (track / progress+time), joined by two
     # spaces inline or a newline in multiline layout. Fields the user didn't
     # pick are omitted; Claude Code renders multi-line statuslines as-is.
+    # Styling (statusline.color on): state-colored icon + filled bar (green
+    # playing / yellow paused), bold title, italic artist, dim chrome. Claude
+    # Code statuslines render ANSI SGR codes; every token resets with \e[0m so
+    # surrounding statusline content is never restyled.
     line="$(printf '%s' "$json" | /usr/bin/perl -MJSON::PP -e '
       binmode STDOUT, ":utf8";
       my %w = map { $_ => 1 } split /\s+/, ($ARGV[0] // "");
       my $ml = ($ARGV[1] // "") eq "on";
+      my $c  = ($ARGV[2] // "") eq "on";
       local $/; my $d = eval { decode_json(<STDIN>) };
       exit 0 unless ref $d eq "HASH" && defined $d->{title};
       sub mss { my $s = int($_[0]); sprintf "%d:%02d", $s / 60, $s % 60 }
+      my $st = sub {
+        my ($codes, $t) = @_;
+        ($c && length $t) ? "\e[${codes}m$t\e[0m" : $t;
+      };
+      my $accent = $d->{playing} ? 32 : 33;
       my @groups;
       if ($w{track}) {
-        my $t = ($d->{playing} ? "\x{25B6}\x{FE0E}" : "\x{23F8}") . " $d->{title}";
-        $t .= " \x{2014} $d->{artist}" if defined $d->{artist};
+        my $icon = $d->{playing} ? "\x{25B6}\x{FE0E}" : "\x{23F8}";
+        my $t = $st->("1;$accent", $icon) . " " . $st->(1, $d->{title});
+        $t .= " " . $st->(2, "\x{2014}") . " " . $st->(3, $d->{artist})
+          if defined $d->{artist};
         push @groups, $t;
       }
       my $pos = $d->{elapsedTimeNow} // $d->{elapsedTime};
@@ -338,14 +382,15 @@ do_statusline() {
         my $cells = 10;
         my $r = $pos / $dur; $r = 0 if $r < 0; $r = 1 if $r > 1;
         my $filled = int($r * $cells + 0.5);
-        push @prog, ("\x{2588}" x $filled) . ("\x{2591}" x ($cells - $filled));
+        push @prog, $st->($accent, "\x{2588}" x $filled)
+                  . $st->(2, "\x{2591}" x ($cells - $filled));
       }
       if ($w{time} && defined $pos) {
-        push @prog, mss($pos) . "/" . (defined $dur ? mss($dur) : "LIVE");
+        push @prog, $st->(2, mss($pos) . "/" . (defined $dur ? mss($dur) : "LIVE"));
       }
       push @groups, join("  ", @prog) if @prog;
       print join($ml ? "\n" : "  ", @groups);
-    ' "$fields" "$multiline" 2>/dev/null || true)"
+    ' "$fields" "$multiline" "$color" 2>/dev/null || true)"
 
     # spectrum field: a real capture (~0.5s), so it is gated on the field being
     # chosen AND display.spectrum on AND the helper being available. It rides
@@ -357,6 +402,9 @@ do_statusline() {
           if [ -n "$SPECTRUM_BIN" ]; then
             local bars
             bars="$("$SPECTRUM_BIN" bars 10 2>/dev/null || true)"
+            if [ -n "$bars" ] && [ "$color" = "on" ]; then
+              bars="$(printf '%s' "$bars" | spectrum_colorize 2>/dev/null || printf '%s' "$bars")"
+            fi
             if [ -n "$bars" ]; then
               if [ -n "$line" ]; then line="$line$sep$bars"; else line="$bars"; fi
             fi
@@ -389,16 +437,22 @@ do_spectrum() {
     exit 1
   fi
   # `|| rc=$?` keeps a non-zero exit (e.g. 3 = silence) from tripping set -e
-  # before the downgrade logic below can run.
-  local rc=0
+  # before the downgrade logic below can run. With pipefail, the helper's
+  # exit code survives the tint pipe (the perl filter itself exits 0).
+  #
+  # Direct terminal runs get the spectrum.style/spectrum.color tint; captured
+  # output (the skill's inline command, tests, scripts) stays plain so the
+  # conversation never sees raw escape codes.
+  local rc=0 tint="cat"
+  if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then tint="spectrum_colorize"; fi
   case "$a1" in
     '' | snapshot)
-      "$SPECTRUM_BIN" snapshot || rc=$?
+      "$SPECTRUM_BIN" snapshot | $tint || rc=$?
       ;;
     --live | live)
       local secs="${a2:-5}"
       case "$secs" in '' | *[!0-9]*) secs=5 ;; esac
-      "$SPECTRUM_BIN" live "$secs" || rc=$?
+      "$SPECTRUM_BIN" live "$secs" | $tint || rc=$?
       ;;
     *[!0-9]*)
       echo "media: usage: media.sh spectrum [snapshot | --live <seconds>]" >&2
@@ -406,7 +460,7 @@ do_spectrum() {
       ;;
     *)
       # bare number == live duration shorthand
-      "$SPECTRUM_BIN" live "$a1" || rc=$?
+      "$SPECTRUM_BIN" live "$a1" | $tint || rc=$?
       ;;
   esac
   if [ "$rc" = "3" ]; then
@@ -426,7 +480,7 @@ do_spectrum() {
 
 # ---- config (§4.9: fail-closed enable) ---------------------------------------
 
-CONFIG_KEYS="display.progressbar display.statusline display.spectrum statusline.multiline"
+CONFIG_KEYS="display.progressbar display.statusline display.spectrum statusline.multiline statusline.color"
 
 # Which segments the statusline renders, in fixed display order. Chosen with
 # /media:statusline (AskUserQuestion). "spectrum" additionally requires
@@ -440,6 +494,7 @@ config_default() {
     display.statusline)  echo off ;;
     display.spectrum)    echo off ;;
     statusline.multiline) echo off ;;
+    statusline.color)    echo on ;;
     *) return 1 ;;
   esac
 }
@@ -468,6 +523,40 @@ config_write() {
       $d = {} unless ref $d eq "HASH";
     }
     $d->{$key} = ($val eq "on") ? JSON::PP::true : JSON::PP::false;
+    open my $fh, ">", "$file.tmp" or die "cannot write config: $!\n";
+    print $fh JSON::PP->new->canonical->encode($d), "\n";
+    close $fh;
+    rename "$file.tmp", $file or die "cannot save config: $!\n";
+  ' "$CONFIG_FILE" "$1" "$2"
+}
+
+# String-valued keys (spectrum.style, spectrum.color) live beside the boolean
+# ones but never go through config_get, whose truthiness test would mangle
+# them. Values are validated in do_config before config_write_str runs.
+config_get_str() {
+  local key="$1" default="$2" v=""
+  if [ -f "$CONFIG_FILE" ]; then
+    v="$(/usr/bin/perl -MJSON::PP -e '
+      local $/; my $d = eval { decode_json(<STDIN>) };
+      exit 0 unless ref $d eq "HASH";
+      my $v = $d->{$ARGV[0]};
+      print $v if defined $v && !ref $v;
+    ' "$key" < "$CONFIG_FILE" 2>/dev/null)"
+  fi
+  if [ -n "$v" ]; then echo "$v"; else echo "$default"; fi
+}
+
+config_write_str() {
+  mkdir -p "$DATA_DIR"
+  /usr/bin/perl -MJSON::PP -e '
+    my ($file, $key, $val) = @ARGV;
+    my $d = {};
+    if (-f $file) {
+      local $/;
+      if (open my $fh, "<", $file) { $d = eval { decode_json(<$fh>) } || {}; close $fh; }
+      $d = {} unless ref $d eq "HASH";
+    }
+    $d->{$key} = $val;
     open my $fh, ">", "$file.tmp" or die "cannot write config: $!\n";
     print $fh JSON::PP->new->canonical->encode($d), "\n";
     close $fh;
@@ -572,6 +661,8 @@ config_known() {
   return 2
 }
 
+SPECTRUM_COLORS="red green yellow blue magenta cyan white"
+
 do_config() {
   local key="${1:-}" value="${2:-}"
 
@@ -586,6 +677,44 @@ do_config() {
     return 0
   fi
 
+  # String-valued spectrum appearance keys — no preflight (display-only), but
+  # values are validated and a change drops the statusline cache.
+  if [ "$key" = "spectrum.style" ]; then
+    if [ -z "$value" ]; then
+      config_get_str spectrum.style solid
+      return 0
+    fi
+    case "$value" in
+      solid | rainbow) ;;
+      *)
+        echo "media: spectrum.style must be 'solid' or 'rainbow' (got: $value)" >&2
+        exit 2
+        ;;
+    esac
+    config_write_str spectrum.style "$value"
+    rm -f "$DATA_DIR/statusline.cache"
+    echo "spectrum.style = $value"
+    return 0
+  fi
+  if [ "$key" = "spectrum.color" ]; then
+    if [ -z "$value" ]; then
+      config_get_str spectrum.color cyan
+      return 0
+    fi
+    local c ok=""
+    for c in $SPECTRUM_COLORS; do
+      [ "$c" = "$value" ] && ok=1
+    done
+    if [ -z "$ok" ]; then
+      echo "media: spectrum.color must be one of: $SPECTRUM_COLORS (got: $value)" >&2
+      exit 2
+    fi
+    config_write_str spectrum.color "$value"
+    rm -f "$DATA_DIR/statusline.cache"
+    echo "spectrum.color = $value"
+    return 0
+  fi
+
   if [ -z "$key" ]; then
     local k
     echo "key                   value  notes"
@@ -596,11 +725,16 @@ do_config() {
         display.statusline)  note="statusline now-playing segment (recipe: docs/statusline.md)" ;;
         display.spectrum)    note="audio spectrum (/media:spectrum + statusline field); needs audio-recording permission" ;;
         statusline.multiline) note="statusline layout: on = each item on its own line, off = one line" ;;
+        statusline.color)    note="ANSI colors/bold/italic in the statusline segment (honors NO_COLOR)" ;;
       esac
       printf '%-21s %-6s %s\n' "$k" "$(config_get "$k")" "$note"
     done
     printf '%-21s %-6s %s\n' "statusline.fields" "-" \
       "[$(config_get_statusline_fields)] — choose with /media:statusline"
+    printf '%-21s %-6s %s\n' "spectrum.style" "$(config_get_str spectrum.style solid)" \
+      "statusline spectrum coloring: solid (one color) or rainbow (front-to-back cycle)"
+    printf '%-21s %-6s %s\n' "spectrum.color" "$(config_get_str spectrum.color cyan)" \
+      "solid spectrum color: $SPECTRUM_COLORS (ignored when style is rainbow)"
     echo ""
     echo "usage: media.sh config <key> [on|off]   (config file: $CONFIG_FILE)"
     return 0
@@ -617,7 +751,7 @@ do_config() {
       # Any key that changes what the segment renders drops the stale cache so
       # the change shows up on the next tick instead of after the TTL.
       case "$key" in
-        display.statusline | display.progressbar | display.spectrum | statusline.multiline)
+        display.statusline | display.progressbar | display.spectrum | statusline.multiline | statusline.color)
           rm -f "$DATA_DIR/statusline.cache" ;;
       esac
       echo "$key = on"
@@ -628,7 +762,7 @@ do_config() {
       # A stale segment cache must not outlive the toggle (§4.8.1: off leaves
       # no trace, not even a cached line; layout/field changes must re-render).
       case "$key" in
-        display.statusline | display.progressbar | display.spectrum | statusline.multiline)
+        display.statusline | display.progressbar | display.spectrum | statusline.multiline | statusline.color)
           rm -f "$DATA_DIR/statusline.cache" ;;
       esac
       echo "$key = off"
@@ -732,8 +866,9 @@ do_doctor() {
     esac
   fi
   echo "[7] Spectrum    : $spec"
-  echo "[8] Config      : progressbar=$(config_get display.progressbar) statusline=$(config_get display.statusline) spectrum=$(config_get display.spectrum)"
-  echo "                  statusline.fields=[$(config_get_statusline_fields)] ($CONFIG_FILE)"
+  echo "[8] Config      : progressbar=$(config_get display.progressbar) statusline=$(config_get display.statusline) spectrum=$(config_get display.spectrum) color=$(config_get statusline.color)"
+  echo "                  statusline.fields=[$(config_get_statusline_fields)] spectrum.style=$(config_get_str spectrum.style solid) spectrum.color=$(config_get_str spectrum.color cyan)"
+  echo "                  ($CONFIG_FILE)"
   echo "[9] Build log   : $DATA_DIR/build.log"
   echo ""
   echo "verdict: $verdict"

@@ -20,6 +20,6 @@ Requested volume: $ARGUMENTS
 "${CLAUDE_PLUGIN_ROOT}/scripts/media.sh" volume <0-100>    # set, then reads back
 ```
 
-The command prints `{"volume":N,"muted":bool}`. Confirm in one short line,
-e.g. `🔊 Volume: 45%` (add `(muted)` when `muted` is true). This is the
-system output volume — it does not change per-app sliders.
+The command prints `{"volume":N,"muted":bool}`. Confirm in one short markdown
+line, e.g. `🔊 Volume **45%**` (append `*(muted)*` when `muted` is true). This
+is the system output volume — it does not change per-app sliders.

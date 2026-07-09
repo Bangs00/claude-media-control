@@ -55,7 +55,10 @@ Natural language, slash commands, or an interactive menu — all work:
 Optional: put now-playing in your statusline — see
 [docs/statusline.md](docs/statusline.md). Pick which items appear (track,
 progress bar, time, spectrum) and whether they stack on separate lines with
-`/media:statusline`.
+`/media:statusline`. The segment comes ANSI-styled — state-colored icon and
+progress bar, bold title, italic artist, tinted spectrum (solid color or a
+positional rainbow via `spectrum.style`) — and
+`/media:config statusline.color off` (or `NO_COLOR`) restores plain text.
 
 ## How it works
 
@@ -89,6 +92,11 @@ you're in.
 
 `--live <seconds>` streams several frames, and you can add a mini spectrum to
 your statusline with `/media:statusline`.
+
+The bars are tinted `spectrum.color` (default cyan) — or set
+`/media:config spectrum.style rainbow` for a front-to-back color cycle by bar
+position (deliberately not loudness-driven). The tint shows in the statusline
+and in direct terminal runs; chat replies keep plain glyphs.
 
 **How it captures audio.** A Core Audio *process tap*
 (`AudioHardwareCreateProcessTap`, a public API since macOS 14.4) reads the

@@ -19,6 +19,11 @@ Valid keys:
 - `display.statusline` — the statusline now-playing segment
 - `display.spectrum` — the audio spectrum (opt-in; enabling needs the system-audio-recording permission)
 - `statusline.multiline` — statusline layout: `on` = each item on its own line, `off` = one line
+- `statusline.color` — ANSI colors/bold/italic in the statusline segment (default `on`; the `NO_COLOR` env var also disables it)
+- `spectrum.style` — spectrum bar coloring: `solid` (default, one color) or `rainbow` (fixed front-to-back color cycle by bar position — never amplitude)
+- `spectrum.color` — the solid spectrum color: `red green yellow blue magenta cyan white` (default `cyan`; ignored when style is `rainbow`)
+
+`spectrum.style`/`spectrum.color` take those word values instead of on/off. If the user asks for a rainbow/unicorn spectrum → `spectrum.style rainbow`; a specific color ("make the spectrum magenta") → `spectrum.color magenta` (plus `spectrum.style solid` if it was rainbow).
 
 If the user names a feature loosely ("progress bar", "spectrum", "statusline"), map it to the key. To pick **which items** the statusline shows, use `/media:statusline` (interactive) rather than editing keys here.
 

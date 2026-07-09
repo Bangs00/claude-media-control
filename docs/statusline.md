@@ -64,6 +64,30 @@ system-audio-recording permission (see `/media:spectrum`). It captures ~0.5s of
 audio per refresh, so it is heavier than the other items — leave it out if you
 want the lightest possible statusline.
 
+### Colors
+
+The segment ships styled by default — Claude Code statuslines render ANSI
+codes, and the wrapper below passes them through untouched:
+
+- icon and the filled part of the progress bar follow the playback state
+  (green playing, yellow paused)
+- **bold** title, *italic* artist, dimmed time and empty bar cells
+- spectrum bars are tinted per `spectrum.style`:
+  - `solid` (default) — every bar in one color, chosen with `spectrum.color`
+    (`red green yellow blue magenta cyan white`, default `cyan`)
+  - `rainbow` — a fixed front-to-back color cycle by bar position (never by
+    loudness), marching one step per second; `spectrum.color` is ignored
+
+```
+/media:config spectrum.style rainbow
+/media:config spectrum.color magenta
+```
+
+Only standard 16-color SGR codes are used, so everything follows your
+terminal's own palette. Prefer plain text? Run
+`/media:config statusline.color off` — the `NO_COLOR` environment variable is
+honored too.
+
 ## Step 2 — create the wrapper script
 
 Save as `~/.claude/statusline-media.sh` and make it executable

@@ -9,7 +9,7 @@ Artwork fetch result (JSON):
 !`"${CLAUDE_PLUGIN_ROOT}/scripts/media.sh" artwork`
 
 - If the JSON has a `path`: display the image by using the Read tool on that
-  exact path, then caption it in one line: `<title> — <artist>` (run
+  exact path, then caption it in one markdown line: `**<title>** — *<artist>*` (run
   `"${CLAUDE_PLUGIN_ROOT}/scripts/media.sh" now` with Bash only if you still
   need the track info).
 - If the JSON is `null`: the current track has no artwork, or nothing is

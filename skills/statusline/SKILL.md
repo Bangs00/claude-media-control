@@ -54,6 +54,15 @@ Now do the following:
    Security, with audio playing), then re-save the fields **without** `spectrum` so the
    rest works. Do not force it.
 
+   Then ask one more **AskUserQuestion** (header "Spectrum") — "How should the
+   spectrum bars be colored?":
+   - `Solid cyan (default)` — one color, the default
+   - `Solid — another color` — then take the color (red/green/yellow/blue/magenta/white) via the Other field or a follow-up
+   - `Rainbow` — front-to-back color cycle (ignores the solid color)
+
+   Save with `config spectrum.style solid|rainbow` and, for a custom solid,
+   `config spectrum.color <color>`.
+
 5. Show the result and remind the user the segment only appears when
    `display.statusline` is on and the wrapper from `docs/statusline.md` is installed:
 
@@ -63,3 +72,9 @@ Now do the following:
    ```
 
    (If `statusline` prints nothing, the statusline is off or nothing is playing.)
+
+Colors: the segment is styled with ANSI colors by default (green/yellow state
+accent, bold title, italic artist; spectrum bars tinted per `spectrum.style` —
+solid `spectrum.color`, default cyan, or a positional rainbow cycle). If the
+user asks to turn styling off or on, use `/media:config statusline.color
+off|on` — the `NO_COLOR` env var is also honored.

@@ -10,9 +10,9 @@ Current state (JSON):
 
 You are an interactive media remote. Follow this loop strictly:
 
-1. Show the current state in one compact line:
-   `▶︎|⏸ <title> — <artist> (<appName>, m:ss / m:ss)`
-   (If the JSON is `null`, say nothing is playing — the menu can still send Play.)
+1. Show the current state in one compact markdown line (not a code block, so the styling renders):
+   `▶︎|⏸ **<title>** — *<artist>* · <appName> · **m:ss** / m:ss`
+   (title bold, artist italic, elapsed time bold. If the JSON is `null`, say nothing is playing — the menu can still send Play.)
 2. Call AskUserQuestion with exactly ONE question ("What next?", header "Remote") and exactly these 4 options:
    - `⏯ Toggle` — play/pause the current media
    - `⏭ Next` — skip to the next track
@@ -26,7 +26,7 @@ You are an interactive media remote. Follow this loop strictly:
      - `Artwork` — run `artwork`, then display the image with the Read tool on the returned `path`
      - `Done` — end the remote session
    - Free text via the built-in "Other" field (e.g. "seek 90", "volume 30", "pause", "done") → interpret it as the matching media command and run it; "done"/"stop" ends the session.
-4. After each command, report the resulting state in ONE line (from the JSON the command printed), then re-present the menu (step 2).
+4. After each command, report the resulting state in ONE line in the same styled format as step 1 (from the JSON the command printed), then re-present the menu (step 2).
 5. End when the user picks `Done`, types a stop word, or declines to answer. Close with the final playback state in one line.
 
 Never dump raw JSON to the user. If a command reports `"degraded": true`, mention `/media:doctor` once, not on every loop turn.

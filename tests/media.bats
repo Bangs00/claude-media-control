@@ -208,9 +208,14 @@ setup() {
 @test "statusline: fresh cache is served without a new read" {
   mkdir -p "$CLAUDE_PLUGIN_DATA"
   echo '{"display.statusline":true}' > "$CLAUDE_PLUGIN_DATA/config.json"
-  printf 'CACHED_SENTINEL' > "$CLAUDE_PLUGIN_DATA/statusline.cache"
-  run "$MEDIA" statusline
-  [ "$status" -eq 0 ]
+  # The TTL compares whole seconds, so a write landing right at a second
+  # boundary can age out instantly — retry across a few boundaries.
+  for _ in 1 2 3; do
+    printf 'CACHED_SENTINEL' > "$CLAUDE_PLUGIN_DATA/statusline.cache"
+    run "$MEDIA" statusline
+    [ "$status" -eq 0 ]
+    [ "$output" = "CACHED_SENTINEL" ] && break
+  done
   [ "$output" = "CACHED_SENTINEL" ]
 }
 
@@ -306,6 +311,93 @@ setup() {
   run "$MEDIA" statusline
   [ "$status" -eq 0 ]
   [[ "$output" != *$'\n'* ]]          # single line
+}
+
+# ---- statusline colors ---------------------------------------------------------
+
+@test "statusline: ANSI styling present by default" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.statusline":true}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$status" -eq 0 ]
+  [[ "$output" == *$'\e['* ]]         # SGR codes present
+  [[ "$output" == *"Stub Song"* ]]    # content intact inside the styling
+}
+
+@test "statusline: statusline.color off renders plain text" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.statusline":true,"statusline.color":false}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$status" -eq 0 ]
+  [[ "$output" != *$'\e['* ]]
+  [[ "$output" == *"Stub Song"* ]]
+}
+
+@test "statusline: NO_COLOR env beats the color config" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.statusline":true,"statusline.color":true}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  NO_COLOR=1 run "$MEDIA" statusline
+  [ "$status" -eq 0 ]
+  [[ "$output" != *$'\e['* ]]
+  [[ "$output" == *"Stub Song"* ]]
+}
+
+@test "statusline: spectrum bars default to a solid cyan tint" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.statusline":true,"display.spectrum":true,"statusline.fields":["spectrum"]}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  STUB_SPECTRUM=signal run "$MEDIA" statusline
+  [ "$status" -eq 0 ]
+  [[ "$output" == *$'\e[36m'* ]]      # solid cyan (the default spectrum.color)
+  [[ "$output" != *$'\e[31m'* ]]      # not amplitude/rainbow tinted
+}
+
+@test "statusline: spectrum.color picks the solid tint" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.statusline":true,"display.spectrum":true,"statusline.fields":["spectrum"],"spectrum.color":"magenta"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  STUB_SPECTRUM=signal run "$MEDIA" statusline
+  [ "$status" -eq 0 ]
+  [[ "$output" == *$'\e[35m'* ]]
+  [[ "$output" != *$'\e[36m'* ]]
+}
+
+@test "statusline: rainbow spectrum cycles colors by band position" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.statusline":true,"display.spectrum":true,"statusline.fields":["spectrum"],"spectrum.style":"rainbow","spectrum.color":"magenta"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  STUB_SPECTRUM=signal run "$MEDIA" statusline
+  [ "$status" -eq 0 ]
+  # 10 bands cover the whole 6-color cycle whatever the phase; the configured
+  # solid color is ignored (it appears only as one cycle member among six).
+  [[ "$output" == *$'\e[31m'* ]]
+  [[ "$output" == *$'\e[34m'* ]]
+  [[ "$output" == *$'\e[36m'* ]]
+}
+
+@test "config: spectrum.style/color defaults, persistence, validation" {
+  run "$MEDIA" config spectrum.style
+  [ "$output" = "solid" ]
+  run "$MEDIA" config spectrum.color
+  [ "$output" = "cyan" ]
+  run "$MEDIA" config spectrum.style rainbow
+  [ "$status" -eq 0 ]
+  run "$MEDIA" config spectrum.style
+  [ "$output" = "rainbow" ]
+  run "$MEDIA" config spectrum.color blue
+  [ "$status" -eq 0 ]
+  run "$MEDIA" config spectrum.color
+  [ "$output" = "blue" ]
+  run "$MEDIA" config spectrum.style diagonal
+  [ "$status" -eq 2 ]
+  run "$MEDIA" config spectrum.color chartreuse
+  [ "$status" -eq 2 ]
+}
+
+@test "config: statusline.color defaults to on and toggles off" {
+  run "$MEDIA" config statusline.color
+  [ "$output" = "on" ]
+  run "$MEDIA" config statusline.color off
+  [ "$status" -eq 0 ]
+  run "$MEDIA" config statusline.color
+  [ "$output" = "off" ]
 }
 
 # ---- spectrum -----------------------------------------------------------------------
