@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin.json",
+  "name": "media",
+  "displayName": "Media Control",
+  "version": "0.1.0",
+  "description": "System-wide now-playing control for macOS — see and control whatever is playing (Spotify, Apple Music, browsers) right from Claude Code. Zero dependencies, no OAuth, no app lock-in.",
+  "author": {
+    "name": "Bangs00",
+    "email": "gustn9634@gmail.com",
+    "url": "https://github.com/Bangs00"
+  },
+  "homepage": "https://github.com/Bangs00/claude-media-control",
+  "repository": "https://github.com/Bangs00/claude-media-control",
+  "license": "MIT",
+  "keywords": [
+    "macos",
+    "media",
+    "music",
+    "now-playing",
+    "spotify",
+    "apple-music",
+    "playback",
+    "zero-dependency"
+  ]
+}

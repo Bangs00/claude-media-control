@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "claude-media-control",
+  "description": "System-wide media control plugin for macOS — see and control whatever is playing (Spotify, Apple Music, browsers) from Claude Code with zero dependencies.",
+  "owner": {
+    "name": "Bangs00",
+    "email": "gustn9634@gmail.com"
+  },
+  "plugins": [
+    {
+      "name": "media",
+      "source": "./",
+      "description": "System-wide now-playing control for macOS from Claude Code — zero dependencies",
+      "category": "productivity",
+      "keywords": ["macos", "media", "music", "now-playing"],
+      "license": "MIT"
+    }
+  ]
+}

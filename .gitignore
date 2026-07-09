@@ -1,0 +1,27 @@
+# Compiled native artifacts — the plugin ships source only and builds on first
+# use (see PLAN.md D1). Never commit binaries.
+*.dylib
+*.o
+*.bundle
+poc/runner
+
+# macOS
+.DS_Store
+
+# Editor / local scratch
+*.swp
+*~
+.vscode/
+.idea/
+
+# Claude Code local (personal) settings — shared settings.json/CLAUDE.md,
+# if any, can still be force-added.
+.claude/settings.local.json
+
+# Demo working files (keep the final docs/demo.gif, drop intermediates)
+docs/demo/
+*.cast
+
+# Internal planning / research doc — kept local, not published (see the repo
+# owner before publishing a roadmap).
+PLAN.md

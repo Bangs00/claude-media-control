@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  ci:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install tools (bats, shellcheck)
+        run: |
+          brew list bats-core >/dev/null 2>&1 || brew install bats-core
+          brew list shellcheck >/dev/null 2>&1 || brew install shellcheck
+
+      - name: shellcheck
+        run: shellcheck scripts/media.sh scripts/build-native.sh tests/stubs/build-native.sh
+
+      - name: perl syntax check
+        run: |
+          perl -c native/loader.pl
+          perl -c tests/stubs/loader.pl
+
+      - name: Build native adapter (strict)
+        run: |
+          clang -fobjc-arc -dynamiclib -fvisibility=default -Wall -Werror \
+            -framework Foundation -framework AppKit \
+            native/adapter.m -o "$RUNNER_TEMP/libadapter.dylib"
+
+      # Smoke level only: the dylib loads via perl and every MediaRemote
+      # symbol resolves. Exit 2 is the regression this exists to catch
+      # (framework changed); a CI runner has no media session, so "no
+      # now-playing info" (5) is normal and a silent daemon (3) is tolerated.
+      - name: Native smoke test (load + symbol resolution)
+        run: |
+          set +e
+          /usr/bin/perl native/loader.pl "$RUNNER_TEMP/libadapter.dylib" adapter_test
+          rc=$?
+          set -e
+          echo "adapter_test exit code: $rc"
+          case "$rc" in
+            0|5) echo "ok: daemon reachable" ;;
+            3)   echo "tolerated: mediaremoted silent on a headless runner" ;;
+            2)   echo "FAIL: MediaRemote symbols not resolved — framework changed?"; exit 1 ;;
+            *)   echo "FAIL: unexpected exit code $rc"; exit 1 ;;
+          esac
+
+      - name: JXA fallback smoke (parses and runs)
+        run: |
+          out="$(osascript -l JavaScript scripts/read-jxa.js)"
+          echo "read-jxa output: $out"
+          test -n "$out"
+
+      - name: bats tests
+        run: bats tests/media.bats
+
+      - name: Plugin manifest validation (--strict)
+        run: |
+          npm install -g @anthropic-ai/claude-code
+          claude plugin validate . --strict
