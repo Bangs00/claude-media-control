@@ -9,9 +9,10 @@
 # Usage: /usr/bin/perl loader.pl LIB_PATH SYMBOL
 #   LIB_PATH — absolute path to libadapter.dylib
 #   SYMBOL   — adapter_get | adapter_send | adapter_seek | adapter_test |
-#              adapter_artwork
+#              adapter_artwork | adapter_output_list | adapter_output_set
 # Parameters are passed via environment variables (MEDIA_SEND_COMMAND,
-# MEDIA_SEEK_SECONDS, MEDIA_ARTWORK_PATH); perl XSUBs cannot take C args.
+# MEDIA_SEEK_SECONDS, MEDIA_ARTWORK_PATH, MEDIA_OUTPUT_DEVICE); perl XSUBs
+# cannot take C args.
 
 use strict;
 use warnings;
@@ -22,7 +23,7 @@ my $symbol = shift @ARGV or die "usage: loader.pl LIB SYMBOL\n";
 
 die "lib not found: $lib\n" unless -e $lib;
 die "unknown symbol: $symbol\n"
-  unless $symbol =~ /^adapter_(get|send|seek|test|artwork)$/;
+  unless $symbol =~ /^adapter_(get|send|seek|test|artwork|output_list|output_set)$/;
 
 my $handle = DynaLoader::dl_load_file($lib, 0)
   or die "failed to load $lib: " . (DynaLoader::dl_error() // '') . "\n";

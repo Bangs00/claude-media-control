@@ -7,6 +7,8 @@
 #   seek <seconds>               jump to an absolute position, then re-read
 #   artwork [path-prefix]        save current artwork to a file, print JSON
 #   volume [0-100]               system output volume get/set, one JSON line
+#   output [device]              audio output device list / switch, JSON
+#   history [n|clear|--json]     recently played tracks (passive local log)
 #   statusline                   one-line segment for a statusline (TTL cache)
 #   test                         primary-path self-check (exit code only)
 #   config [key] [on|off]        display-feature toggles (fail-closed enable)
@@ -50,7 +52,8 @@ usage() {
   cat >&2 <<'EOF'
 usage: media.sh <subcommand>
   now | play | pause | toggle | next | prev | seek <seconds>
-  artwork [path-prefix] | volume [0-100] | statusline
+  artwork [path-prefix] | volume [0-100] | output [device] | statusline
+  history [count | clear | --json [count]]
   spectrum [snapshot | --live <seconds>]
   test | config [key] [on|off] | doctor [--rebuild] | detect | warmup
 EOF
@@ -93,6 +96,9 @@ primary_test() { /usr/bin/perl "$LOADER" "$LIB" adapter_test; }
 primary_send() { MEDIA_SEND_COMMAND="$1" /usr/bin/perl "$LOADER" "$LIB" adapter_send >/dev/null 2>&1; }
 primary_seek() { MEDIA_SEEK_SECONDS="$1" /usr/bin/perl "$LOADER" "$LIB" adapter_seek >/dev/null 2>&1; }
 primary_artwork() { MEDIA_ARTWORK_PATH="$1" /usr/bin/perl "$LOADER" "$LIB" adapter_artwork 2>/dev/null; }
+primary_output_list() { /usr/bin/perl "$LOADER" "$LIB" adapter_output_list 2>/dev/null; }
+# stderr passes through: the helper's messages name the candidate devices.
+primary_output_set() { MEDIA_OUTPUT_DEVICE="$1" /usr/bin/perl "$LOADER" "$LIB" adapter_output_set; }
 
 jxa_read() { /usr/bin/osascript -l JavaScript "$SCRIPT_DIR/read-jxa.js" 2>/dev/null || echo "null"; }
 
@@ -110,6 +116,75 @@ json_field() {
   ' "$1" 2>/dev/null
 }
 
+# ---- history (passive playback log) ------------------------------------------
+
+HISTORY_FILE_NAME="history.jsonl"
+HISTORY_MAX_ENTRIES=500
+
+# Log a now-playing JSON snapshot into history.jsonl. Piggybacks on reads
+# that happen anyway (now / control re-reads / statusline ticks) — history
+# never polls on its own, so its cost is one short perl per read, and a
+# write only when the track actually changed. One perl handles everything:
+# the history.record gate, dedup against the last entry, append, and the
+# size cap (oldest entries dropped past HISTORY_MAX_ENTRIES).
+history_record() {
+  mkdir -p "$DATA_DIR" 2>/dev/null || true
+  printf '%s' "$1" | /usr/bin/perl -MJSON::PP -e '
+    my ($config, $file, $max) = @ARGV;
+    if (-f $config) {
+      local $/;
+      if (open my $cf, "<", $config) {
+        my $c = eval { decode_json(<$cf>) };
+        close $cf;
+        exit 0 if ref $c eq "HASH" && exists $c->{"history.record"}
+               && !$c->{"history.record"};
+      }
+    }
+    # Slurp STDIN inside a block: $/ must stay line-based for the
+    # history-file reads below.
+    my $d;
+    { local $/; $d = eval { decode_json(<STDIN>) }; }
+    exit 0 unless ref $d eq "HASH" && defined $d->{title};
+    my $key = join "\x1f", map { $d->{$_} // "" }
+      qw(title artist bundleIdentifier);
+    my @lines;
+    if (open my $fh, "<", $file) { chomp(@lines = <$fh>); close $fh; }
+    if (@lines) {
+      my $last = eval { decode_json($lines[-1]) };
+      if (ref $last eq "HASH") {
+        my $lk = join "\x1f", map { $last->{$_} // "" }
+          qw(title artist bundleIdentifier);
+        exit 0 if $lk eq $key;
+      }
+    }
+    my %e = (ts => time());
+    for (qw(title artist album appName bundleIdentifier)) {
+      $e{$_} = $d->{$_} if defined $d->{$_};
+    }
+    push @lines, JSON::PP->new->canonical->encode(\%e);
+    if (@lines > $max) {
+      splice @lines, 0, @lines - $max;
+      open my $fh, ">", "$file.tmp" or exit 0;
+      print $fh "$_\n" for @lines;
+      close $fh;
+      rename "$file.tmp", $file;
+    } else {
+      open my $fh, ">>", $file or exit 0;
+      print $fh "$lines[-1]\n";
+      close $fh;
+    }
+  ' "$CONFIG_FILE" "$DATA_DIR/$HISTORY_FILE_NAME" "$HISTORY_MAX_ENTRIES" \
+    2>/dev/null || true
+}
+
+# Print one now-playing JSON line, logging it into the history on the way out.
+emit_now() {
+  if [ -n "$1" ] && [ "$1" != "null" ]; then
+    history_record "$1"
+  fi
+  printf '%s\n' "$1"
+}
+
 # ---- now --------------------------------------------------------------------
 
 # Prints one JSON line ("null" when nothing plays). Exit 0 unless every
@@ -120,7 +195,7 @@ do_now() {
     local out=""
     if out="$(primary_get)" && [ -n "$out" ]; then
       if [ "$out" != "null" ]; then
-        echo "$out"
+        emit_now "$out"
         return 0
       fi
       # Primary sees nothing. Cross-check with the independent JXA path to
@@ -129,7 +204,7 @@ do_now() {
       jxa="$(jxa_read)"
       if [ "$jxa" != "null" ] && [ -n "$jxa" ]; then
         echo "media: native read returned nothing but the fallback sees media — the primary path may be broken. Run /media:doctor." >&2
-        echo "$jxa"
+        emit_now "$jxa"
         return 0
       fi
       echo "null"
@@ -137,7 +212,60 @@ do_now() {
     fi
     echo "media: native read failed — using fallback. Run /media:doctor if this persists." >&2
   fi
-  jxa_read
+  emit_now "$(jxa_read)"
+}
+
+# Playback history viewer: newest first, default 20 entries.
+#   history [count]          human-readable lines (MM-DD HH:MM  title — artist  (app))
+#   history --json [count]   raw JSONL, newest first
+#   history clear            delete the log
+do_history() {
+  local a1="${1:-}" a2="${2:-}" n=20 as_json=""
+  local file="$DATA_DIR/$HISTORY_FILE_NAME"
+  if [ "$a1" = "clear" ]; then
+    rm -f "$file"
+    echo "playback history cleared."
+    return 0
+  fi
+  if [ "$a1" = "--json" ]; then
+    as_json=1
+    a1="$a2"
+  fi
+  if [ -n "$a1" ]; then
+    case "$a1" in
+      *[!0-9]*)
+        echo "media: usage: media.sh history [count | clear | --json [count]]" >&2
+        exit 2
+        ;;
+    esac
+    n="$a1"
+    [ "$n" -ge 1 ] || n=1
+  fi
+  if [ ! -s "$file" ]; then
+    echo "media: no playback history yet — tracks are logged while media reads run (history.record=$(config_get history.record))."
+    return 0
+  fi
+  if [ -n "$as_json" ]; then
+    /usr/bin/tail -n "$n" "$file" | /usr/bin/perl -e 'print reverse <STDIN>'
+    return 0
+  fi
+  /usr/bin/tail -n "$n" "$file" | /usr/bin/perl -MJSON::PP -MPOSIX=strftime -e '
+    binmode STDOUT, ":utf8";
+    my @rows;
+    while (my $l = <STDIN>) {
+      my $d = eval { decode_json($l) };
+      next unless ref $d eq "HASH" && defined $d->{title};
+      my $when = defined $d->{ts}
+        ? strftime("%m-%d %H:%M", localtime($d->{ts})) : "unknown time";
+      my $t = $d->{title};
+      $t .= " \x{2014} $d->{artist}" if defined $d->{artist};
+      my $app = $d->{appName} // $d->{bundleIdentifier};
+      $t .= "  ($app)" if defined $app;
+      push @rows, "$when  $t";
+    }
+    print "$_\n" for reverse @rows;
+  '
+  return 0
 }
 
 # ---- control ----------------------------------------------------------------
@@ -282,6 +410,41 @@ do_volume() {
   printf '{"volume":%s,"muted":%s}\n' "$vol" "$muted"
 }
 
+# ---- output device ----------------------------------------------------------
+
+# List (no argument) or switch (name / unique substring / 1-based index) the
+# system default audio output device via CoreAudio (public API). There is no
+# osascript equivalent, so this needs the native helper; degraded mode gets a
+# clear refusal instead of a broken half-feature.
+do_output() {
+  local target="${1:-}"
+  ensure_native
+  if [ -z "$LIB" ]; then
+    echo "media: the output-device feature needs the native helper (Xcode Command Line Tools). Run /media:doctor." >&2
+    exit 1
+  fi
+  if [ -n "$target" ]; then
+    local rc=0
+    primary_output_set "$target" >/dev/null || rc=$?
+    if [ "$rc" -eq 4 ]; then
+      # The helper's stderr already named the candidates / the ambiguity.
+      exit 4
+    fi
+    if [ "$rc" -ne 0 ]; then
+      echo "media: switching the output device failed. Run /media:doctor." >&2
+      exit 1
+    fi
+    # The statusline `output` field must show the switch on the next tick.
+    rm -f "$DATA_DIR/statusline.cache"
+  fi
+  local out=""
+  if ! out="$(primary_output_list)" || [ -z "$out" ]; then
+    echo "media: reading the output devices failed. Run /media:doctor." >&2
+    exit 1
+  fi
+  echo "$out"
+}
+
 # ---- spectrum coloring ------------------------------------------------------
 
 # Tint spectrum block glyphs (stdin line stream) per the spectrum.style /
@@ -337,9 +500,10 @@ do_statusline() {
       return 0
     fi
   fi
-  local fields json line="" multiline sep color
+  local fields json line="" multiline sep color marquee
   fields="$(config_get_statusline_fields)"
   multiline="$(config_get statusline.multiline)"
+  marquee="$(config_get statusline.marquee)"
   # NO_COLOR (https://no-color.org) beats the config key. The cache may serve
   # a line rendered under the other setting for at most one TTL second.
   color="$(config_get statusline.color)"
@@ -347,33 +511,65 @@ do_statusline() {
   if [ "$multiline" = "on" ]; then sep=$'\n'; else sep="  "; fi
   json="$(do_now 2>/dev/null || echo null)"
   if [ -n "$json" ] && [ "$json" != "null" ]; then
-    # Render the chosen fields as groups (track / progress+time), joined by two
-    # spaces inline or a newline in multiline layout. Fields the user didn't
-    # pick are omitted; Claude Code renders multi-line statuslines as-is.
-    # Styling (statusline.color on): state-colored icon + filled bar (green
-    # playing / yellow paused), bold title, italic artist, dim chrome. Claude
-    # Code statuslines render ANSI SGR codes; every token resets with \e[0m so
-    # surrounding statusline content is never restyled.
+    # Render the chosen fields as groups (track+app / progress+time / output),
+    # joined by two spaces inline or a newline in multiline layout. Fields the
+    # user didn't pick are omitted; Claude Code renders multi-line statuslines
+    # as-is. Styling (statusline.color on): state-colored icon + filled bar
+    # (green playing / yellow paused), bold title, italic artist, dim chrome.
+    # Claude Code statuslines render ANSI SGR codes; every token resets with
+    # \e[0m so surrounding statusline content is never restyled.
+    # statusline.marquee scrolls titles wider than 30 display cells through a
+    # fixed window, one character per second (offset derives from the epoch, so
+    # each 1s cache refresh advances it — no state file needed).
     line="$(printf '%s' "$json" | /usr/bin/perl -MJSON::PP -e '
       binmode STDOUT, ":utf8";
       my %w = map { $_ => 1 } split /\s+/, ($ARGV[0] // "");
       my $ml = ($ARGV[1] // "") eq "on";
       my $c  = ($ARGV[2] // "") eq "on";
+      my $mq = ($ARGV[3] // "") eq "on";
       local $/; my $d = eval { decode_json(<STDIN>) };
       exit 0 unless ref $d eq "HASH" && defined $d->{title};
       sub mss { my $s = int($_[0]); sprintf "%d:%02d", $s / 60, $s % 60 }
+      # Approximate terminal cell width: East Asian wide/fullwidth blocks and
+      # emoji count 2 cells, everything else 1 (enough to keep the marquee
+      # window steady for CJK titles).
+      sub cw {
+        return ($_[0] =~ /[\x{1100}-\x{115F}\x{2E80}-\x{303E}\x{3041}-\x{33FF}\x{3400}-\x{4DBF}\x{4E00}-\x{9FFF}\x{A000}-\x{A4CF}\x{AC00}-\x{D7A3}\x{F900}-\x{FAFF}\x{FE30}-\x{FE4F}\x{FF00}-\x{FF60}\x{FFE0}-\x{FFE6}\x{1F300}-\x{1FAFF}\x{20000}-\x{2FFFD}]/) ? 2 : 1;
+      }
+      sub dwidth { my $t = 0; $t += cw($_) for split //, $_[0]; $t }
+      my $MQW = 30;
+      sub marquee {
+        my ($s) = @_;
+        return $s if dwidth($s) <= $MQW;
+        my @ch = split //, $s . "   ";
+        my $off = time() % scalar(@ch);
+        my ($out, $wd) = ("", 0);
+        for (my $i = 0; $wd < $MQW; $i++) {
+          my $g = $ch[($off + $i) % @ch];
+          my $gw = cw($g);
+          last if $wd + $gw > $MQW;
+          $out .= $g;
+          $wd += $gw;
+        }
+        return $out . (" " x ($MQW - $wd));
+      }
       my $st = sub {
         my ($codes, $t) = @_;
         ($c && length $t) ? "\e[${codes}m$t\e[0m" : $t;
       };
       my $accent = $d->{playing} ? 32 : 33;
+      my $app = $d->{appName} // $d->{bundleIdentifier};
       my @groups;
       if ($w{track}) {
         my $icon = $d->{playing} ? "\x{25B6}\x{FE0E}" : "\x{23F8}";
-        my $t = $st->("1;$accent", $icon) . " " . $st->(1, $d->{title});
+        my $title = $mq ? marquee($d->{title}) : $d->{title};
+        my $t = $st->("1;$accent", $icon) . " " . $st->(1, $title);
         $t .= " " . $st->(2, "\x{2014}") . " " . $st->(3, $d->{artist})
           if defined $d->{artist};
+        $t .= " " . $st->(2, "($app)") if $w{app} && defined $app;
         push @groups, $t;
+      } elsif ($w{app} && defined $app) {
+        push @groups, $st->(2, $app);
       }
       my $pos = $d->{elapsedTimeNow} // $d->{elapsedTime};
       my $dur = $d->{duration};
@@ -389,8 +585,11 @@ do_statusline() {
         push @prog, $st->(2, mss($pos) . "/" . (defined $dur ? mss($dur) : "LIVE"));
       }
       push @groups, join("  ", @prog) if @prog;
+      if ($w{output} && defined $d->{outputDevice}) {
+        push @groups, $st->(2, "\x{1F50A} " . $d->{outputDevice});
+      }
       print join($ml ? "\n" : "  ", @groups);
-    ' "$fields" "$multiline" "$color" 2>/dev/null || true)"
+    ' "$fields" "$multiline" "$color" "$marquee" 2>/dev/null || true)"
 
     # spectrum field: a real capture (~0.5s), so it is gated on the field being
     # chosen AND display.spectrum on AND the helper being available. It rides
@@ -480,13 +679,14 @@ do_spectrum() {
 
 # ---- config (§4.9: fail-closed enable) ---------------------------------------
 
-CONFIG_KEYS="display.progressbar display.statusline display.spectrum statusline.multiline statusline.color"
+CONFIG_KEYS="display.progressbar display.statusline display.spectrum statusline.multiline statusline.color statusline.marquee history.record"
 
 # Which segments the statusline renders, in fixed display order. Chosen with
 # /media:statusline (AskUserQuestion). "spectrum" additionally requires
-# display.spectrum on + the audio-recording grant.
-VALID_STATUSLINE_FIELDS="track progressbar time spectrum"
-DEFAULT_STATUSLINE_FIELDS="track progressbar time"
+# display.spectrum on + the audio-recording grant; "output" needs the native
+# helper (the JXA fallback carries no outputDevice field).
+VALID_STATUSLINE_FIELDS="track app progressbar time output spectrum"
+DEFAULT_STATUSLINE_FIELDS="track app progressbar time"
 
 config_default() {
   case "$1" in
@@ -495,6 +695,8 @@ config_default() {
     display.spectrum)    echo off ;;
     statusline.multiline) echo off ;;
     statusline.color)    echo on ;;
+    statusline.marquee)  echo on ;;
+    history.record)      echo on ;;
     *) return 1 ;;
   esac
 }
@@ -726,6 +928,8 @@ do_config() {
         display.spectrum)    note="audio spectrum (/media:spectrum + statusline field); needs audio-recording permission" ;;
         statusline.multiline) note="statusline layout: on = each item on its own line, off = one line" ;;
         statusline.color)    note="ANSI colors/bold/italic in the statusline segment (honors NO_COLOR)" ;;
+        statusline.marquee)  note="scroll statusline titles wider than 30 cells (1 char/second)" ;;
+        history.record)      note="log played tracks to history.jsonl (view with /media:history)" ;;
       esac
       printf '%-21s %-6s %s\n' "$k" "$(config_get "$k")" "$note"
     done
@@ -751,7 +955,7 @@ do_config() {
       # Any key that changes what the segment renders drops the stale cache so
       # the change shows up on the next tick instead of after the TTL.
       case "$key" in
-        display.statusline | display.progressbar | display.spectrum | statusline.multiline | statusline.color)
+        display.statusline | display.progressbar | display.spectrum | statusline.multiline | statusline.color | statusline.marquee)
           rm -f "$DATA_DIR/statusline.cache" ;;
       esac
       echo "$key = on"
@@ -762,7 +966,7 @@ do_config() {
       # A stale segment cache must not outlive the toggle (§4.8.1: off leaves
       # no trace, not even a cached line; layout/field changes must re-render).
       case "$key" in
-        display.statusline | display.progressbar | display.spectrum | statusline.multiline | statusline.color)
+        display.statusline | display.progressbar | display.spectrum | statusline.multiline | statusline.color | statusline.marquee)
           rm -f "$DATA_DIR/statusline.cache" ;;
       esac
       echo "$key = off"
@@ -866,10 +1070,29 @@ do_doctor() {
     esac
   fi
   echo "[7] Spectrum    : $spec"
-  echo "[8] Config      : progressbar=$(config_get display.progressbar) statusline=$(config_get display.statusline) spectrum=$(config_get display.spectrum) color=$(config_get statusline.color)"
-  echo "                  statusline.fields=[$(config_get_statusline_fields)] spectrum.style=$(config_get_str spectrum.style solid) spectrum.color=$(config_get_str spectrum.color cyan)"
+
+  # Output device (CoreAudio via the adapter; needs the native helper).
+  local outdev="unavailable (needs the native helper — see [2]/[3])"
+  if [ -n "$LIB" ]; then
+    local ojson
+    if ojson="$(primary_output_list)" && [ -n "$ojson" ]; then
+      local ocur ocount
+      ocur="$(printf '%s' "$ojson" | json_field current)"
+      ocount="$(printf '%s' "$ojson" | /usr/bin/perl -MJSON::PP -e '
+        local $/; my $d = eval { decode_json(<STDIN>) };
+        print((ref $d eq "HASH" && ref $d->{devices} eq "ARRAY")
+          ? scalar @{$d->{devices}} : 0);
+      ' 2>/dev/null)"
+      outdev="${ocur:-unknown} (${ocount:-0} output devices; switch with /media:output)"
+    else
+      outdev="FAILED — CoreAudio device read error"
+    fi
+  fi
+  echo "[8] Output dev  : $outdev"
+  echo "[9] Config      : progressbar=$(config_get display.progressbar) statusline=$(config_get display.statusline) spectrum=$(config_get display.spectrum) color=$(config_get statusline.color) marquee=$(config_get statusline.marquee)"
+  echo "                  statusline.fields=[$(config_get_statusline_fields)] spectrum.style=$(config_get_str spectrum.style solid) spectrum.color=$(config_get_str spectrum.color cyan) history.record=$(config_get history.record)"
   echo "                  ($CONFIG_FILE)"
-  echo "[9] Build log   : $DATA_DIR/build.log"
+  echo "[10] Build log  : $DATA_DIR/build.log"
   echo ""
   echo "verdict: $verdict"
 }
@@ -914,6 +1137,8 @@ case "$cmd" in
   seek)       do_seek "${2:-}" ;;
   artwork)    do_artwork "${2:-}" ;;
   volume)     do_volume "${2:-}" ;;
+  output)     do_output "${2:-}" ;;
+  history)    do_history "${2:-}" "${3:-}" ;;
   statusline) do_statusline ;;
   spectrum)   do_spectrum "${2:-}" "${3:-}" ;;
   test)

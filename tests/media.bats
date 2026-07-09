@@ -93,6 +93,80 @@ setup() {
   [[ "$output" == *'"title":"Jxa Song"'* ]]
 }
 
+# ---- history -----------------------------------------------------------------
+
+@test "history: empty log -> friendly note" {
+  run "$MEDIA" history
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"no playback history yet"* ]]
+}
+
+@test "now: logs one history entry per track (dedup on repeat reads)" {
+  run "$MEDIA" now
+  run "$MEDIA" now
+  [ -f "$CLAUDE_PLUGIN_DATA/history.jsonl" ]
+  [ "$(wc -l < "$CLAUDE_PLUGIN_DATA/history.jsonl")" -eq 1 ]
+  STUB_TRACK_TITLE="Second Song" run "$MEDIA" now
+  [ "$(wc -l < "$CLAUDE_PLUGIN_DATA/history.jsonl")" -eq 2 ]
+  # Dedup must keep working once the log holds multiple lines.
+  STUB_TRACK_TITLE="Second Song" run "$MEDIA" now
+  [ "$(wc -l < "$CLAUDE_PLUGIN_DATA/history.jsonl")" -eq 2 ]
+}
+
+@test "history: prints newest first with app name" {
+  run "$MEDIA" now
+  STUB_TRACK_TITLE="Second Song" run "$MEDIA" now
+  run "$MEDIA" history
+  [ "$status" -eq 0 ]
+  [[ "${lines[0]}" == *"Second Song"* ]]
+  [[ "${lines[1]}" == *"Stub Song"* ]]
+  [[ "$output" == *"(StubPlayer)"* ]]
+}
+
+@test "history: count limits entries; --json prints raw JSONL" {
+  run "$MEDIA" now
+  STUB_TRACK_TITLE="Second Song" run "$MEDIA" now
+  run "$MEDIA" history 1
+  [ "$status" -eq 0 ]
+  [ "${#lines[@]}" -eq 1 ]
+  [[ "$output" == *"Second Song"* ]]
+  run "$MEDIA" history --json 1
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'"title":"Second Song"'* ]]
+}
+
+@test "history: invalid count rejected, exit 2" {
+  run "$MEDIA" history abc
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"usage"* ]]
+}
+
+@test "history clear: removes the log" {
+  run "$MEDIA" now
+  run "$MEDIA" history clear
+  [ "$status" -eq 0 ]
+  [ ! -f "$CLAUDE_PLUGIN_DATA/history.jsonl" ]
+}
+
+@test "history.record off: reads leave no log" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"history.record":false}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" now
+  [ "$status" -eq 0 ]
+  [ ! -f "$CLAUDE_PLUGIN_DATA/history.jsonl" ]
+}
+
+@test "history: log capped at 500 entries (oldest dropped)" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  for i in $(seq 1 505); do
+    printf '{"ts":%s,"title":"Old %s"}\n' "$i" "$i"
+  done > "$CLAUDE_PLUGIN_DATA/history.jsonl"
+  run "$MEDIA" now
+  [ "$(wc -l < "$CLAUDE_PLUGIN_DATA/history.jsonl")" -eq 500 ]
+  tail -1 "$CLAUDE_PLUGIN_DATA/history.jsonl" | grep -q '"title":"Stub Song"'
+  head -1 "$CLAUDE_PLUGIN_DATA/history.jsonl" | grep -q '"title":"Old 7"'
+}
+
 # ---- control -------------------------------------------------------------------
 
 @test "toggle: primary send then state re-read" {
@@ -184,6 +258,47 @@ setup() {
     [ "$status" -eq 1 ]
     [[ "$output" == *"could not read"* ]]
   fi
+}
+
+# ---- output device ----------------------------------------------------------
+
+@test "output: lists current + devices as JSON" {
+  run "$MEDIA" output
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'"current":"Stub Speakers"'* ]]
+  [[ "$output" == *'"devices":["Stub Speakers","Stub AirPods"]'* ]]
+}
+
+@test "output: switch by name, list reflects the new device" {
+  run "$MEDIA" output "airpods"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'"current":"Stub AirPods"'* ]]
+}
+
+@test "output: switch by 1-based index" {
+  run "$MEDIA" output 2
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'"current":"Stub AirPods"'* ]]
+}
+
+@test "output: unknown device refused with candidates, exit 4" {
+  run "$MEDIA" output "sonos"
+  [ "$status" -eq 4 ]
+  [[ "$output" == *"no output device matches"* ]]
+}
+
+@test "output: switch drops the statusline cache" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  printf 'stale' > "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  run "$MEDIA" output "airpods"
+  [ "$status" -eq 0 ]
+  [ ! -f "$CLAUDE_PLUGIN_DATA/statusline.cache" ]
+}
+
+@test "output: refused in degraded mode (needs the native helper)" {
+  STUB_BUILD=fail run "$MEDIA" output
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"native helper"* ]]
 }
 
 # ---- statusline ------------------------------------------------------------------
@@ -340,6 +455,58 @@ setup() {
   [ "$status" -eq 0 ]
   [[ "$output" != *$'\e['* ]]
   [[ "$output" == *"Stub Song"* ]]
+}
+
+@test "statusline: playing app shows by default" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.statusline":true}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"(StubPlayer)"* ]]
+}
+
+@test "statusline: output field renders the device when selected" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.statusline":true,"statusline.fields":["track","output"]}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Stub Speakers"* ]]
+}
+
+@test "statusline: output field omitted by default" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.statusline":true}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$status" -eq 0 ]
+  [[ "$output" != *"Stub Speakers"* ]]
+}
+
+@test "statusline: marquee windows titles wider than 30 cells (default on)" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.statusline":true}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  STUB_TRACK_TITLE="XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX" \
+    run "$MEDIA" statusline
+  [ "$status" -eq 0 ]
+  # 60-cell title: the full string never fits the 30-cell window...
+  [[ "$output" != *"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"* ]]
+  # ...but a contiguous fragment of it is always visible.
+  [[ "$output" == *"XXXXXXXXXX"* ]]
+}
+
+@test "statusline: marquee off keeps the full title" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.statusline":true,"statusline.marquee":false}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  STUB_TRACK_TITLE="XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX" \
+    run "$MEDIA" statusline
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"* ]]
+}
+
+@test "config: statusline.marquee and history.record default on" {
+  run "$MEDIA" config statusline.marquee
+  [ "$output" = "on" ]
+  run "$MEDIA" config history.record
+  [ "$output" = "on" ]
 }
 
 @test "statusline: spectrum bars default to a solid cyan tint" {

@@ -160,7 +160,7 @@ trap 'rm -f "$tmp_dylib"' EXIT
 } >> "$LOG_FILE" 2>&1 || true
 
 if ! /usr/bin/clang -fobjc-arc -dynamiclib -fvisibility=default -Wall \
-    -framework Foundation -framework AppKit \
+    -framework Foundation -framework AppKit -framework CoreAudio \
     "$PLUGIN_ROOT/native/adapter.m" -o "$tmp_dylib" >> "$LOG_FILE" 2>&1; then
   echo "media: native build failed — see $LOG_FILE. Falling back to degraded mode. Run /media:doctor for help." >&2
   exit 1

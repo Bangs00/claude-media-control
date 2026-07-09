@@ -5,6 +5,33 @@ All notable changes to this project are documented here. The format follows
 [SemVer](https://semver.org/spec/v2.0.0.html), tracked in
 `.claude-plugin/plugin.json`.
 
+## [0.4.0] — 2026-07-09
+
+### Added
+
+- **Playback history** (`/media:history`): a passive local log of played
+  tracks. Entries are recorded on reads that happen anyway (statusline ticks,
+  `/media:now`, playback re-reads) — no polling, no daemon, no extra resource
+  cost. Newest-first listing (`history [count]`, `history --json`), `history
+  clear`, a 500-entry cap on `history.jsonl`, and a `history.record` config
+  key (default `on`) to stop logging.
+- **Output devices** (`/media:output`): list the Mac's audio output devices
+  and switch the default one by name, unique case-insensitive substring, or
+  1-based list position. Implemented with the public CoreAudio API in the
+  native adapter (`adapter_output_list` / `adapter_output_set`) — no extra
+  permissions; degraded mode (no native helper) gets a clear refusal.
+- Statusline `app` field, **in the default field set**: the playing app after
+  the track, e.g. `▶︎ Karma Police — Radiohead (Spotify)`. Previously the app
+  name was read but never rendered anywhere in the statusline.
+- Statusline `output` field (opt-in via `/media:statusline`): the current
+  audio output device (`🔊 AirPods Pro`). The adapter now includes
+  `outputDevice` in the now-playing JSON, so the field rides the same read as
+  the rest of the segment — no extra process per refresh.
+- **Marquee scrolling** for long statusline titles (`statusline.marquee`,
+  default `on`): titles wider than 30 display cells scroll through a fixed
+  30-cell window, one character per second, in step with the 1-second segment
+  cache. CJK characters count as two cells so the window width stays steady.
+
 ## [0.3.0] — 2026-07-09
 
 ### Added

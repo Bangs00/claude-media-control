@@ -42,29 +42,53 @@ run `/media:doctor`.)
 
 Run `/media:statusline` to pick which items appear and how they are laid out:
 
-- **Items** (any combination): `track` (▶︎ title — artist), `progressbar`
-  (`██████░░░░`), `time` (`2:13/4:24`), `spectrum` (live frequency bars). Select
-  all for everything.
+- **Items** (any combination): `track` (▶︎ title — artist), `app` (the playing
+  app, e.g. `(Spotify)`), `progressbar` (`██████░░░░`), `time` (`2:13/4:24`),
+  `output` (🔊 current audio output device), `spectrum` (live frequency bars).
+  The default set is `track app progressbar time`.
 - **Layout**: one line, or each group on its own line (`statusline.multiline`).
 
 One-line with all items:
 
 ```
-▶︎ Karma Police — Radiohead  ██████░░░░  2:13/4:24  ▂▄▆█▇▅▃▂
+▶︎ Karma Police — Radiohead (Spotify)  ██████░░░░  2:13/4:24  🔊 AirPods Pro  ▂▄▆█▇▅▃▂
 ```
 
 Multi-line (`statusline.multiline on`):
 
 ```
-▶︎ Karma Police — Radiohead
+▶︎ Karma Police — Radiohead (Spotify)
 ██████░░░░  2:13/4:24
+🔊 AirPods Pro
 ▂▄▆█▇▅▃▂
 ```
+
+The `output` item needs the native helper (it rides the same read as the rest
+of the segment, so it adds no extra cost). Switch devices with
+`/media:output`; the segment updates on the next tick.
 
 The `spectrum` item is opt-in and needs `display.spectrum on` plus the
 system-audio-recording permission (see `/media:spectrum`). It captures ~0.5s of
 audio per refresh, so it is heavier than the other items — leave it out if you
 want the lightest possible statusline.
+
+### Long titles: marquee scrolling
+
+Titles wider than 30 terminal cells scroll through a fixed 30-cell window, one
+character per second (this pairs with the 1-second refresh below — the window
+advances on every redraw):
+
+```
+▶︎ ing Willow (10 Minute Version)  — Taylor Swift (Music)
+```
+
+CJK characters count as two cells, so the window stays steady for Korean,
+Japanese, and Chinese titles. Prefer the full title, however long? Turn it
+off:
+
+```
+/media:config statusline.marquee off
+```
 
 ### Colors
 
@@ -73,7 +97,8 @@ codes, and the wrapper below passes them through untouched:
 
 - icon and the filled part of the progress bar follow the playback state
   (green playing, yellow paused)
-- **bold** title, *italic* artist, dimmed time and empty bar cells
+- **bold** title, *italic* artist, dimmed time, empty bar cells, app name,
+  and output device
 - spectrum bars are tinted per `spectrum.style`:
   - `solid` (default) — every bar in one color, chosen with `spectrum.color`
     (`red green yellow blue magenta cyan white`, default `cyan`)

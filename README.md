@@ -49,17 +49,20 @@ Natural language, slash commands, or an interactive menu — all work:
 | "show the album art" | `/media:artwork` | saves the cover and displays it |
 | "show an audio spectrum" | `/media:spectrum` | live frequency bars of what's playing (opt-in) |
 | "turn it down" | `/media:volume 30` | read / set system output volume (0–100) |
+| "what played earlier?" | `/media:history` | recently played tracks (passive local log) |
+| "switch to my AirPods" | `/media:output airpods` | show / switch the audio output device |
 | "give me a remote" | `/media:menu` | interactive controller (arrow-key menu) |
 | — | `/media:statusline` | choose what the now-playing statusline shows + layout |
-| — | `/media:config` | toggle display features (progress bar, statusline, spectrum) |
+| — | `/media:config` | toggle display features (progress bar, statusline, spectrum, …) |
 | — | `/media:doctor` | diagnose build / permissions / fallbacks |
 
 Optional: put now-playing in your statusline — see
-[docs/statusline.md](docs/statusline.md). Pick which items appear (track,
-progress bar, time, spectrum) and whether they stack on separate lines with
-`/media:statusline`. The segment comes ANSI-styled — state-colored icon and
-progress bar, bold title, italic artist, tinted spectrum (solid color or a
-positional rainbow via `spectrum.style`) — and
+[docs/statusline.md](docs/statusline.md). Pick which items appear (track, app,
+progress bar, time, output device, spectrum) and whether they stack on
+separate lines with `/media:statusline`. Titles wider than 30 cells scroll
+marquee-style (`statusline.marquee`), and the segment comes ANSI-styled —
+state-colored icon and progress bar, bold title, italic artist, tinted
+spectrum (solid color or a positional rainbow via `spectrum.style`) —
 `/media:config statusline.color off` (or `NO_COLOR`) restores plain text.
 
 ## How it works
@@ -123,6 +126,20 @@ feature disables itself. `/media:doctor` reports the permission state.
 
 Requires macOS 14.4+; on older systems the feature stays hidden and the helper
 is never compiled.
+
+## Playback history & output devices
+
+`/media:history` lists what played recently, newest first. Tracks are logged
+**passively** while media reads happen anyway (statusline ticks, `/media:now`,
+playback commands) — no background polling, no daemon, no extra resource cost.
+The log keeps the latest 500 tracks in the plugin data directory and never
+leaves your machine; `/media:config history.record off` stops logging and
+`/media:history clear` wipes it.
+
+`/media:output` shows every audio output device and switches between them
+("play it on my AirPods") through the public CoreAudio API — no extra
+permissions. The statusline can show the active device too: pick the `output`
+item in `/media:statusline`.
 
 ## Requirements
 

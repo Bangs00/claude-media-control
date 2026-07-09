@@ -20,6 +20,8 @@ Valid keys:
 - `display.spectrum` — the audio spectrum (opt-in; enabling needs the system-audio-recording permission)
 - `statusline.multiline` — statusline layout: `on` = each item on its own line, `off` = one line
 - `statusline.color` — ANSI colors/bold/italic in the statusline segment (default `on`; the `NO_COLOR` env var also disables it)
+- `statusline.marquee` — scroll statusline titles wider than 30 cells, one character per second (default `on`; `off` = always show the full title)
+- `history.record` — log played tracks into the local playback history (default `on`; view with `/media:history`)
 - `spectrum.style` — spectrum bar coloring: `solid` (default, one color) or `rainbow` (fixed front-to-back color cycle by bar position — never amplitude)
 - `spectrum.color` — the solid spectrum color: `red green yellow blue magenta cyan white` (default `cyan`; ignored when style is `rainbow`)
 

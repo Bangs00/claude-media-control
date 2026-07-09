@@ -1,6 +1,6 @@
 ---
 name: statusline
-description: Choose which items appear in the now-playing statusline (track, progress bar, time, spectrum) and whether they stack on separate lines. Use when the user wants to customize, configure, pick, or lay out what shows in their media statusline.
+description: Choose which items appear in the now-playing statusline (track, app, progress bar, time, output device, spectrum) and whether they stack on separate lines. Use when the user wants to customize, configure, pick, or lay out what shows in their media statusline.
 allowed-tools: Bash, AskUserQuestion
 ---
 
@@ -12,29 +12,34 @@ Current selection and layout:
 
 Now do the following:
 
-1. Ask the user with **AskUserQuestion** (send both questions together). Pre-select
-   the options that match the current selection shown above.
+1. Ask the user with **AskUserQuestion** (send all three questions together).
+   Pre-select the options that match the current selection shown above.
 
    - **Question 1** — header "Items", `multiSelect: true`,
-     "Which items should the statusline show?"
+     "Which track items should the statusline show?"
      - `Track` — ▶︎ title — artist
+     - `App` — the app that is playing, e.g. (Spotify)
      - `Progress bar` — ██████░░░░
      - `Time` — elapsed / total
+
+   - **Question 2** — header "Extras", `multiSelect: true`,
+     "Any extra items?"
+     - `Output device` — 🔊 current audio output (needs the native helper)
      - `Spectrum` — live frequency bars (opt-in; needs audio-recording permission)
+     - `None` — track info only
 
-     Selecting all four = show everything.
-
-   - **Question 2** — header "Layout", single select,
+   - **Question 3** — header "Layout", single select,
      "How should the items be arranged?"
      - `One line` — all items on a single line
-     - `Separate lines` — each group (track / progress+time / spectrum) on its own line
+     - `Separate lines` — each group (track / progress+time / output / spectrum) on its own line
 
-2. Map the chosen items to field names (Track→`track`, Progress bar→`progressbar`,
-   Time→`time`, Spectrum→`spectrum`) and save them (comma-separated; order does not
+2. Map the chosen items to field names (Track→`track`, App→`app`, Progress
+   bar→`progressbar`, Time→`time`, Output device→`output`,
+   Spectrum→`spectrum`) and save them (comma-separated; order does not
    matter, the script canonicalizes):
 
    ```bash
-   "${CLAUDE_PLUGIN_ROOT}/scripts/media.sh" config statusline.fields "track,progressbar,time"
+   "${CLAUDE_PLUGIN_ROOT}/scripts/media.sh" config statusline.fields "track,app,progressbar,time"
    ```
 
 3. Save the layout (`on` for separate lines, `off` for one line):
@@ -74,7 +79,12 @@ Now do the following:
    (If `statusline` prints nothing, the statusline is off or nothing is playing.)
 
 Colors: the segment is styled with ANSI colors by default (green/yellow state
-accent, bold title, italic artist; spectrum bars tinted per `spectrum.style` —
-solid `spectrum.color`, default cyan, or a positional rainbow cycle). If the
-user asks to turn styling off or on, use `/media:config statusline.color
-off|on` — the `NO_COLOR` env var is also honored.
+accent, bold title, italic artist, dim app and output device; spectrum bars
+tinted per `spectrum.style` — solid `spectrum.color`, default cyan, or a
+positional rainbow cycle). If the user asks to turn styling off or on, use
+`/media:config statusline.color off|on` — the `NO_COLOR` env var is also
+honored.
+
+Long titles: titles wider than 30 cells scroll marquee-style, one character
+per second (`statusline.marquee`, on by default). If the user wants the full
+title instead, use `/media:config statusline.marquee off`.

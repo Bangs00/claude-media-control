@@ -44,29 +44,54 @@ Claude Code の中で:
 `/media:statusline` を実行すると、どの項目をどう並べるかを選べます:
 
 - **項目**（自由に組み合わせ可能）: `track`（▶︎ 曲名 — アーティスト）、
-  `progressbar`（`██████░░░░`）、`time`（`2:13/4:24`）、`spectrum`
-  （リアルタイム周波数バー）。全部選べば全部出ます。
+  `app`（再生中のアプリ、例: `(Spotify)`）、`progressbar`（`██████░░░░`）、
+  `time`（`2:13/4:24`）、`output`（🔊 現在のオーディオ出力デバイス）、
+  `spectrum`（リアルタイム周波数バー）。デフォルトの構成は
+  `track app progressbar time` です。
 - **レイアウト**: 1 行にまとめるか、グループごとに行を分けるか
   （`statusline.multiline`）。
 
 全項目を 1 行で:
 
 ```
-▶︎ Karma Police — Radiohead  ██████░░░░  2:13/4:24  ▂▄▆█▇▅▃▂
+▶︎ Karma Police — Radiohead (Spotify)  ██████░░░░  2:13/4:24  🔊 AirPods Pro  ▂▄▆█▇▅▃▂
 ```
 
 複数行で（`statusline.multiline on`）:
 
 ```
-▶︎ Karma Police — Radiohead
+▶︎ Karma Police — Radiohead (Spotify)
 ██████░░░░  2:13/4:24
+🔊 AirPods Pro
 ▂▄▆█▇▅▃▂
 ```
+
+`output` 項目にはネイティブヘルパーが必要です（セグメントが元々行う読み取り
+に相乗りするため、追加コストはありません）。デバイスの切り替えは
+`/media:output` で行え、セグメントには次の更新で反映されます。
 
 `spectrum` 項目はオプトインで、`display.spectrum on` とシステムオーディオ
 録音の権限が必要です（`/media:spectrum` を参照）。更新のたびに約 0.5 秒ずつ
 音をキャプチャするので、ほかの項目より負荷が大きめです。ステータスラインを
 できるだけ軽くしたいなら外しておきましょう。
+
+### 長いタイトル: マーキースクロール
+
+30 セル（ターミナルの桁数）を超えるタイトルは、固定幅 30 セルの窓の中を
+1 秒に 1 文字ずつ流れていきます（下記の 1 秒リフレッシュと連動して、再描画の
+たびに 1 文字進みます）:
+
+```
+▶︎ ing Willow (10 Minute Version)  — Taylor Swift (Music)
+```
+
+漢字・かな・ハングルは 2 セルとして数えるので、CJK のタイトルでも窓の幅は
+一定に保たれます。どんなに長くてもタイトル全体を表示したい場合はオフに
+できます:
+
+```
+/media:config statusline.marquee off
+```
 
 ### 色
 
@@ -75,7 +100,8 @@ ANSI コードをレンダリングでき、下のラッパーはそれを手を
 
 - アイコンとプログレスバーの塗りつぶし部分は、再生状態に合わせて色が
   変わります（再生中は green、一時停止中は yellow）
-- **太字**の曲名、*斜体*のアーティスト、薄い表示の時間と空きセル
+- **太字**の曲名、*斜体*のアーティスト、薄い表示の時間・空きセル・アプリ名・
+  出力デバイス
 - スペクトラムバーの色は `spectrum.style` に従います:
   - `solid`（デフォルト）——すべてのバーを単色で。色は `spectrum.color` で
     選びます（`red green yellow blue magenta cyan white`、デフォルトは

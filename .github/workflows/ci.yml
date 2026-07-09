@@ -27,7 +27,7 @@ jobs:
       - name: Build native adapter (strict)
         run: |
           clang -fobjc-arc -dynamiclib -fvisibility=default -Wall -Werror \
-            -framework Foundation -framework AppKit \
+            -framework Foundation -framework AppKit -framework CoreAudio \
             native/adapter.m -o "$RUNNER_TEMP/libadapter.dylib"
 
       - name: Build spectrum helper (strict)
