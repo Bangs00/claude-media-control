@@ -143,6 +143,7 @@ the report names the fix (usually `xcode-select --install`, then
 | `PRIMARY READ LIKELY BLOCKED` after a macOS update | `/media:doctor --rebuild`; if it persists, please [open an issue](https://github.com/Bangs00/claude-media-control/issues) |
 | AppleScript control fails with **error -1743** | approve your terminal app under System Settings → Privacy & Security → Automation (fallback mode only) |
 | Nothing plays but `now` shows a track | the app reported stale state; try `/media:next` or restart the player |
+| Spectrum is silent, or `display.spectrum on` is refused | grant **system audio recording** to your terminal app under System Settings → Privacy & Security (with audio playing), then retry; `/media:doctor` shows the state |
 
 Build logs live at `${CLAUDE_PLUGIN_DATA}/build.log`.
 
