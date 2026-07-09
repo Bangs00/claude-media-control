@@ -45,13 +45,17 @@ Natural language, slash commands, or an interactive menu — all work:
 | "next track" | `/media:next` · `/media:prev` | skip / go back |
 | "jump to 1:30" | `/media:seek 1:30` | seek to an absolute position |
 | "show the album art" | `/media:artwork` | saves the cover and displays it |
+| "show an audio spectrum" | `/media:spectrum` | live frequency bars of what's playing (opt-in) |
 | "turn it down" | `/media:volume 30` | read / set system output volume (0–100) |
 | "give me a remote" | `/media:menu` | interactive controller (arrow-key menu) |
-| — | `/media:config` | toggle display features (progress bar, statusline) |
+| — | `/media:statusline` | choose what the now-playing statusline shows + layout |
+| — | `/media:config` | toggle display features (progress bar, statusline, spectrum) |
 | — | `/media:doctor` | diagnose build / permissions / fallbacks |
 
 Optional: put now-playing in your statusline — see
-[docs/statusline.md](docs/statusline.md).
+[docs/statusline.md](docs/statusline.md). Pick which items appear (track,
+progress bar, time, spectrum) and whether they stack on separate lines with
+`/media:statusline`.
 
 ## How it works
 
@@ -74,6 +78,41 @@ you're in.
 > could change or block it at any time. When that happens the plugin degrades
 > to the fallback paths and `/media:doctor` reports it. No warranty — see
 > [LICENSE](LICENSE).
+
+## Audio spectrum (opt-in)
+
+`/media:spectrum` renders a live frequency-bar view of whatever is playing:
+
+```
+63Hz ▂▄▆█▇▅▃▂ ▃▂▁▁ ▁ 16kHz   (peak: 1.2kHz)
+```
+
+`--live <seconds>` streams several frames, and you can add a mini spectrum to
+your statusline with `/media:statusline`.
+
+**How it captures audio.** A Core Audio *process tap*
+(`AudioHardwareCreateProcessTap`, a public API since macOS 14.4) reads the
+system output mix; a local Accelerate/vDSP FFT turns it into bands. **The audio
+never leaves your machine** — only the bar string is produced, nothing is
+recorded or transmitted.
+
+**Off by default.** A music-control plugin asking for audio recording deserves
+scrutiny, so the spectrum is opt-in:
+
+```
+/media:config display.spectrum on
+```
+
+**Permission.** The tap needs the *system audio recording* permission on your
+terminal app. macOS does **not** show an automatic prompt for command-line
+tools, so grant it manually: System Settings > Privacy & Security > Screen &
+System Audio Recording, enable your terminal (Terminal, iTerm, …) with audio
+playing. Enabling is fail-closed — if the capture is silent while audio plays it
+refuses and points you at the missing grant; if the grant is later revoked the
+feature disables itself. `/media:doctor` reports the permission state.
+
+Requires macOS 14.4+; on older systems the feature stays hidden and the helper
+is never compiled.
 
 ## Requirements
 
@@ -132,8 +171,7 @@ Two things are *not* plugin files and may remain (both harmless):
 
 ## Roadmap
 
-- **Audio spectrum** (`/media:spectrum`) — opt-in Core Audio process-tap FFT
-  visualization (v0.2.0).
+- ~~**Audio spectrum** (`/media:spectrum`)~~ — shipped in v0.2.0 (see above).
 - **Linux** backend via `playerctl`/MPRIS — the dispatcher is already
   structured for per-OS backends; contributions welcome.
 - **Windows** backend via SMTC (`GlobalSystemMediaTransportControls`) —

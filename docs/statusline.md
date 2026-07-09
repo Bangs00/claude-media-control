@@ -4,12 +4,13 @@ Show the current track as an extra line in Claude Code's statusline:
 
 ```
 [your existing statusline, untouched]
-▶︎ Karma Police — Radiohead  2:13/4:24
+▶︎ Karma Police — Radiohead  ██████░░░░  2:13/4:24
 ```
 
 The segment comes from `media.sh statusline`, which answers from a small TTL
-cache (default 5s) in well under 50ms — it never slows your statusline down.
-The real now-playing read runs at most once per TTL window.
+cache (default 1s) in well under 50ms — it never slows your statusline down.
+The real now-playing read runs at most once per TTL window, so the elapsed
+time and progress bar advance about once a second when the statusline redraws.
 
 ## Design guarantees (why this is safe to add)
 
@@ -34,6 +35,34 @@ Inside Claude Code:
 
 (Enabling verifies a working now-playing read path first; if it is refused,
 run `/media:doctor`.)
+
+### Choose what the segment shows
+
+Run `/media:statusline` to pick which items appear and how they are laid out:
+
+- **Items** (any combination): `track` (▶︎ title — artist), `progressbar`
+  (`██████░░░░`), `time` (`2:13/4:24`), `spectrum` (live frequency bars). Select
+  all for everything.
+- **Layout**: one line, or each group on its own line (`statusline.multiline`).
+
+One-line with all items:
+
+```
+▶︎ Karma Police — Radiohead  ██████░░░░  2:13/4:24  ▂▄▆█▇▅▃▂
+```
+
+Multi-line (`statusline.multiline on`):
+
+```
+▶︎ Karma Police — Radiohead
+██████░░░░  2:13/4:24
+▂▄▆█▇▅▃▂
+```
+
+The `spectrum` item is opt-in and needs `display.spectrum on` plus the
+system-audio-recording permission (see `/media:spectrum`). It captures ~0.5s of
+audio per refresh, so it is heavier than the other items — leave it out if you
+want the lightest possible statusline.
 
 ## Step 2 — create the wrapper script
 
@@ -83,10 +112,13 @@ In `~/.claude/settings.json`:
 }
 ```
 
-Optional: add `"refreshInterval": 5` next to `"command"` if you want the
-elapsed time to tick while you are idle. Statuslines normally refresh on
-conversation events only; `refreshInterval` adds periodic re-runs, and values
-below the 5-second segment TTL just replay the cache.
+**Recommended for a live-feeling statusline:** add `"refreshInterval": 1` next
+to `"command"`. Statuslines normally refresh on conversation events only, so
+while you are idle the elapsed time and progress bar freeze. `refreshInterval`
+re-runs the command periodically; `1` (the minimum) pairs with the 1-second
+segment cache so the time and bar tick every second. Drop it or raise it if you
+prefer fewer redraws (each redraw also re-runs your existing statusline
+command).
 
 ## Maintenance notes
 

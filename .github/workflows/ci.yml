@@ -30,6 +30,27 @@ jobs:
             -framework Foundation -framework AppKit \
             native/adapter.m -o "$RUNNER_TEMP/libadapter.dylib"
 
+      - name: Build spectrum helper (strict)
+        run: |
+          clang -fobjc-arc -fvisibility=default -Wall -Werror \
+            -framework Foundation -framework CoreAudio -framework Accelerate \
+            native/spectrum.m -o "$RUNNER_TEMP/spectrum"
+
+      # A headless runner has no audio session, so the tap captures only
+      # silence (exit 3) or the aggregate device cannot be built (exit 2).
+      # Either is fine; this exists to catch a crash or a missing symbol.
+      - name: Spectrum smoke (runs without crashing)
+        run: |
+          set +e
+          "$RUNNER_TEMP/spectrum" preflight
+          rc=$?
+          set -e
+          echo "spectrum preflight exit code: $rc"
+          case "$rc" in
+            0|2|3) echo "ok: ran cleanly (silent capture is expected on CI)" ;;
+            *)     echo "FAIL: unexpected exit code $rc"; exit 1 ;;
+          esac
+
       # Smoke level only: the dylib loads via perl and every MediaRemote
       # symbol resolves. Exit 2 is the regression this exists to catch
       # (framework changed); a CI runner has no media session, so "no

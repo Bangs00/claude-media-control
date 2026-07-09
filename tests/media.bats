@@ -273,6 +273,105 @@ setup() {
   grep -q '"display.progressbar"' "$CLAUDE_PLUGIN_DATA/config.json"
 }
 
+# ---- statusline fields + layout -----------------------------------------------------
+
+@test "statusline.fields: set, canonicalize order, drop unknown names" {
+  run "$MEDIA" config statusline.fields "time,bogus,track"
+  [ "$status" -eq 0 ]
+  run "$MEDIA" config statusline.fields
+  [ "$output" = "track time" ]   # canonical order, bogus dropped
+}
+
+@test "statusline: only chosen fields render (track only)" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.statusline":true,"statusline.fields":["track"]}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Stub Song"* ]]
+  [[ "$output" != *"1:15/3:20"* ]]   # time omitted
+}
+
+@test "statusline: multiline layout breaks groups onto separate lines" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.statusline":true,"statusline.multiline":true}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$status" -eq 0 ]
+  [[ "$output" == *$'\n'* ]]          # a line break is present
+  [[ "$output" == *"Stub Song"* ]]
+}
+
+@test "statusline: inline layout stays on one line" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.statusline":true,"statusline.multiline":false}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$status" -eq 0 ]
+  [[ "$output" != *$'\n'* ]]          # single line
+}
+
+# ---- spectrum -----------------------------------------------------------------------
+
+@test "spectrum: refused when display.spectrum is off (opt-in)" {
+  run "$MEDIA" spectrum
+  [ "$status" -eq 3 ]
+  [[ "$output" == *"spectrum is off"* ]]
+}
+
+@test "spectrum: snapshot prints a spectrum line when enabled + signal" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.spectrum":true}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  STUB_SPECTRUM=signal run "$MEDIA" spectrum
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"16kHz"* ]]
+}
+
+@test "spectrum: enable preflight passes when capture has signal" {
+  STUB_SPECTRUM=signal run "$MEDIA" config display.spectrum on
+  [ "$status" -eq 0 ]
+  run "$MEDIA" config display.spectrum
+  [ "$output" = "on" ]
+}
+
+@test "spectrum: enable refused (fail-closed) when capture is silent but audio plays" {
+  # STUB_PRIMARY defaults to a playing track; a silent capture => missing grant.
+  STUB_SPECTRUM=silence run "$MEDIA" config display.spectrum on
+  [ "$status" -eq 3 ]
+  [[ "$output" == *"permission"* ]]
+}
+
+@test "spectrum: enable refused when the helper is unavailable" {
+  STUB_SPECTRUM=unavailable run "$MEDIA" config display.spectrum on
+  [ "$status" -eq 3 ]
+  [[ "$output" == *"unavailable"* ]]
+}
+
+@test "spectrum: runtime silence while playing auto-disables the feature" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.spectrum":true}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  STUB_SPECTRUM=silence run "$MEDIA" spectrum
+  [ "$status" -eq 3 ]
+  [[ "$output" == *"revoked"* ]]
+  run "$MEDIA" config display.spectrum
+  [ "$output" = "off" ]              # downgraded to off
+}
+
+@test "statusline: spectrum field appends bars when enabled" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.statusline":true,"display.spectrum":true,"statusline.fields":["track","spectrum"]}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  STUB_SPECTRUM=signal run "$MEDIA" statusline
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Stub Song"* ]]
+  [[ "$output" == *"▄"* ]]           # spectrum bars present
+}
+
+@test "statusline: spectrum field silently omitted when display.spectrum off" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.statusline":true,"display.spectrum":false,"statusline.fields":["track","spectrum"]}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  STUB_SPECTRUM=signal run "$MEDIA" statusline
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Stub Song"* ]]
+  [[ "$output" != *"▄"* ]]           # no bars: feature is off
+}
+
 # ---- detect / warmup ----------------------------------------------------------------
 
 @test "detect: healthy (cache present) -> silent, exit 0" {
