@@ -200,11 +200,30 @@ hidden elapsed time drops the `/` before the total, and an item whose parts
 are all hidden disappears entirely. (Dropping a whole item is an arrangement
 change — leave its digit out of the pattern.)
 
-The progress bar's characters come from `style.progressbar.style`: `line`
-`━━━━━━────` (default) · `blocks` `██████░░░░` · `wave` `~~~~~~----` · `dots`
-`●●●●●●○○○○`, or any two characters meaning "filled + empty" (`"#-"` →
-`######----`). The same characters draw the bar in the `/media:now` reply,
-so the two surfaces always match. The volume bar's shape is
+The progress bar's characters come from `style.progressbar.style`:
+
+| preset | looks like | |
+|---|---|---|
+| `line` (default) | `━━━━━━────` | |
+| `blocks` | `██████░░░░` | |
+| `smooth` | `█████▋░░░░` | the boundary cell is a partial block (⅛ steps) |
+| `knob` | `━━━━━●────` | a slider head caps the fill |
+| `wave` | `▂▄▆▄▂▄▁▁▁▁` | a swell — rolls while playing |
+| `pulse` | `▂▂█▁▄▂▁▁▁▁` | an ECG beat — rolls while playing |
+| `eq` | `▂▇▃█▅▆▁▁▁▁` | equalizer bars — rolls while playing |
+| `notes` | `♪♫♪♫♪♫····` | notes — march while playing |
+| `braille` | `⣿⣿⣿⣿⣿⣿⣀⣀⣀⣀` | |
+| `chevron` | `▸▸▸▸▸▸▹▹▹▹` | |
+| `tape` | `▰▰▰▰▰▰▱▱▱▱` | |
+| `cassette` | `▮▮▮▮▮▮▯▯▯▯` | |
+| `retro` | `======----` | plain ASCII |
+| `dots` | `●●●●●●○○○○` | |
+
+Any two characters also work, meaning "filled + empty" (`"#-"` →
+`######----`). The rolling presets are animated: the trace rolls toward the
+empty end each second while playing and freezes on pause. The same
+characters draw the bar in the `/media:now` reply, so the two surfaces
+always match. The volume bar's shape is
 `style.volume.style`: `block` (one `▄` whose height tracks the level,
 default), `progress` (a five-cell mini bar drawn with the progress-bar
 characters), or `stairs` (`▂▄▆█` steps). Whatever its shape, the volume bar

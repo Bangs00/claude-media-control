@@ -5,6 +5,8 @@
 #   null               — get prints "null", test exits 5 (daemon, no info)
 #   fail               — every symbol fails (exit 1)
 # $STUB_TRACK_TITLE overrides the fixed track's title (history/marquee tests).
+# $STUB_ELAPSED overrides the playback position (default 75 / 75.4 "now";
+# the wave-phase tests advance it one second).
 # $STUB_VOLUME / $STUB_MUTED override the enriched system volume fields
 # (defaults 45 / false), and $STUB_OUTPUT_KIND the device category (default
 # "speaker"), mirroring adapter_get's CoreAudio enrichment.
@@ -21,12 +23,13 @@ my $mode   = $ENV{STUB_PRIMARY} // "ok";
 exit 1 if $mode eq "fail";
 
 my $title = $ENV{STUB_TRACK_TITLE} // "Stub Song";
+my $elap  = $ENV{STUB_ELAPSED} // 75;
 my $vol   = $ENV{STUB_VOLUME} // 45;
 my $muted = $ENV{STUB_MUTED} // "false";
 my $okind = $ENV{STUB_OUTPUT_KIND} // "speaker";
 my $track = "{\"title\":\"$title\",\"artist\":\"Stub Artist\",\"album\":\"Stub Album\","
   . '"bundleIdentifier":"com.stub.player","appName":"StubPlayer","playing":true,'
-  . '"processIdentifier":1,"elapsedTime":75,"elapsedTimeNow":75.4,'
+  . "\"processIdentifier\":1,\"elapsedTime\":$elap,\"elapsedTimeNow\":$elap.4,"
   . '"duration":200,"playbackRate":1,"timestamp":"2026-07-09T00:00:00Z",'
   . "\"outputDevice\":\"Stub Speakers\",\"outputKind\":\"$okind\","
   . "\"volume\":$vol,\"muted\":$muted}";

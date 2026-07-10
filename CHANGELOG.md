@@ -5,6 +5,33 @@ All notable changes to this project are documented here. The format follows
 [SemVer](https://semver.org/spec/v2.0.0.html), tracked in
 `.claude-plugin/plugin.json`.
 
+## [0.16.0] — 2026-07-11
+
+### Added
+
+- **`pulse` progress-bar preset — an ECG trace.** `▂▂█▁▄` (baseline, R
+  spike, S dip, T bump) repeats across the filled cells over dim `▁`, and
+  the beat rolls toward the empty end each second while playing — a heart
+  monitor for the track (`/media:config style.progressbar.style pulse`).
+- **Nine more progress-bar presets.** Rolling, like `wave`/`pulse`: `eq`
+  `▂▇▃█▅▆` equalizer bars and `notes` `♪♫` marching over `·`. Static
+  pairs: `braille` `⣿`/`⣀`, `chevron` `▸`/`▹`, `tape` `▰`/`▱`,
+  `cassette` `▮`/`▯`, and pure-ASCII `retro` `=`/`-`. Two new bar
+  mechanisms: `knob` caps the fill with a `●` slider head (`━━━●────`),
+  and `smooth` sizes its boundary cell as a ⅛-step partial block
+  (`███▊░░░`) for sub-cell progress. Every preset drives the volume bar's
+  `progress` shape and the `/media:now` bar too, so the surfaces always
+  match.
+
+### Changed
+
+- **The `wave` progress-bar preset actually waves now.** The old `~~~~----`
+  becomes a swell of block heights — `▂▄▆▄` repeating over calm dim `▁`
+  water — phased by the playback position, so the wave rolls forward each
+  second while playing and freezes on pause. The `/media:now` bar and the
+  volume bar's `progress` shape draw with the same charset, as before;
+  custom two-glyph charsets and the other presets are unchanged.
+
 ## [0.15.0] — 2026-07-10
 
 ### Added

@@ -790,11 +790,17 @@ setup() {
 @test "config style.progressbar.style: presets or exactly two glyphs" {
   run "$MEDIA" config style.progressbar.style wave
   [ "$status" -eq 0 ]
+  run "$MEDIA" config style.progressbar.style pulse
+  [ "$status" -eq 0 ]
+  for p in eq notes braille chevron tape cassette retro knob smooth; do
+    run "$MEDIA" config style.progressbar.style "$p"
+    [ "$status" -eq 0 ]
+  done
   run "$MEDIA" config style.progressbar.style "#."
   [ "$status" -eq 0 ]
   run "$MEDIA" config style.progressbar.style "~~~"
   [ "$status" -eq 2 ]
-  [[ "$output" == *"blocks|wave|line|dots"* ]]
+  [[ "$output" == *"blocks|wave|pulse|eq|notes|braille|chevron|tape|cassette|retro|knob|smooth|line|dots"* ]]
 }
 
 @test "config style.volume.icon: auto, none, or a whitespace-free glyph" {
@@ -874,11 +880,45 @@ setup() {
   mkdir -p "$CLAUDE_PLUGIN_DATA"
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["progressbar"],"style.progressbar.style":"wave"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
-  [ "$output" = "~~~~------" ]              # charset applies even with color off
+  # Fill cycles ▂▄▆▄ over ▁ water, phased by the position (75 % 4 = 3);
+  # charset applies even with color off.
+  [ "$output" = "▄▆▄▂▁▁▁▁▁▁" ]
+  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  STUB_ELAPSED=76 run "$MEDIA" statusline
+  [ "$output" = "▂▄▆▄▁▁▁▁▁▁" ]              # one second on — the swell rolls right
+  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["progressbar"],"style.progressbar.style":"pulse"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$output" = "▂▂█▁▁▁▁▁▁▁" ]              # ECG beat ▂▂█▁▄, phase 75 % 5 = 0
   rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["progressbar"],"style.progressbar.style":"#."}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
   [ "$output" = "####......" ]
+}
+
+@test "statusline: progressbar charsets — every 0.16.0 preset renders" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  # Stub position 75.4/200 → 4 of 10 cells; rolling fills phase by int(75).
+  # knob spends one filled cell on its ● head; smooth measures 30 eighths
+  # → 3 full blocks + ▊ (6/8).
+  local cases=(
+    "eq|█▅▆▂▁▁▁▁▁▁"
+    "notes|♫♪♫♪······"
+    "braille|⣿⣿⣿⣿⣀⣀⣀⣀⣀⣀"
+    "chevron|▸▸▸▸▹▹▹▹▹▹"
+    "tape|▰▰▰▰▱▱▱▱▱▱"
+    "cassette|▮▮▮▮▯▯▯▯▯▯"
+    "retro|====------"
+    "knob|━━━●──────"
+    "smooth|███▊░░░░░░"
+  )
+  for c in "${cases[@]}"; do
+    rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+    echo "{\"display.statusline\":true,\"statusline.color\":false,\"statusline.fields\":[\"progressbar\"],\"style.progressbar.style\":\"${c%%|*}\"}" > "$CLAUDE_PLUGIN_DATA/config.json"
+    run "$MEDIA" statusline
+    echo "preset ${c%%|*}: got '$output', want '${c#*|}'"
+    [ "$output" = "${c#*|}" ]
+  done
 }
 
 @test "statusline: volume icon override, none, and muted" {
@@ -1038,6 +1078,14 @@ setup() {
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["volume"],"style.volume.style":"progress","style.progressbar.style":"#."}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
   [ "$output" = "🔉 ##... 45%" ]                   # follows the custom pair
+  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["volume"],"style.volume.style":"progress","style.progressbar.style":"knob"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$output" = "🔉 ━●─── 45%" ]                   # knob head caps the fill
+  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["volume"],"style.volume.style":"progress","style.progressbar.style":"smooth"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$output" = "🔉 ██▎░░ 45%" ]                   # 45% of 5 cells = 18/8 → ▎
   rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["volume"],"style.volume.style":"stairs"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline

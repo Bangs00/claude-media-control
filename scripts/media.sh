@@ -632,19 +632,55 @@ do_statusline() {
       # Bar characters by style.progressbar.style: a named charset or any
       # two glyphs "filled+empty" — character choices show even with colors
       # off. Resolved up front: the volume "progress" shape draws with the
-      # same pair.
-      my %cs = (blocks => ["\x{2588}", "\x{2591}"], wave => ["~", "-"],
+      # same charset through the same $bar builder. A multi-glyph fill
+      # (wave, pulse, eq, notes) repeats cell by cell; its phase follows
+      # the playback position, so the trace rolls toward the empty end each
+      # second while playing and freezes on pause. A third charset glyph
+      # (knob) caps the last filled cell. smooth is special-cased in $bar:
+      # its boundary cell is an eighth-block sized by the remainder.
+      my %cs = (blocks => ["\x{2588}", "\x{2591}"],
+                wave => ["\x{2582}\x{2584}\x{2586}\x{2584}", "\x{2581}"],
+                pulse => ["\x{2582}\x{2582}\x{2588}\x{2581}\x{2584}", "\x{2581}"],
+                eq => ["\x{2582}\x{2587}\x{2583}\x{2588}\x{2585}\x{2586}", "\x{2581}"],
+                notes => ["\x{266A}\x{266B}", "\x{B7}"],
+                braille => ["\x{28FF}", "\x{28C0}"],
+                chevron => ["\x{25B8}", "\x{25B9}"],
+                tape => ["\x{25B0}", "\x{25B1}"],
+                cassette => ["\x{25AE}", "\x{25AF}"],
+                retro => ["=", "-"],
+                knob => ["\x{2501}", "\x{2500}", "\x{25CF}"],
+                smooth => ["\x{2588}", "\x{2591}"],
                 line => ["\x{2501}", "\x{2500}"], dots => ["\x{25CF}", "\x{25CB}"]);
       my $csv = $sty{"progressbar.style"} // "line";
-      my ($fc, $ec) = $cs{$csv}           ? @{$cs{$csv}}
+      my ($fc, $ec, $hc) = $cs{$csv}      ? @{$cs{$csv}}
                     : length($csv) == 2   ? (substr($csv, 0, 1), substr($csv, 1, 1))
                     :                       @{$cs{line}};
-      if ($w{progressbar} && defined $pos && defined $dur && $dur > 0) {
-        my $cells = 10;
-        my $r = $pos / $dur; $r = 0 if $r < 0; $r = 1 if $r > 1;
+      my @fp = split //, $fc;
+      my $ph = (defined $pos ? int($pos) : 0) % @fp;
+      my $fill = sub {
+        my ($n) = @_;
+        return "" if $n <= 0;
+        my $b = defined $hc ? $n - 1 : $n;
+        join("", map { $fp[($_ - $ph) % @fp] } 0 .. $b - 1)
+          . (defined $hc ? $hc : "");
+      };
+      my $bar = sub {
+        my ($cells, $r) = @_;
+        $r = 0 if $r < 0; $r = 1 if $r > 1;
+        if ($csv eq "smooth") {
+          # Fill measured in eighths of a cell; the remainder becomes one
+          # partial block on the boundary cell (chr: 0x2590 - e = ▏..▉).
+          my $te = int($r * $cells * 8 + 0.5);
+          my ($nf, $e) = (int($te / 8), $te % 8);
+          return $st->($accsgr, ($fc x $nf) . ($e ? chr(0x2590 - $e) : ""))
+               . $st->(2, $ec x ($cells - $nf - ($e ? 1 : 0)));
+        }
         my $filled = int($r * $cells + 0.5);
-        $tok{progressbar} = $st->($accsgr, $fc x $filled)
-                          . $st->(2, $ec x ($cells - $filled));
+        return $st->($accsgr, $fill->($filled))
+             . $st->(2, $ec x ($cells - $filled));
+      };
+      if ($w{progressbar} && defined $pos && defined $dur && $dur > 0) {
+        $tok{progressbar} = $bar->(10, $pos / $dur);
       }
       if ($w{time} && defined $pos) {
         my $t = "";
@@ -703,11 +739,9 @@ do_statusline() {
           unless ($hid->("volume.bar")) {
             my $shape = lc($sty{"volume.style"} // "block");
             if ($shape eq "progress") {
-              # Five-cell mini bar, drawn with the progress-bar charset so
-              # the two bars always match.
-              my $vf = int($v * 5 / 100 + 0.5);
-              push @vp, $st->($accsgr, $fc x $vf)
-                      . $st->(2, $ec x (5 - $vf));
+              # Five-cell mini bar via the shared builder, so the two bars
+              # always match (charset, phase, knob head, smooth edge).
+              push @vp, $bar->(5, $v / 100);
             } elsif ($shape eq "stairs") {
               # Staircase: ceil(v*4/100) of ▂▄▆█ (45% -> ▂▄), min one step.
               my @steps = ("\x{2582}", "\x{2584}", "\x{2586}", "\x{2588}");
@@ -1352,9 +1386,11 @@ style_validate() {
       # Keep exactly-two-character values raw so a space can be a bar glyph
       # ("x " = filled x, empty space); only longer input is trimmed.
       $val =~ s/^\s+|\s+$//g if length($val) != 2;
-      my %preset = map { $_ => 1 } qw(blocks wave line dots);
+      my %preset = map { $_ => 1 }
+        qw(blocks wave pulse eq notes braille chevron tape cassette retro
+           knob smooth line dots);
       if ($preset{lc $val}) { print lc $val; exit 0 }
-      fail("progressbar style must be blocks|wave|line|dots or exactly two characters (filled+empty, e.g. \"~-\"); got: $val")
+      fail("progressbar style must be blocks|wave|pulse|eq|notes|braille|chevron|tape|cassette|retro|knob|smooth|line|dots or exactly two characters (filled+empty, e.g. \"~-\"); got: $val")
         unless length($val) == 2 && $val !~ /[\t\n]/ && $val ne "  ";
       print $val; exit 0;
     }
@@ -1463,8 +1499,9 @@ style_list() {
   done
   echo "(spec: bold dim italic underline + one color — black red green yellow blue"
   echo " magenta cyan white or bright-<color> — or none; text parts also take off"
-  echo " = hide that part; style.progressbar.style: blocks|wave|line|dots or two"
-  echo " glyphs like \"~-\"; style.volume.style: block|progress|stairs;"
+  echo " = hide that part; style.progressbar.style: blocks|wave|pulse|eq|notes|"
+  echo " braille|chevron|tape|cassette|retro|knob|smooth|line|dots or two glyphs"
+  echo " like \"~-\"; style.volume.style: block|progress|stairs;"
   echo " style.volume.bar: on|off — the bar draws in the progress-bar accent;"
   echo " style.volume.icon / style.output.icon: auto|none|<glyph>."
   echo " Set: media.sh config <style key> \"<spec>\" — the value reset restores a"

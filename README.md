@@ -73,8 +73,10 @@ Optional: put now-playing in your statusline — fully automatic, one command:
   Toggle items, pick a layout or type a pattern like `123/456` (each digit
   is an item — track, app, volume, bar, time, output — and `/` starts a new
   line), and style every part: bold/italic/color, playing/paused accents,
-  bar characters (`line` `━━──` by default; `blocks`, `wave`, `dots`, or any
-  two glyphs), the volume icon and bar shape (`block`/`progress`/`stairs`),
+  bar characters (14 presets — from `line` `━━──` (default) and `smooth`
+  partial blocks to a `knob` slider head and animated `wave`/`pulse`/`eq`/
+  `notes` traces that roll while playing — or any two glyphs),
+  the volume icon and bar shape (`block`/`progress`/`stairs`),
   the output device icon — and `off` to hide any single part.
 - Long titles scroll marquee-style. The volume item shows icon + level bar
   + percent; the output icon follows the device kind (`🎧` Bluetooth, `📺`

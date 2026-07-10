@@ -75,9 +75,15 @@ off drops the `/` before the total, and an item whose parts are all hidden
 disappears (with its line, when it sat alone on one).
 
 **Bar characters** (`style.progressbar.style`): `line` `━━━━━━────`
-(default) · `blocks` `██████░░░░` · `wave` `~~~~~~----` · `dots`
-`●●●●●●○○○○` — or any two characters meaning "filled + empty" (`"#-"` →
-`######----`). **Volume bar shape** (`style.volume.style`): `block` (one ▄
+(default) · `blocks` `██████░░░░` · `smooth` `█████▋░░░░` (⅛-step partial
+boundary) · `knob` `━━━━━●────` (slider head) · `wave` `▂▄▆▄▂▄▁▁▁▁` (a
+rolling swell) · `pulse` `▂▂█▁▄▂▁▁▁▁` (an ECG beat) · `eq` `▂▇▃█▅▆▁▁▁▁`
+(equalizer) · `notes` `♪♫♪♫♪♫····` (marching notes) · `braille`
+`⣿⣿⣿⣿⣿⣿⣀⣀⣀⣀` · `chevron` `▸▸▸▸▸▸▹▹▹▹` · `tape` `▰▰▰▰▰▰▱▱▱▱` ·
+`cassette` `▮▮▮▮▮▮▯▯▯▯` · `retro` `======----` · `dots` `●●●●●●○○○○` — or
+any two characters meaning "filled + empty" (`"#-"` → `######----`).
+`wave`, `pulse`, `eq`, and `notes` roll forward each second while playing
+and freeze on pause. **Volume bar shape** (`style.volume.style`): `block` (one ▄
 whose height tracks the level, default) · `progress` (a five-cell mini bar
 drawn with the progress-bar characters) · `stairs` (`▂▄▆█` steps). The
 volume bar always draws in the playing/paused accent colors;
@@ -242,8 +248,9 @@ value in each question text.
     current / `Default (green / yellow)` / `cyan / black` / Other → `X/Y` or
     one color
   - "Bar characters" (`style.progressbar.style`): Keep current /
-    `Line ━━━━━━──── (default)` / `Blocks ██████░░░░` / Other → `wave`,
-    `dots`, or any two glyphs like `#-`
+    `Line ━━━━━━──── (default)` / `Blocks ██████░░░░` / Other → `smooth`,
+    `knob`, `wave`, `pulse`, `eq`, `notes`, `braille`, `chevron`, `tape`,
+    `cassette`, `retro`, `dots`, or any two glyphs like `#-`
   - "Elapsed" (`style.time.elapsed`): Keep current / `Default (bold)` /
     `Bold cyan` / Other
   - "Total" (`style.time.total`): Keep current / `Default (dim)` /
