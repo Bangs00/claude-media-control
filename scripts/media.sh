@@ -118,12 +118,12 @@ json_field() {
 
 HISTORY_FILE_NAME="history.jsonl"
 HISTORY_MAX_ENTRIES=500
-# A track change flows through MediaRemote in stages — the title switches
-# first, the artist follows a beat later — so a read landing mid-transition
-# sees the new title with the STALE artist. The corrected snapshot (same
-# title, same app, real artist) arrives on the next read, normally 1-2
-# seconds later; within this window it replaces the transitional entry
-# instead of appending a phantom track.
+# A track change flows through MediaRemote in stages — one field switches
+# first and the other follows a beat later — so a read landing mid-transition
+# sees a MIXED snapshot: the new title with the stale artist, or (the reverse
+# lag) the stale title with the new artist. The corrected snapshot arrives on
+# the next read, normally 1-2 seconds later; within this window it replaces
+# the transitional entry instead of appending a phantom track.
 HISTORY_AMEND_SECONDS=10
 
 # Log a now-playing JSON snapshot into history.jsonl. Piggybacks on reads
@@ -163,14 +163,36 @@ history_record() {
         my $lk = join "\x1f", map { $last->{$_} // "" }
           qw(title artist bundleIdentifier);
         exit 0 if $lk eq $key;
+        my $fresh = defined $last->{ts} && time() - $last->{ts} <= $amendwin;
+        my $prev = @lines >= 2 ? eval { decode_json($lines[-2]) } : undef;
+        $prev = undef unless ref $prev eq "HASH";
         # Same title + same app but a different artist (the keys differ, so
         # with title and app equal the artist must differ), seconds after
-        # the last append -> the last entry was a transitional mixed
-        # snapshot; the corrected read supersedes it in place.
-        $amend = 1 if defined $last->{ts}
-          && time() - $last->{ts} <= $amendwin
+        # the last append -> the last entry was a title-first transitional
+        # (new title, stale artist); the corrected read supersedes it in
+        # place. It needs evidence the artist was junk: BORROWED (the last
+        # entry shares its artist with the entry before it) or EMPTY (a
+        # partial snapshot). Without either, a same-title read with a new
+        # artist is the REVERSE transition starting (stale title, next
+        # artist) — amending would overwrite a real entry with the mix, so
+        # it appends and the sandwich rule below repairs it one read later.
+        $amend = 1 if $fresh
           && ($last->{title} // "") eq $d->{title}
-          && ($last->{bundleIdentifier} // "") eq ($d->{bundleIdentifier} // "");
+          && ($last->{bundleIdentifier} // "") eq ($d->{bundleIdentifier} // "")
+          && (($prev && ($prev->{artist} // "") eq ($last->{artist} // ""))
+              || !length($last->{artist} // ""));
+        # The reverse lag: the ARTIST switched first and the title followed,
+        # so the transitional entry pairs the OLD title with the NEW artist.
+        # It shows as a sandwich — the last entry shares its title with the
+        # entry before it (same app) and its artist with this read (with
+        # artist and app equal, the differing key means the title changed).
+        # The corrected read supersedes it in place the same way.
+        $amend = 1 if !$amend && $fresh
+          && ($last->{artist} // "") eq ($d->{artist} // "")
+          && ($last->{bundleIdentifier} // "") eq ($d->{bundleIdentifier} // "")
+          && $prev
+          && ($prev->{title} // "") eq ($last->{title} // "")
+          && ($prev->{bundleIdentifier} // "") eq ($last->{bundleIdentifier} // "");
       }
     }
     my %e = (ts => time());

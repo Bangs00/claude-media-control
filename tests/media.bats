@@ -191,6 +191,40 @@ setup() {
   [ "$(wc -l < "$CLAUDE_PLUGIN_DATA/history.jsonl")" -eq 2 ]
 }
 
+@test "history: title correction seconds later amends the entry (artist switched first)" {
+  run "$MEDIA" now                                     # Stub Song — Stub Artist
+  # The reverse lag: the ARTIST switches first, the title follows one read
+  # behind — the transitional snapshot pairs the OLD title with the NEW
+  # artist.
+  STUB_TRACK_ARTIST="Next Artist" run "$MEDIA" now
+  [ "$(wc -l < "$CLAUDE_PLUGIN_DATA/history.jsonl")" -eq 2 ]
+  # The corrected read (new title, same artist/app) replaces it in place.
+  STUB_TRACK_TITLE="Next Song" STUB_TRACK_ARTIST="Next Artist" run "$MEDIA" now
+  [ "$(wc -l < "$CLAUDE_PLUGIN_DATA/history.jsonl")" -eq 2 ]
+  head -1 "$CLAUDE_PLUGIN_DATA/history.jsonl" | grep -q '"title":"Stub Song"'
+  tail -1 "$CLAUDE_PLUGIN_DATA/history.jsonl" | grep -q '"title":"Next Song"'
+  # The old-title/new-artist mix is gone.
+  ! grep -E '"artist":"Next Artist".*"title":"Stub Song"' "$CLAUDE_PLUGIN_DATA/history.jsonl"
+}
+
+@test "history: artist-less transitional snapshot is amended by the full read" {
+  run "$MEDIA" now                                     # Stub Song — Stub Artist
+  # Some sources publish the new title with NO artist for a beat.
+  STUB_TRACK_TITLE="Next Song" STUB_TRACK_ARTIST="" run "$MEDIA" now
+  [ "$(wc -l < "$CLAUDE_PLUGIN_DATA/history.jsonl")" -eq 2 ]
+  STUB_TRACK_TITLE="Next Song" run "$MEDIA" now        # full snapshot
+  [ "$(wc -l < "$CLAUDE_PLUGIN_DATA/history.jsonl")" -eq 2 ]
+  tail -1 "$CLAUDE_PLUGIN_DATA/history.jsonl" | grep -q '"artist":"Stub Artist"'
+  ! grep -E '"artist":"".*"title":"Next Song"' "$CLAUDE_PLUGIN_DATA/history.jsonl"
+}
+
+@test "history: same-artist album playthrough appends (no false amend)" {
+  STUB_TRACK_TITLE="First Song" run "$MEDIA" now
+  STUB_TRACK_TITLE="Second Song" run "$MEDIA" now
+  STUB_TRACK_TITLE="Third Song" run "$MEDIA" now       # all Stub Artist
+  [ "$(wc -l < "$CLAUDE_PLUGIN_DATA/history.jsonl")" -eq 3 ]
+}
+
 @test "history: an aged same-title entry appends instead of amending" {
   mkdir -p "$CLAUDE_PLUGIN_DATA"
   printf '{"artist":"Old Artist","bundleIdentifier":"com.stub.player","title":"Stub Song","ts":%s}\n' \
