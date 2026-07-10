@@ -51,9 +51,8 @@ Natural language, slash commands, or an interactive menu — all work:
 | "what played earlier?" | `/media:history` | recently played tracks (passive local log) |
 | "switch to my AirPods" | `/media:output airpods` | show / switch the audio output device |
 | "give me a remote" | `/media:menu` | interactive controller (arrow-key menu) |
-| "arrange my statusline" | `/media:statusline` | pick a layout from visual previews, or place any item on any line with a numeric pattern |
-| "make the title cyan" | `/media:style` | style every statusline item — bold/italic/color per part, progress-bar characters, volume icon |
-| "configure the statusline" | `/media:config` | interactive settings — layout plus every display toggle (progress bar, history, colors, marquee) |
+| "arrange my statusline" · "make the title cyan" | `/media:statusline` | the statusline hub — toggle items, lay out lines with a numeric pattern, and style every part |
+| "turn off the history" | `/media:config` | quick settings — statusline, `/media:now` progress bar, and history on/off, plus a statusline reset |
 | — | `/media:doctor` | diagnose build / permissions / fallbacks |
 
 Optional: put now-playing in your statusline — a one-time setup described in
@@ -64,18 +63,19 @@ Optional: put now-playing in your statusline — a one-time setup described in
 ━━━━━━────  2:13/4:24  🎧 AirPods Pro
 ```
 
-- **Arrange it** with `/media:statusline`. Pick a preset from visual
-  previews, or type a pattern like `123/456` — each digit is an item
-  (track, app, volume, bar, time, output) and `/` starts a new line.
-- **Style it** with `/media:style` — bold/italic/color per part,
-  playing/paused accent colors, the bar characters (`line` `━━──` by
-  default; `blocks` `██░░`, `wave` `~~--`, `dots` `●●○○`, or any two
-  glyphs), and the volume icon. Every key resets individually, or all at
-  once.
+- **Set it up** with `/media:statusline` — one hub for everything visual.
+  Toggle items, pick a layout or type a pattern like `123/456` (each digit
+  is an item — track, app, volume, bar, time, output — and `/` starts a new
+  line), and style every part: bold/italic/color, playing/paused accents,
+  bar characters (`line` `━━──` by default; `blocks`, `wave`, `dots`, or any
+  two glyphs), the volume icon and bar shape (`block`/`progress`/`stairs`),
+  the output device icon — and `off` to hide any single part.
 - Long titles scroll marquee-style. The volume item shows icon + level bar
   + percent; the output icon follows the device kind (`🎧` Bluetooth, `📺`
   HDMI, `📶` AirPlay, `🔊` speakers). Colors are standard 16-color SGR —
   `/media:config statusline.color off` (or `NO_COLOR`) restores plain text.
+- Quick on/off toggles and a one-shot **statusline reset** live in
+  `/media:config`; every key resets individually too.
 
 ## How it works
 
@@ -111,7 +111,8 @@ leaves your machine. `/media:config history.record off` stops logging;
 `/media:output` shows every audio output device and switches between them
 ("play it on my AirPods") through the public CoreAudio API — no extra
 permissions. The statusline can show the active device too: check "Output
-device item" in `/media:config`, or place it anywhere with `/media:statusline`.
+device" in the `/media:statusline` Items tab, or place it anywhere with a
+numeric pattern.
 
 ## Requirements
 

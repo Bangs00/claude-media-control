@@ -43,5 +43,5 @@ Error handling:
 
 Tip: the statusline can show the current output device (icon by device kind —
 🎧 Bluetooth/headphones, 📺 HDMI/DisplayPort, 📶 AirPlay, 🔊 speakers) —
-check "Output device" in `/media:config`, or place it anywhere with
-`/media:statusline` (digit 6).
+check "Output device" in the `/media:statusline` Items tab, or place it
+anywhere with a numeric pattern (digit 6).

@@ -499,11 +499,19 @@ do_statusline() {
     # elapsed time (the moving part must stay readable, so only the
     # "/duration" tail is dim), italic artist, dim chrome. The bar characters
     # come from style.progressbar.style (a named charset or two glyphs) and
-    # apply even with colors off. The `volume` field renders icon + level bar
+    # apply even with colors off. A text part whose style is "off" is not
+    # rendered at all: a hidden title drops the "—" separator with it, a
+    # hidden elapsed time drops the total's leading "/", and a token whose
+    # parts all vanished is never created — its field (and an explicit line
+    # left empty) disappears. The `volume` field renders icon + level bar
     # + percent (`🔉 ▄ 45%`): a speaker glyph tiered by level (🔈/🔉/🔊, 🔇 at
-    # 0; overridable via style.volume.icon), an eighth-block bar whose height
-    # tracks the level (50% = half block), and the percent. Muted shows 🔇
-    # alone — the underlying level is not what plays. Claude Code
+    # 0; overridable via style.volume.icon), a bar shaped by
+    # style.volume.style (block = one eighth-block whose height tracks the
+    # level, 50% = half block; progress = a five-cell mini bar drawn with the
+    # progress-bar charset; stairs = ▂▄▆█ steps), and the percent. Muted
+    # shows 🔇 alone — the underlying level is not what plays. The `output`
+    # icon follows style.output.icon (auto = by device kind, none = hidden,
+    # any glyph verbatim); the device name takes style.output. Claude Code
     # statuslines render ANSI SGR
     # codes; every token resets with \e[0m so surrounding statusline content is
     # never restyled. statusline.marquee scrolls titles wider than 30 display
@@ -579,6 +587,9 @@ do_statusline() {
         my ($codes, $t) = @_;
         ($c && length($codes // "") && length $t) ? "\e[${codes}m$t\e[0m" : $t;
       };
+      # A text part whose style spec is "off" is hidden entirely (the setter
+      # only allows it on text parts; lc keeps hand-edited configs lenient).
+      my $hid = sub { lc($sty{$_[0]} // "") eq "off" };
       # The playing/paused accent (track icon + bar fill) comes from
       # style.progressbar.playing / .paused; the icon keeps its bold on top.
       my $acc = $d->{playing} ? ($sty{"progressbar.playing"} // "green")
@@ -591,52 +602,75 @@ do_statusline() {
       my %tok;
       if ($w{track}) {
         my $icon = $d->{playing} ? "\x{25B6}\x{FE0E}" : "\x{23F8}";
-        my $title = $mq ? marquee($d->{title}) : $d->{title};
-        my $t = $st->($iconsgr, $icon) . " "
-              . $st->(sgr($sty{"track.title"}), $title);
-        $t .= " " . $st->(2, "\x{2014}") . " "
+        my $t = $st->($iconsgr, $icon);
+        unless ($hid->("track.title")) {
+          my $title = $mq ? marquee($d->{title}) : $d->{title};
+          $t .= " " . $st->(sgr($sty{"track.title"}), $title);
+        }
+        # The "—" separator belongs to the title/artist pair: a hidden title
+        # leaves just "icon artist".
+        $t .= ($hid->("track.title") ? " " : " " . $st->(2, "\x{2014}") . " ")
             . $st->(sgr($sty{"track.artist"}), $d->{artist})
-          if defined $d->{artist};
+          if defined $d->{artist} && !$hid->("track.artist");
         $t .= " " . $st->($appsgr, "($app)")
-          if !$explicit && $w{app} && defined $app;
+          if !$explicit && $w{app} && defined $app && !$hid->("app");
         $tok{track} = $t;
       }
       # Standalone app token: always in the explicit layout (folding happens
       # per line during assembly), only without a track in the grouped one.
-      if ($w{app} && defined $app && ($explicit || !$w{track})) {
+      if ($w{app} && defined $app && !$hid->("app") && ($explicit || !$w{track})) {
         $tok{app} = $st->($appsgr, $app);
       }
       my $pos = $d->{elapsedTimeNow} // $d->{elapsedTime};
       my $dur = $d->{duration};
+      # Bar characters by style.progressbar.style: a named charset or any
+      # two glyphs "filled+empty" — character choices show even with colors
+      # off. Resolved up front: the volume "progress" shape draws with the
+      # same pair.
+      my %cs = (blocks => ["\x{2588}", "\x{2591}"], wave => ["~", "-"],
+                line => ["\x{2501}", "\x{2500}"], dots => ["\x{25CF}", "\x{25CB}"]);
+      my $csv = $sty{"progressbar.style"} // "line";
+      my ($fc, $ec) = $cs{$csv}           ? @{$cs{$csv}}
+                    : length($csv) == 2   ? (substr($csv, 0, 1), substr($csv, 1, 1))
+                    :                       @{$cs{line}};
       if ($w{progressbar} && defined $pos && defined $dur && $dur > 0) {
         my $cells = 10;
         my $r = $pos / $dur; $r = 0 if $r < 0; $r = 1 if $r > 1;
         my $filled = int($r * $cells + 0.5);
-        # Bar characters by style.progressbar.style: a named charset or any
-        # two glyphs "filled+empty" — character choices show even with
-        # colors off.
-        my %cs = (blocks => ["\x{2588}", "\x{2591}"], wave => ["~", "-"],
-                  line => ["\x{2501}", "\x{2500}"], dots => ["\x{25CF}", "\x{25CB}"]);
-        my $csv = $sty{"progressbar.style"} // "line";
-        my ($fc, $ec) = $cs{$csv}           ? @{$cs{$csv}}
-                      : length($csv) == 2   ? (substr($csv, 0, 1), substr($csv, 1, 1))
-                      :                       @{$cs{line}};
         $tok{progressbar} = $st->($accsgr, $fc x $filled)
                           . $st->(2, $ec x ($cells - $filled));
       }
       if ($w{time} && defined $pos) {
-        $tok{time} = $st->(sgr($sty{"time.elapsed"}), mss($pos))
-                   . $st->(sgr($sty{"time.total"}),
-                           "/" . (defined $dur ? mss($dur) : "LIVE"));
+        my $t = "";
+        $t .= $st->(sgr($sty{"time.elapsed"}), mss($pos))
+          unless $hid->("time.elapsed");
+        unless ($hid->("time.total")) {
+          my $tail = defined $dur ? mss($dur) : "LIVE";
+          # The "/" belongs to the pair: with the elapsed part hidden the
+          # total stands alone.
+          $tail = "/$tail" unless $hid->("time.elapsed");
+          $t .= $st->(sgr($sty{"time.total"}), $tail);
+        }
+        $tok{time} = $t if length $t;
       }
       if ($w{output} && defined $d->{outputDevice}) {
         # Icon by device kind (adapter outputKind): headphones for Bluetooth
         # devices and the built-in jack, a TV for HDMI/DisplayPort audio,
         # signal bars for AirPlay, a speaker for everything else.
+        # style.output.icon overrides: none hides it, a glyph replaces it.
+        # The icon stays unstyled; the name takes style.output ("off" hides
+        # it). Nothing left -> no token.
         my %oicon = ("headphones" => "\x{1F3A7}", "display" => "\x{1F4FA}",
                      "airplay" => "\x{1F4F6}");
-        my $oi = $oicon{$d->{outputKind} // ""} // "\x{1F50A}";
-        $tok{output} = $st->(sgr($sty{"output"}), "$oi " . $d->{outputDevice});
+        my $oic = lc($sty{"output.icon"} // "auto");
+        $oic = "none" if $oic eq "off";
+        my @op;
+        push @op, ($oic eq "auto" ? ($oicon{$d->{outputKind} // ""} // "\x{1F50A}")
+                                  : $sty{"output.icon"})
+          unless $oic eq "none";
+        push @op, $st->(sgr($sty{"output"}), $d->{outputDevice})
+          unless $hid->("output");
+        $tok{output} = join(" ", @op) if @op;
       }
       if ($w{volume} && defined $d->{volume}) {
         my $v = int($d->{volume});
@@ -647,20 +681,42 @@ do_statusline() {
           # Icon by style.volume.icon: auto = tiered by level, none = hidden,
           # anything else renders verbatim. Muted always shows the mute glyph.
           my $vic = $sty{"volume.icon"} // "auto";
-          my $icon = $vic eq "auto"
+          $vic = "none" if lc($vic) eq "off";
+          my @vp;
+          push @vp, ($vic eq "auto"
                    ? ($v == 0 ? "\x{1F507}"
                     : $v < 34 ? "\x{1F508}"
                     : $v < 67 ? "\x{1F509}"
                     :           "\x{1F50A}")
-                   : $vic;
-          # Eighth-block bar whose height tracks the level: ceil(v*8/100)
-          # maps 1-100 onto ▁..█ (50% = ▄, the half block); 0 keeps the
-          # lowest sliver and the mute glyph.
-          my $i = int(($v * 8 + 99) / 100);
-          $i = 1 if $i < 1;
-          $tok{volume} = ($vic eq "none" ? "" : "$icon ")
-                       . $st->(sgr($sty{"volume.bar"}), chr(0x2580 + $i))
-                       . " " . $st->(sgr($sty{"volume.percent"}), "$v%");
+                   : $vic)
+            unless $vic eq "none";
+          unless ($hid->("volume.bar")) {
+            my $shape = lc($sty{"volume.style"} // "block");
+            if ($shape eq "progress") {
+              # Five-cell mini bar, drawn with the progress-bar charset so
+              # the two bars always match.
+              my $vf = int($v * 5 / 100 + 0.5);
+              push @vp, $st->(sgr($sty{"volume.bar"}), $fc x $vf)
+                      . $st->(2, $ec x (5 - $vf));
+            } elsif ($shape eq "stairs") {
+              # Staircase: ceil(v*4/100) of ▂▄▆█ (45% -> ▂▄), min one step.
+              my @steps = ("\x{2582}", "\x{2584}", "\x{2586}", "\x{2588}");
+              my $n = int(($v * 4 + 99) / 100);
+              $n = 1 if $n < 1;
+              push @vp, $st->(sgr($sty{"volume.bar"}),
+                              join("", @steps[0 .. $n - 1]));
+            } else {
+              # block (default): eighth-block whose height tracks the level —
+              # ceil(v*8/100) maps 1-100 onto ▁..█ (50% = ▄); 0 keeps the
+              # lowest sliver and the mute glyph.
+              my $i = int(($v * 8 + 99) / 100);
+              $i = 1 if $i < 1;
+              push @vp, $st->(sgr($sty{"volume.bar"}), chr(0x2580 + $i));
+            }
+          }
+          push @vp, $st->(sgr($sty{"volume.percent"}), "$v%")
+            unless $hid->("volume.percent");
+          $tok{volume} = join(" ", @vp) if @vp;
         }
       }
       if ($explicit) {
@@ -850,14 +906,22 @@ config_set_statusline_fields() {
 # Every visible part of the statusline segment has a style.* key. Text parts
 # take a style spec — any of "bold dim italic underline" plus at most one
 # color (black red green yellow blue magenta cyan white, or bright-<color>),
-# or "none" for no styling; specs render only while statusline.color is on.
-# style.progressbar.style and style.volume.icon change the characters
-# instead, so they apply even with colors off. Per key, the value "reset"
-# deletes it (back to the default); "config style" lists everything and
-# "config style reset" clears all customizations. The defaults reproduce the
+# "none" for no styling, or "off" to hide that part entirely (off is a text-
+# part value only); specs render only while statusline.color is on, but
+# "off" hides regardless — it changes content, not styling.
+# style.progressbar.style, style.volume.icon, style.volume.style, and
+# style.output.icon change the characters instead, so they apply even with
+# colors off. Per key, the value "reset" deletes it (back to the default);
+# "config style" lists everything, "config style reset" clears all style
+# customizations, and "config statusline reset" additionally restores the
+# statusline layout/line/color/marquee keys. The defaults reproduce the
 # classic rendering, except the bar charset default moved from blocks to
 # line in 0.12.0 (set "blocks" to restore the pre-0.12 bar).
-STYLE_KEYS="style.track.title style.track.artist style.app style.volume.icon style.volume.bar style.volume.percent style.progressbar.playing style.progressbar.paused style.progressbar.style style.time.elapsed style.time.total style.output"
+STYLE_KEYS="style.track.title style.track.artist style.app style.volume.icon style.volume.style style.volume.bar style.volume.percent style.progressbar.playing style.progressbar.paused style.progressbar.style style.time.elapsed style.time.total style.output.icon style.output"
+
+# Text parts that accept the "off" (hide) value; the icon keys spell hiding
+# as none, and the bar colors/charsets cannot hide (drop the field instead).
+STYLE_OFF_KEYS="style.track.title style.track.artist style.app style.volume.bar style.volume.percent style.time.elapsed style.time.total style.output"
 
 # Print "key<TAB>value<TAB>default" for every style key, resolved against the
 # config file (stored strings win; absent keys fall back to the default).
@@ -871,6 +935,7 @@ style_resolve() {
       ["style.track.artist",        "italic"],
       ["style.app",                 "dim"],
       ["style.volume.icon",         "auto"],
+      ["style.volume.style",        "block"],
       ["style.volume.bar",          "dim"],
       ["style.volume.percent",      "dim"],
       ["style.progressbar.playing", "green"],
@@ -878,6 +943,7 @@ style_resolve() {
       ["style.progressbar.style",   "line"],
       ["style.time.elapsed",        "bold"],
       ["style.time.total",          "dim"],
+      ["style.output.icon",         "auto"],
       ["style.output",              "dim"],
     );
     my $d = {};
@@ -913,7 +979,8 @@ style_known() {
 # non-ASCII glyphs (custom volume icons, custom bar characters).
 style_validate() {
   /usr/bin/perl -CAS -e '
-    my ($key, $val) = @ARGV;
+    my ($key, $val, $offkeys) = @ARGV;
+    my %offok = map { $_ => 1 } split /\s+/, ($offkeys // "");
     sub fail { print STDERR "media: $_[0]\n"; exit 2 }
     if ($key eq "style.progressbar.style") {
       # Keep exactly-two-character values raw so a space can be a bar glyph
@@ -926,32 +993,50 @@ style_validate() {
       print $val; exit 0;
     }
     $val =~ s/^\s+|\s+$//g;
-    if ($key eq "style.volume.icon") {
-      if (lc($val) eq "auto" || lc($val) eq "none") { print lc($val); exit 0 }
-      fail("volume icon must be auto, none, or a short glyph (1-8 characters, no whitespace); got: $val")
+    if ($key eq "style.volume.style") {
+      # Volume bar shape; "default" is accepted as an alias for block.
+      my %shape = (block => "block", default => "block",
+                   progress => "progress", stairs => "stairs");
+      my $s = $shape{lc $val}
+        or fail("volume bar style must be block|progress|stairs; got: $val");
+      print $s; exit 0;
+    }
+    if ($key eq "style.volume.icon" || $key eq "style.output.icon") {
+      my $what = $key eq "style.volume.icon" ? "volume icon" : "output icon";
+      # "off" reads naturally for an icon toggle — canonicalize it to none.
+      if (lc($val) eq "auto" || lc($val) eq "none" || lc($val) eq "off") {
+        print lc($val) eq "off" ? "none" : lc($val); exit 0;
+      }
+      fail("$what must be auto, none, or a short glyph (1-8 characters, no whitespace); got: $val")
         unless length($val) >= 1 && length($val) <= 8 && $val !~ /\s/;
       print $val; exit 0;
     }
     my %attr = map { $_ => 1 } qw(bold dim italic underline);
     my %col  = map { $_ => 1 } qw(black red green yellow blue magenta cyan white);
-    my (%have, $color, $none);
+    my (%have, $color, $none, $off);
     my @tok = grep { length } split /[\s,]+/, lc $val;
     fail("empty style — use e.g. \"bold cyan\", or the value reset to restore the default") unless @tok;
     for my $t (@tok) {
       if ($t eq "none" || $t eq "plain") { $none = 1; next }
+      if ($t eq "off" || $t eq "hidden") {
+        fail("off (hide this part) is not valid for $key - remove the whole item via /media:statusline instead") unless $offok{$key};
+        $off = 1; next;
+      }
       if ($attr{$t}) { $have{$t} = 1; next }
       (my $c = $t) =~ s/^bright-//;
       if ($col{$c}) {
         fail("only one color per style (got: $color and $t)") if defined $color;
         $color = $t; next;
       }
-      fail("invalid style token: $t (valid: bold dim italic underline none, colors black red green yellow blue magenta cyan white or bright-<color>)");
+      fail("invalid style token: $t (valid: bold dim italic underline none, off to hide the part, colors black red green yellow blue magenta cyan white or bright-<color>)");
     }
-    fail("none cannot be combined with other style tokens") if $none && (%have || defined $color);
+    fail("none cannot be combined with other style tokens") if $none && (%have || defined $color || $off);
+    fail("off cannot be combined with other style tokens") if $off && (%have || defined $color);
+    if ($off)  { print "off";  exit 0 }
     if ($none) { print "none"; exit 0 }
     print join(" ", (grep { $have{$_} } qw(bold dim italic underline)),
                     (defined $color ? ($color) : ()));
-  ' "$1" "$2"
+  ' "$1" "$2" "$STYLE_OFF_KEYS"
 }
 
 # Write (or with an empty value delete) one style key. ->ascii keeps the
@@ -1002,10 +1087,36 @@ style_list() {
     fi
   done
   echo "(spec: bold dim italic underline + one color — black red green yellow blue"
-  echo " magenta cyan white or bright-<color> — or none; style.progressbar.style:"
-  echo " blocks|wave|line|dots or two glyphs like \"~-\"; style.volume.icon:"
-  echo " auto|none|<glyph>. Set: media.sh config <style key> \"<spec>\" — the value"
-  echo " reset restores a default, media.sh config style reset clears them all.)"
+  echo " magenta cyan white or bright-<color> — or none; text parts also take off"
+  echo " = hide that part; style.progressbar.style: blocks|wave|line|dots or two"
+  echo " glyphs like \"~-\"; style.volume.style: block|progress|stairs;"
+  echo " style.volume.icon / style.output.icon: auto|none|<glyph>."
+  echo " Set: media.sh config <style key> \"<spec>\" — the value reset restores a"
+  echo " default, media.sh config style reset clears them all, and media.sh config"
+  echo " statusline reset also restores the layout/lines/colors/marquee.)"
+}
+
+# Delete every statusline appearance key: the arrangement (statusline.fields),
+# the line/color/marquee toggles, and all style.* customizations — back to
+# the stock look. The display.statusline visibility toggle (and the non-
+# statusline features) survive on purpose: this resets how the segment looks,
+# not whether it shows.
+statusline_wipe() {
+  [ -f "$CONFIG_FILE" ] || return 0
+  /usr/bin/perl -MJSON::PP -e '
+    local $/;
+    open my $fh, "<", $ARGV[0] or exit 0;
+    my $d = eval { decode_json(<$fh>) } || {};
+    close $fh;
+    exit 0 unless ref $d eq "HASH";
+    delete $d->{$_} for grep { /^style\./ } keys %$d;
+    delete $d->{$_} for qw(statusline.fields statusline.multiline
+                           statusline.color statusline.marquee);
+    open my $out, ">", "$ARGV[0].tmp" or exit 0;
+    print $out JSON::PP->new->canonical->ascii->encode($d), "\n";
+    close $out;
+    rename "$ARGV[0].tmp", $ARGV[0];
+  ' "$CONFIG_FILE"
 }
 
 # Preflight gate for enabling a display feature. Enabling is refused (exit 3)
@@ -1072,6 +1183,20 @@ do_config() {
     echo "media: usage: media.sh config style [reset]   (single key: media.sh config <style key> [\"<spec>\"|reset])" >&2
     exit 2
   fi
+
+  # "config statusline reset" restores the whole statusline appearance —
+  # arrangement, explicit lines, color/marquee toggles, and every style.*
+  # key — without touching the display.statusline visibility toggle.
+  if [ "$key" = "statusline" ]; then
+    if [ "$value" = "reset" ]; then
+      statusline_wipe
+      rm -f "$DATA_DIR/statusline.cache"
+      echo "statusline = defaults (arrangement, lines, colors, marquee, and styles restored)"
+      return 0
+    fi
+    echo "media: usage: media.sh config statusline reset   (restore the statusline appearance defaults)" >&2
+    exit 2
+  fi
   case "$key" in
     style.*)
       style_known "$key" || exit 2
@@ -1114,7 +1239,7 @@ do_config() {
     echo ""
     style_list
     echo ""
-    echo "usage: media.sh config <key> [on|off|value]   (config file: $CONFIG_FILE)"
+    echo "usage: media.sh config <key> [on|off|value] | config statusline reset   (config file: $CONFIG_FILE)"
     return 0
   fi
   config_known "$key" || exit 2

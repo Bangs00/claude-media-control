@@ -25,5 +25,5 @@ line, e.g. `🔊 Volume **45%**` (append `*(muted)*` when `muted` is true). This
 is the system output volume — it does not change per-app sliders.
 
 Tip: the statusline can show the volume as icon + level bar + percent
-(`🔉 ▄ 45%`) — check "Volume" in `/media:config`, or place it anywhere with
-`/media:statusline` (digit 3).
+(`🔉 ▄ 45%`) — check "Volume" in the `/media:statusline` Items tab, or place
+it anywhere with a numeric pattern (digit 3).

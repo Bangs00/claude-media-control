@@ -41,9 +41,11 @@ Claude Code の中で:
 
 ### 項目を配置する
 
-`/media:statusline` で配置を決めます。プリセット（Standard / Stacked）は
-プレビューで見比べながら選びます。`Custom…` なら、下の凡例で組んだ数字
-パターンひとつをチャット入力欄にそのまま打ち込みます:
+`/media:statusline` を実行してください — セグメントの見た目をまとめて決める
+ハブです。タブが 3 つ開きます: **Items**（音量・プログレスバー・時間・出力
+デバイスのオン / オフ）、**Layout**（Standard / Stacked または数字
+パターン）、**Style**（パーツごとのスタイル — 次の節）。パターンは下の凡例で
+組みます:
 
 | # | 項目 | 表示例 |
 | --- | --- | --- |
@@ -57,8 +59,8 @@ Claude Code の中で:
 数字の並びがそのまま表示順です。`/` で新しい行が始まります。書かなかった
 数字の項目は表示されません。たとえば `123/456` なら 1 行目に track・
 アプリ・音量、2 行目に残りが並びます。デフォルトの構成は
-`track app progressbar time` で、簡易版のプリセットピッカーは
-`/media:config` の中からも開けます。
+`track app progressbar time` で、オン / オフのクイック切り替えと
+ステータスライン全体のリセットは `/media:config` にあります。
 
 レイアウトの挙動:
 
@@ -141,37 +143,48 @@ ANSI コードをレンダリングでき、下のラッパーはそれを手を
 `/media:config statusline.color off` を実行してください。`NO_COLOR`
 環境変数も有効です。
 
-さらに、**どのパーツも個別にスタイリングできます**。`/media:style` を実行
-して希望を言葉で伝えるか（「曲名を太字のシアンに」「バーのスタイルを wave
-に」「音量アイコンを ♪ に」）、キーを直接設定してください。各キーは
-`bold dim italic underline` の組み合わせに色を 1 つ（`black red green
-yellow blue magenta cyan white` または `bright-<色>`）、あるいは
-`none`（スタイルなし）を受け付けます:
+さらに、**どのパーツも個別にスタイリングできます**。`/media:statusline` の
+Style タブを使うか、希望をそのまま言葉で伝えるか（「曲名を太字のシアンに」
+「バーのスタイルを dots に」「音量アイコンを ♪ に」「アーティストを隠して」）、
+キーを直接設定してください。テキスト系のキーは `bold dim italic underline`
+の組み合わせに色を 1 つ（`black red green yellow blue magenta cyan white`
+または `bright-<色>`）、`none`（スタイルなし）、あるいは **`off`（その
+パーツを非表示）** を受け付けます:
 
 | キー | 対象 | デフォルト |
 | --- | --- | --- |
 | `style.track.title` / `style.track.artist` | 曲名 / アーティスト | `bold` / `italic` |
 | `style.app` | アプリ名 `(Spotify)` | `dim` |
 | `style.time.elapsed` / `style.time.total` | `2:13` / `/4:24` | `bold` / `dim` |
-| `style.volume.icon` / `style.volume.bar` / `style.volume.percent` | 音量アイコン / バー / パーセント | `auto` / `dim` / `dim` |
+| `style.volume.icon` / `style.volume.style` / `style.volume.bar` / `style.volume.percent` | 音量アイコン / バーの形 / バーのスタイル / パーセント | `auto` / `block` / `dim` / `dim` |
 | `style.progressbar.playing` / `style.progressbar.paused` | バーの塗り + ▶︎/⏸ のアクセント | `green` / `yellow` |
 | `style.progressbar.style` | プログレスバーの文字 | `line` |
-| `style.output` | 出力デバイス | `dim` |
+| `style.output.icon` / `style.output` | 出力アイコン / デバイス名 | `auto` / `dim` |
+
+非表示は周りも一緒に片づけます: 曲名を隠せば `—` の区切りも消え、経過時間を
+隠せば合計時間の前の `/` も消えます。パーツが全部隠れた項目は項目ごと
+消えます。（項目を丸ごと外すのは配置の仕事です — パターンからその数字を
+抜いてください。）
 
 プログレスバーの文字は `style.progressbar.style` で決まります: `line`
 `━━━━━━────`（デフォルト） · `blocks` `██████░░░░` · `wave` `~~~~~~----` ·
 `dots` `●●●●●●○○○○`、または「塗り + 空き」を意味する任意の 2 文字（`"#-"`
 → `######----`）。`/media:now` の返信に出るバーも同じ文字で描かれるため、
-2 つの表示は常に一致します。音量アイコン（`style.volume.icon`）は
-`auto`（レベルに応じて 🔈/🔉/🔊）、`none`（非表示）、または `♪` のような
-任意のグリフで、ミュート中は常に 🔇 が表示されます。文字を変えるこの 2 つの
-キーは色をオフにしていても効きます。それ以外のキーは `statusline.color` が
-オンのときに反映されます。
+2 つの表示は常に一致します。音量バーの形は `style.volume.style` です:
+`block`（音量に応じて高さが変わる `▄` 1 つ、デフォルト）、
+`progress`（プログレスバーの文字で描く 5 マスのミニバー）、
+`stairs`（`▂▄▆█` の階段）。アイコン（`style.volume.icon`、
+`style.output.icon`）は `auto`（レベル別 / デバイス種別）、`none`（非表示）、
+または `♪` のような任意のグリフで、ミュート中は常に 🔇 が表示されます。
+文字を変えるキーと `off` は色をオフにしていても効きます。それ以外のキーは
+`statusline.color` がオンのときに反映されます。
 
 ```
 /media:config style.track.title "bold cyan"    # 1 パーツだけ設定
 /media:config style.track.title reset          # そのパーツだけデフォルトに
-/media:config style reset                      # 全部デフォルトに
+/media:config style reset                      # スタイルを全部デフォルトに
+/media:config statusline reset                 # 配置・行・色・マーキー・
+                                               # スタイルまで丸ごと初期状態に
 ```
 
 `media.sh config style` を実行すると、全キーの現在値とデフォルトが一覧で

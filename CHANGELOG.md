@@ -5,6 +5,58 @@ All notable changes to this project are documented here. The format follows
 [SemVer](https://semver.org/spec/v2.0.0.html), tracked in
 `.claude-plugin/plugin.json`.
 
+## [0.13.0] — 2026-07-10
+
+### Added
+
+- **Hide any part with `off`.** The eight text-part style keys
+  (`style.track.title`, `style.track.artist`, `style.app`,
+  `style.volume.bar`, `style.volume.percent`, `style.time.elapsed`,
+  `style.time.total`, `style.output`) accept the value `off`, which hides
+  just that part. Hiding follows the part: a hidden title takes the `—`
+  separator with it, a hidden elapsed time drops the `/` before the total,
+  and an item whose parts are all hidden disappears entirely (together with
+  an explicit line it sat alone on). `off` changes content, not styling, so
+  it applies even with colors off.
+- **Output device icon key.** `style.output.icon` — `auto` (by device kind,
+  the default), `none` (hidden), or any glyph. The output icon and device
+  name are now controlled independently.
+- **Volume bar shapes.** `style.volume.style` — `block` (the level-height
+  `▄` bar, default), `progress` (a five-cell mini bar drawn with the
+  progress-bar characters, so the two bars always match), or `stairs`
+  (`▂▄▆█` steps).
+- **`config statusline reset`.** One command restores the statusline's stock
+  look: arrangement, explicit lines, the color/marquee toggles, and every
+  `style.*` key. The `display.statusline` visibility toggle and the
+  non-statusline features are untouched. Also offered as "Reset statusline
+  settings" inside `/media:config`.
+
+### Changed
+
+- **`/media:statusline` is now the single statusline hub.** One three-tab
+  interactive setup: **Items** (volume / progress bar / time / output device
+  on/off), **Layout** (Standard / Stacked or a numeric pattern like
+  `123/456`, digit legend included), and **Style** (pick an item group —
+  track & app, volume, progress bar & time, output device — then a short
+  per-part wizard with Keep / Default / Off / type-a-spec answers). Style
+  wishes in plain words ("make the title cyan", "hide the artist") route
+  here too.
+- **`/media:config` slimmed down to quick settings.** One question, four
+  options: statusline on/off, `/media:now` progress bar on/off, playback
+  history on/off, and the statusline reset. Arrangement and styling moved to
+  `/media:statusline`; every `config <key>` text command is unchanged.
+- With colors on, the output token wraps only the device name in SGR
+  (`🔊 \e[2mName\e[0m`, previously the icon was inside the wrap too) so the
+  icon can be swapped or hidden independently — visually identical, and
+  plain-text output is unchanged.
+
+### Removed
+
+- **The `/media:style` skill** — absorbed into `/media:statusline` (the
+  Style tab, plus the same natural-language wishes). The `media.sh config
+  style*` commands it drove are unchanged, so scripts and saved styles keep
+  working.
+
 ## [0.12.0] — 2026-07-10
 
 ### Changed

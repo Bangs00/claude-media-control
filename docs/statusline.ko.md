@@ -40,9 +40,10 @@ Claude Code 안에서:
 
 ### 항목 배치하기
 
-`/media:statusline`을 실행해 배치를 정합니다. 프리셋(Standard / Stacked)은
-미리보기로 직접 보면서 고릅니다. `Custom…`은 아래 범례로 만든 숫자 패턴
-하나를 채팅 입력창에 바로 입력합니다:
+`/media:statusline`을 실행하세요 — 세그먼트의 모습을 한 곳에서 정하는
+허브입니다. 탭 세 개가 열립니다: **Items**(볼륨·진행 바·시간·출력 장치
+켜고 끄기), **Layout**(Standard / Stacked 또는 숫자 패턴),
+**Style**(항목별 스타일 — 다음 절). 패턴은 아래 범례로 만듭니다:
 
 | # | 항목 | 표시 예 |
 | --- | --- | --- |
@@ -55,8 +56,8 @@ Claude Code 안에서:
 
 숫자 순서가 곧 표시 순서입니다. `/`는 새 줄을 시작합니다. 뺀 숫자의 항목은
 표시되지 않습니다. 예를 들어 `123/456`은 1번째 줄에 track·app·볼륨, 2번째
-줄에 나머지를 놓습니다. 기본 구성은 `track app progressbar time`이고,
-간단한 프리셋 picker는 `/media:config` 안에서도 열립니다.
+줄에 나머지를 놓습니다. 기본 구성은 `track app progressbar time`이고, 켜고
+끄는 빠른 토글과 statusline 전체 초기화는 `/media:config`에 있습니다.
 
 배치가 동작하는 방식:
 
@@ -137,35 +138,47 @@ Stacked — 명시적 2줄 배치(패턴 `123/456`, 즉
 `NO_COLOR` 환경 변수도 지원합니다.
 
 여기서 더 나아가 **모든 부분을 하나하나 따로 꾸밀 수 있습니다**.
-`/media:style`을 실행해 원하는 모습을 말로 하거나("제목은 굵은 하늘색",
-"바 스타일은 wave", "볼륨 아이콘은 ♪"), 키를 직접 설정하면 됩니다. 각 키는
-`bold dim italic underline` 조합에 색 하나(`black red green yellow blue
-magenta cyan white` 또는 `bright-<색>`)를 더하거나, `none`(스타일 없음)을
-받습니다:
+`/media:statusline`의 Style 탭을 쓰거나, 원하는 모습을 그냥 말로
+하거나("제목은 굵은 하늘색", "바 스타일은 dots", "볼륨 아이콘은 ♪", "가수는
+숨겨줘"), 키를 직접 설정하면 됩니다. 텍스트 키는 `bold dim italic
+underline` 조합에 색 하나(`black red green yellow blue magenta cyan white`
+또는 `bright-<색>`)를 더하거나, `none`(스타일 없음), 또는 **`off`(그 부분
+숨김)**를 받습니다:
 
 | 키 | 대상 | 기본값 |
 | --- | --- | --- |
 | `style.track.title` / `style.track.artist` | 제목 / 아티스트 | `bold` / `italic` |
 | `style.app` | 앱 이름 `(Spotify)` | `dim` |
 | `style.time.elapsed` / `style.time.total` | `2:13` / `/4:24` | `bold` / `dim` |
-| `style.volume.icon` / `style.volume.bar` / `style.volume.percent` | 볼륨 아이콘 / 바 / 퍼센트 | `auto` / `dim` / `dim` |
+| `style.volume.icon` / `style.volume.style` / `style.volume.bar` / `style.volume.percent` | 볼륨 아이콘 / 바 모양 / 바 스타일 / 퍼센트 | `auto` / `block` / `dim` / `dim` |
 | `style.progressbar.playing` / `style.progressbar.paused` | 바 채움 + ▶︎/⏸ 강조색 | `green` / `yellow` |
 | `style.progressbar.style` | 진행 바 문자 | `line` |
-| `style.output` | 출력 장치 | `dim` |
+| `style.output.icon` / `style.output` | 출력 아이콘 / 장치 이름 | `auto` / `dim` |
+
+숨김은 그 부분의 주변까지 함께 정리됩니다: 제목을 숨기면 `—` 구분자도
+사라지고, 경과 시간을 숨기면 총 시간 앞의 `/`도 사라지며, 한 항목의 모든
+부분이 숨겨지면 항목 자체가 사라집니다. (항목 하나를 통째로 빼는 건 배치의
+일입니다 — 패턴에서 그 숫자를 빼세요.)
 
 진행 바의 문자는 `style.progressbar.style`이 정합니다: `line`
 `━━━━━━────`(기본값) · `blocks` `██████░░░░` · `wave` `~~~~~~----` · `dots`
 `●●●●●●○○○○`, 또는 "채움 + 빈칸"을 뜻하는 아무 두 글자(`"#-"` →
 `######----`). `/media:now` 응답의 진행 바도 같은 문자로 그려지기 때문에 두
-곳의 바가 항상 같은 모습입니다. 볼륨 아이콘(`style.volume.icon`)은
-`auto`(레벨에 따라 🔈/🔉/🔊), `none`(숨김), 또는 `♪` 같은 아무 글리프이며,
-음소거 시에는 항상 🔇가 나옵니다. 문자를 바꾸는 이 두 키는 색을 꺼도
-적용되고, 나머지 키는 `statusline.color`가 켜져 있어야 보입니다.
+곳의 바가 항상 같은 모습입니다. 볼륨 바의 모양은
+`style.volume.style`입니다: `block`(볼륨에 따라 높이가 변하는 `▄` 하나,
+기본값), `progress`(진행 바 문자로 그리는 5칸 미니 바),
+`stairs`(`▂▄▆█` 계단). 아이콘(`style.volume.icon`,
+`style.output.icon`)은 `auto`(레벨별 / 장치 종류별), `none`(숨김), 또는
+`♪` 같은 아무 글리프이며, 음소거 시에는 항상 🔇가 나옵니다. 문자를 바꾸는
+키와 `off`는 색을 꺼도 적용되고, 나머지 키는 `statusline.color`가 켜져
+있어야 보입니다.
 
 ```
 /media:config style.track.title "bold cyan"    # 한 부분만 설정
 /media:config style.track.title reset          # 그 부분만 기본값으로
-/media:config style reset                      # 전부 기본값으로
+/media:config style reset                      # 스타일 전부 기본값으로
+/media:config statusline reset                 # 배치·줄·색·marquee·스타일까지
+                                               # 통째로 기본 모습으로
 ```
 
 `media.sh config style`을 실행하면 모든 키의 현재 값과 기본값이 나옵니다.

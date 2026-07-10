@@ -910,7 +910,159 @@ setup() {
   rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
   echo '{"display.statusline":true,"statusline.fields":["output"],"style.output":"bold cyan"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
-  [ "$output" = $'\e[1;36m🔊 Stub Speakers\e[0m' ]
+  # Since 0.13.0 the icon stays outside the SGR wrap (so style.output.icon
+  # can hide or swap it independently) — visually identical to the old
+  # whole-token wrap.
+  [ "$output" = $'🔊 \e[1;36mStub Speakers\e[0m' ]
+}
+
+@test "config style.volume.style: block, progress, stairs — default is an alias" {
+  run "$MEDIA" config style.volume.style
+  [ "$output" = "block" ]
+  run "$MEDIA" config style.volume.style progress
+  [ "$status" -eq 0 ]
+  [ "$output" = "style.volume.style = progress" ]
+  run "$MEDIA" config style.volume.style default   # alias for the stock shape
+  [ "$status" -eq 0 ]
+  [ "$output" = "style.volume.style = block" ]
+  run "$MEDIA" config style.volume.style zigzag
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"block|progress|stairs"* ]]
+}
+
+@test "config style.output.icon: auto, none (off alias), or a glyph" {
+  run "$MEDIA" config style.output.icon
+  [ "$output" = "auto" ]
+  run "$MEDIA" config style.output.icon "♪"
+  [ "$status" -eq 0 ]
+  run "$MEDIA" config style.output.icon off        # icons spell hiding as none
+  [ "$status" -eq 0 ]
+  [ "$output" = "style.output.icon = none" ]
+  run "$MEDIA" config style.output.icon "a b"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"output icon"* ]]
+}
+
+@test "config style.*: off (hide) is a text-part value, alone only" {
+  run "$MEDIA" config style.track.artist off
+  [ "$status" -eq 0 ]
+  [ "$output" = "style.track.artist = off" ]
+  run "$MEDIA" config style.track.title "off bold"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"off cannot be combined"* ]]
+  run "$MEDIA" config style.progressbar.playing off   # bar colors cannot hide
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"not valid for style.progressbar.playing"* ]]
+}
+
+@test "statusline: off hides the title, artist, or app part" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["track","app"],"style.track.artist":"off"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$output" = "▶︎ Stub Song (StubPlayer)" ]      # the — separator goes too
+  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["track","app"],"style.track.title":"off"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$output" = "▶︎ Stub Artist (StubPlayer)" ]
+  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["track","app"],"style.app":"off"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$output" = "▶︎ Stub Song — Stub Artist" ]
+}
+
+@test "statusline: time parts hide individually" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["time"],"style.time.total":"off"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$output" = "1:15" ]
+  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["time"],"style.time.elapsed":"off"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$output" = "3:20" ]                           # no leading slash alone
+}
+
+@test "statusline: volume parts hide individually; a fully hidden token drops its line" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["volume"],"style.volume.percent":"off"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$output" = "🔉 ▄" ]
+  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["volume"],"style.volume.bar":"off"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$output" = "🔉 45%" ]
+  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["track","/","volume"],"style.volume.icon":"none","style.volume.bar":"off","style.volume.percent":"off"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "${#lines[@]}" -eq 1 ]                         # the volume line vanishes
+  [[ "${lines[0]}" == *"Stub Song"* ]]
+}
+
+@test "statusline: volume bar shapes — progress shares the bar charset, stairs steps" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["volume"],"style.volume.style":"progress"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$output" = "🔉 ━━─── 45%" ]                   # 45% of 5 cells, line charset
+  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["volume"],"style.volume.style":"progress","style.progressbar.style":"#."}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$output" = "🔉 ##... 45%" ]                   # follows the custom pair
+  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["volume"],"style.volume.style":"stairs"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$output" = "🔉 ▂▄ 45%" ]                      # ceil(45*4/100) = 2 steps
+}
+
+@test "statusline: output icon hides, swaps, and the name hides" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["output"],"style.output.icon":"none"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$output" = "Stub Speakers" ]
+  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["output"],"style.output.icon":"→"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$output" = "→ Stub Speakers" ]
+  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["output"],"style.output":"off"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$output" = "🔊" ]                             # icon-only output item
+  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["track","/","output"],"style.output.icon":"none","style.output":"off"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "${#lines[@]}" -eq 1 ]                         # nothing left -> line drops
+}
+
+@test "config statusline reset: restores arrangement, toggles, and styles" {
+  run "$MEDIA" config statusline.fields "time,track"
+  run "$MEDIA" config statusline.multiline on
+  run "$MEDIA" config statusline.color off
+  run "$MEDIA" config statusline.marquee off
+  run "$MEDIA" config style.track.title "cyan"
+  run "$MEDIA" config display.statusline off
+  run "$MEDIA" config history.record off
+  printf 'stale' > "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  run "$MEDIA" config statusline reset
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"defaults"* ]]
+  [ ! -f "$CLAUDE_PLUGIN_DATA/statusline.cache" ]
+  ! grep -q '"statusline\.' "$CLAUDE_PLUGIN_DATA/config.json"
+  ! grep -q '"style\.' "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" config statusline.fields
+  [ "$output" = "track app progressbar time" ]
+  run "$MEDIA" config statusline.color
+  [ "$output" = "on" ]
+  # The visibility toggle and non-statusline features are NOT appearance:
+  run "$MEDIA" config display.statusline
+  [ "$output" = "off" ]
+  run "$MEDIA" config history.record
+  [ "$output" = "off" ]
+}
+
+@test "config statusline: only reset is valid" {
+  run "$MEDIA" config statusline
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"config statusline reset"* ]]
+  run "$MEDIA" config statusline on
+  [ "$status" -eq 2 ]
 }
 
 @test "statusline: custom styles are inert with color off and under NO_COLOR" {

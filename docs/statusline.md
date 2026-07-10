@@ -40,9 +40,10 @@ run `/media:doctor`.)
 
 ### Arrange what the segment shows
 
-Run `/media:statusline` to arrange the segment. The picker shows the
-Standard / Stacked presets as visual previews. `Custom…` takes a numeric
-pattern typed straight into the chat, built from this legend:
+Run `/media:statusline` — the one hub for the segment's look. It opens three
+tabs: **Items** (volume, progress bar, time, and output device on/off),
+**Layout** (Standard / Stacked, or a numeric pattern), and **Style**
+(per-item styling, next section). Patterns are built from this legend:
 
 | # | item | looks like |
 | --- | --- | --- |
@@ -55,8 +56,8 @@ pattern typed straight into the chat, built from this legend:
 
 Digit order is display order. `/` starts a new line. A digit you leave out
 hides that item. So `123/456` puts track, app and volume on line 1 and the
-rest on line 2. The default set is `track app progressbar time`; a quick
-preset picker also opens inside `/media:config`.
+rest on line 2. The default set is `track app progressbar time`; quick on/off
+toggles and a full statusline reset live in `/media:config`.
 
 How the layout behaves:
 
@@ -137,35 +138,46 @@ terminal's own palette. Prefer plain text? Run
 `/media:config statusline.color off` — the `NO_COLOR` environment variable is
 honored too.
 
-Every part is also **individually styleable**. Run `/media:style` and say
-what you want ("title bold cyan", "bar style wave", "volume icon ♪"), or set
-the keys directly. Each key takes any of `bold dim italic underline`, plus
-at most one color (`black red green yellow blue magenta cyan white` or
-`bright-<color>`) — or `none`:
+Every part is also **individually styleable** — the Style tab of
+`/media:statusline`, or just tell it what you want ("title bold cyan", "bar
+style dots", "volume icon ♪", "hide the artist"), or set the keys directly.
+Each text key takes any of `bold dim italic underline`, plus at most one
+color (`black red green yellow blue magenta cyan white` or
+`bright-<color>`) — or `none` (plain), or `off` to **hide that part**:
 
 | key | part | default |
 | --- | --- | --- |
 | `style.track.title` / `style.track.artist` | title / artist | `bold` / `italic` |
 | `style.app` | app name `(Spotify)` | `dim` |
 | `style.time.elapsed` / `style.time.total` | `2:13` / `/4:24` | `bold` / `dim` |
-| `style.volume.icon` / `style.volume.bar` / `style.volume.percent` | volume icon / bar / percent | `auto` / `dim` / `dim` |
+| `style.volume.icon` / `style.volume.style` / `style.volume.bar` / `style.volume.percent` | volume icon / bar shape / bar styling / percent | `auto` / `block` / `dim` / `dim` |
 | `style.progressbar.playing` / `style.progressbar.paused` | bar fill + ▶︎/⏸ accent | `green` / `yellow` |
 | `style.progressbar.style` | bar characters | `line` |
-| `style.output` | output device | `dim` |
+| `style.output.icon` / `style.output` | output icon / device name | `auto` / `dim` |
+
+Hiding follows the part: a hidden title takes the `—` separator with it, a
+hidden elapsed time drops the `/` before the total, and an item whose parts
+are all hidden disappears entirely. (Dropping a whole item is an arrangement
+change — leave its digit out of the pattern.)
 
 The progress bar's characters come from `style.progressbar.style`: `line`
 `━━━━━━────` (default) · `blocks` `██████░░░░` · `wave` `~~~~~~----` · `dots`
 `●●●●●●○○○○`, or any two characters meaning "filled + empty" (`"#-"` →
 `######----`). The same characters draw the bar in the `/media:now` reply,
-so the two surfaces always match. The volume icon (`style.volume.icon`) is
-`auto` (🔈/🔉/🔊 tiered by level), `none` (hidden), or any glyph like `♪` —
-muted always shows 🔇. Character choices apply even with colors off; the
-other keys need `statusline.color` on.
+so the two surfaces always match. The volume bar's shape is
+`style.volume.style`: `block` (one `▄` whose height tracks the level,
+default), `progress` (a five-cell mini bar drawn with the progress-bar
+characters), or `stairs` (`▂▄▆█` steps). The icons (`style.volume.icon`,
+`style.output.icon`) are `auto` (tiered by level / by device kind), `none`
+(hidden), or any glyph like `♪` — muted always shows 🔇. Character choices
+apply even with colors off; the other keys need `statusline.color` on.
 
 ```
 /media:config style.track.title "bold cyan"    # set one part
 /media:config style.track.title reset          # that part back to its default
-/media:config style reset                      # everything back to defaults
+/media:config style reset                      # all styles back to defaults
+/media:config statusline reset                 # full stock look — arrangement,
+                                               # lines, colors, marquee, styles
 ```
 
 `media.sh config style` lists every key with its current value and default.

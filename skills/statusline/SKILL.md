@@ -1,17 +1,18 @@
 ---
 name: statusline
-description: Arrange the now-playing statusline — pick the Standard or Stacked preset from visual previews, or build any custom arrangement: which items appear (track, app, volume, progress bar, time, output device), which items sit on which line, and in what order — typed compactly as a numeric pattern like 123/456. Use when the user wants to lay out, arrange, reorder, or redesign the statusline items or lines, or asks what statusline layouts look like.
-argument-hint: [preset | pattern like 123/456 | ordered item list]
+description: Configure the now-playing statusline in one place — toggle items (volume, progress bar, time, output device), arrange which item sits on which line as a numeric pattern like 123/456, and style every part; bold/italic/color for the track title, artist, app, time, volume bar & percent, and output device name; playing/paused colors and bar characters for the progress bar; the volume icon and bar shape; the output device icon; the value off hides any part. Use when the user wants to lay out, reorder, restyle, recolor, hide, or redesign anything in the statusline — e.g. "make the title cyan", "hide the artist", "volume icon ♪", "bar style dots", "reset the statusline styling".
+argument-hint: [pattern like 123/456 | preset | style wish like "title bold cyan" | reset]
 allowed-tools: Bash, AskUserQuestion
 ---
 
-Requested arrangement (may be empty): $ARGUMENTS
+Requested arrangement or style (may be empty): $ARGUMENTS
 
 Current items, in render order (`/` starts a new line):
 
 !`"${CLAUDE_PLUGIN_ROOT}/scripts/media.sh" config statusline.fields`
 
-Current settings (see `display.statusline` and `statusline.multiline`):
+Current settings — the style table below marks customized values `*custom`
+(see also `display.statusline`, `statusline.multiline`, `statusline.color`):
 
 !`"${CLAUDE_PLUGIN_ROOT}/scripts/media.sh" config`
 
@@ -20,26 +21,16 @@ Current settings (see `display.statusline` and `statusline.multiline`):
 ## How arrangement works
 
 `statusline.fields` is an **ordered** list — the segment renders the items in
-exactly the order they are saved. Grouping rules: `app` attaches to the track
-group when both are chosen (`▶︎ Title — Artist (App)`); `progressbar` + `time`
-share one group when adjacent; `output` and `volume` join the track group
-when they sit next to it, and adjacent `output`+`volume` share one group (a
-folded `app` in between does not break the adjacency). Groups matter in the
-stacked layout: `statusline.multiline on` puts each group on its own line,
-and grouped items stay on one line.
-
-**Explicit lines** — full per-line control: a `/` in the field list starts a
-new line, and the whole list switches to the explicit layout. Every line then
-shows exactly the items placed on it, in that order; the grouping rules and
-`statusline.multiline` no longer apply. Within a line, `app` directly after
-`track` still folds into it as `(App)`; anywhere else it renders as the plain
-app name. A line whose items have nothing to show right now (e.g. `output` or
-`volume` without the native helper) disappears entirely — no blank lines.
+exactly the order they are saved. A `/` in the list starts a new line
+(explicit layout: each line shows exactly the items placed on it; `app`
+directly after `track` folds into it as `(App)`; a line with nothing to show
+disappears). Without `/`, items group automatically (`app` onto track,
+adjacent `progressbar`+`time`, `output`/`volume` onto a neighbor) and
+`statusline.multiline on` puts each group on its own line.
 
 **Numeric patterns** — wherever an arrangement can be given ($ARGUMENTS, a
-typed reply, an "Other" answer), digits name the items, `/` starts a new
-line, digit order = display order, and digits left out are omitted. The digit
-order is also the default item order:
+typed reply, an "Other" answer): digits name the items, `/` starts a new
+line, digit order = display order, and digits left out are omitted:
 
 | digit | item | looks like |
 | --- | --- | --- |
@@ -52,131 +43,225 @@ order is also the default item order:
 
 `123/456` → `track,app,volume,/,progressbar,time,output` (two lines);
 `45/126` → `progressbar,time,/,track,app,output`; `15` → `track,time`.
+Presets: **Standard** = `123456` one line, **Stacked** = `123/456` two lines
+(a "compact" wish maps to `15` by intent).
 
-The presets (named arrangements, usable as `$ARGUMENTS`):
+## The style model
 
-| Preset | `statusline.fields` | `statusline.multiline` |
+Every visible part has a `style.*` config key:
+
+| key | part | default |
 | --- | --- | --- |
-| Standard | `track,app,volume,progressbar,time,output` | `off` |
-| Stacked | `track,app,volume,/,progressbar,time,output` | `off` (the `/` break makes the lines) |
-| Compact | `track,time` | `off` |
+| `style.track.title` | track title | `bold` |
+| `style.track.artist` | artist name | `italic` |
+| `style.app` | app name `(Spotify)` | `dim` |
+| `style.volume.icon` | volume icon glyph | `auto` (🔈/🔉/🔊 by level) |
+| `style.volume.style` | volume bar shape | `block` (▄ height bar) |
+| `style.volume.bar` | volume bar styling | `dim` |
+| `style.volume.percent` | volume percent `45%` | `dim` |
+| `style.progressbar.playing` | bar fill + ▶︎ accent while playing | `green` |
+| `style.progressbar.paused` | bar fill + ⏸ accent while paused | `yellow` |
+| `style.progressbar.style` | progress bar characters | `line` |
+| `style.time.elapsed` | elapsed time `2:13` | `bold` |
+| `style.time.total` | total-time tail `/4:24` | `dim` |
+| `style.output.icon` | output device icon | `auto` (by device kind) |
+| `style.output` | output device name | `dim` |
 
-(`Everything` is a legacy alias — accept it, save Standard.)
+**Style spec** (the text parts): any of `bold`, `dim`, `italic`, `underline`,
+plus at most one color — `black red green yellow blue magenta cyan white` or
+`bright-<color>` — or `none` (no styling, alone), or **`off` (hide that part,
+alone)**. Hiding follows the part: title off drops the `—` separator, elapsed
+off drops the `/` before the total, and an item whose parts are all hidden
+disappears (with its line, when it sat alone on one).
+
+**Bar characters** (`style.progressbar.style`): `line` `━━━━━━────`
+(default) · `blocks` `██████░░░░` · `wave` `~~~~~~----` · `dots`
+`●●●●●●○○○○` — or any two characters meaning "filled + empty" (`"#-"` →
+`######----`). **Volume bar shape** (`style.volume.style`): `block` (one ▄
+whose height tracks the level, default) · `progress` (a five-cell mini bar
+drawn with the progress-bar characters) · `stairs` (`▂▄▆█` steps).
+**Icons**: `style.volume.icon` and `style.output.icon` are `auto` (tiered by
+level / by device kind), `none` (hidden), or any short glyph (`♪`, `🎵`);
+muted always shows 🔇.
+
+Notes you must apply when relevant:
+
+- SGR styles need `statusline.color` on (`NO_COLOR` always wins). Character
+  choices — bar charsets, shapes, icons, and `off` — apply even with colors
+  off.
+- The playing/paused colors style the bar fill **and** the ▶︎/⏸ icon in front
+  of the title (the icon keeps its bold) — one accent across the segment.
+- Hiding a *part* (`off`) is not removing an *item*: dropping the whole
+  volume/time/output item is an arrangement change (Items tab or pattern).
+- `config style.<key> reset` restores one default; `config style reset` all
+  styles; `config statusline reset` additionally restores the arrangement,
+  lines, colors, and marquee (the full stock look).
 
 ## Mode A — `$ARGUMENTS` is NOT empty
 
-Map the request onto an ordered field list, then save (Step 2). A preset name
-maps per the table above. A numeric pattern maps per the digit legend. An
-explicit list (`time,track` or `track,app,/,progressbar,time`) passes through
-as-is. A described arrangement maps by intent — e.g. "time first" →
-`time,progressbar,track,app`; "track, app and volume on line 1, the rest on
-line 2" → `track,app,volume,/,progressbar,time,output`; "3 lines: track /
-bar and time / output" → `track,app,/,progressbar,time,/,output`; "time
-alone on top" → `time,/,track,app,progressbar`. Order within a line is the
-order within its `/` span.
+Arrangement requests map onto an ordered field list and save per **Step S**.
+A preset name or numeric pattern maps per the tables above; an explicit list
+(`time,track` or `track,app,/,time`) passes through; a described arrangement
+maps by intent — "time first" → `time,progressbar,track,app`; "track and app
+on line 1, the rest on line 2" → `track,app,/,volume,progressbar,time,output`.
 
-## Mode B — no arguments → interactive arrangement
-
-### Call 1 — layout
-
-Ask ONE **AskUserQuestion** call with exactly ONE question (single-select,
-header "Layout"): "How should the statusline look? (`Custom…` lets you type a
-numeric pattern; typing one via Other works right away too)". Mark the option
-matching the current state "(current)" in its label — compare the current
-field list against the preset rows. Use exactly these previews (they match
-the real renderer); if your AskUserQuestion does not support option previews,
-put the sample lines in the option descriptions instead.
-
-- `Standard` — everything on one line
-
-  ```
-  ▶︎ Karma Police — Radiohead (Spotify)  🔉 ▄ 45%  ━━━━━━────  2:13/4:24  🎧 AirPods Pro
-  ```
-
-- `Stacked` — two lines: track, app & volume / stats & output
-
-  ```
-  ▶︎ Karma Police — Radiohead (Spotify)  🔉 ▄ 45%
-  ━━━━━━────  2:13/4:24  🎧 AirPods Pro
-  ```
-
-- `Custom…` — type which items go on which lines as a numeric pattern
-
-  ```
-  1 track · 2 app · 3 volume · 4 bar · 5 time · 6 output
-  next: type a pattern like 123/456 into the chat
-  ```
-
-An "Other" answer here is already the arrangement — map it (a numeric pattern
-per the legend, anything else per Mode A) and continue with Step 2.
-
-### Call 2 — ONLY when Call 1 = `Custom…` → direct pattern input
-
-Do NOT ask another AskUserQuestion — the pattern is typed straight into the
-normal chat input, where digits and `/` need no option-navigation. End your
-reply with the digit legend and the syntax, then stop and wait for the user's
-next message. Reply with exactly this shape (translate prose to the
-conversation language, keep the table):
-
-> Type your pattern: each digit is an item, digit order = display order, `/`
-> starts a new line, and a digit you leave out hides that item.
-> Current: `123/456`
->
-> | # | item | looks like |
-> | --- | --- | --- |
-> | 1 | track | ▶︎ Karma Police — Radiohead |
-> | 2 | app | (Spotify) |
-> | 3 | volume | 🔉 ▄ 45% |
-> | 4 | progress bar | ━━━━━━──── |
-> | 5 | time | 2:13/4:24 |
-> | 6 | output | 🎧 AirPods Pro |
->
-> e.g. `123456` = one line · `123/456` = two lines · `1/45` = track on top,
-> bar & time below
-
-For `Current:` convert the current field list to digits (`/` stays `/`, e.g.
-`track app / time` → `1/5`). Map the reply: a numeric pattern per the legend;
-an item list or described arrangement per Mode A; if it maps to nothing,
-restate the legend line briefly and ask again. Then continue with Step 2.
-
-## Step 2 — save
+Style wishes map onto `style.*` keys, applied one Bash call each:
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT}/scripts/media.sh" config statusline.fields "track,app,volume,/,progressbar,time,output"
+"${CLAUDE_PLUGIN_ROOT}/scripts/media.sh" config style.track.title "bold cyan"
 ```
 
-When the list contains `/`, leave `statusline.multiline` alone — explicit
-lines ignore it. When it does NOT (a one-line arrangement), also write
+Mapping guide — "제목/title" → `style.track.title`, "가수/아티스트/artist" →
+`style.track.artist`, "앱/app" → `style.app`, "볼륨 바 색/스타일링" →
+`style.volume.bar`, "볼륨 바 모양(기본/progress/계단)" → `style.volume.style`
+(`계단(식)`/stairs → `stairs`, `기본`/default → `block`), "퍼센트/percent" →
+`style.volume.percent`, "볼륨 아이콘" → `style.volume.icon`, "재생 색/playing
+color" → `style.progressbar.playing`, "일시정지/정지 색" →
+`style.progressbar.paused`, "바 스타일/문자" → `style.progressbar.style`,
+"현재 시간/elapsed" → `style.time.elapsed`, "총 시간/total" →
+`style.time.total`, "출력 (장치) 이름/output" → `style.output`, "출력
+아이콘" → `style.output.icon`. Translate color words to the English token
+(`파란색` → `blue`, `하늘색` → `cyan` or `bright-cyan`); "굵게" → `bold`,
+"기울임" → `italic`, "흐리게" → `dim`, "밑줄" → `underline`, "스타일
+없이/평문" → `none`; "숨겨/빼줘/미노출/hide" for a part → `off`. A
+progress-bar color wish like `cyan/black` means playing `cyan` + paused
+`black`; a single color sets both. When a wish names a part without saying
+which attributes to keep, preserve the current non-color attributes and
+change only what was asked (current `bold` + "제목을 빨간색으로" → `bold
+red`). Resets: one part → `config style.<key> reset`; "스타일 전부 초기화" →
+`config style reset`; "statusline 전부/배치까지 초기화" → `config statusline
+reset`. If a value is refused (**exit 2**), relay the stderr reason — it
+names the valid tokens — and ask for a corrected value. Never invent keys.
 
-```bash
-"${CLAUDE_PLUGIN_ROOT}/scripts/media.sh" config statusline.multiline off
-```
+## Mode B — no arguments → the three-tab setup
 
-so a leftover stacked flag cannot re-split the new arrangement.
+Ask ONE **AskUserQuestion** call with exactly THREE questions — they render
+as tabs. Build the option labels from the current state shown above.
 
-If `display.statusline` is currently `off`, also enable it — the arrangement
-is pointless without the segment:
+- **Q1** header "Items" — `multiSelect: true`: "Which optional items should
+  the statusline show? (check = shown — track & app are arranged via the
+  pattern)" — exactly these options, each description stating what it looks
+  like and whether it is currently shown:
+  - `Volume` — `🔉 ▄ 45%`, 🔇 when muted (digit 3)
+  - `Progress bar` — `━━━━━━────` (digit 4)
+  - `Time` — `2:13/4:24` (digit 5)
+  - `Output device` — `🎧 AirPods Pro`, icon by device kind (digit 6)
 
-```bash
-"${CLAUDE_PLUGIN_ROOT}/scripts/media.sh" config display.statusline on
-```
+- **Q2** header "Layout" — single-select: "How should the items be arranged?
+  Digits are items — 1 track · 2 app · 3 volume · 4 bar · 5 time · 6 output;
+  digit order = display order, `/` starts a new line. Typing a pattern via
+  Other works right away." Options (mark the one matching the current state
+  in its label):
+  - `Keep current — <pattern>` — no layout change; render the current field
+    list as a pattern (e.g. `123/456`; `track app / time` → `1/5`)
+  - `Standard — 123456` — everything on one line:
+    `▶︎ Karma Police — Radiohead (Spotify)  🔉 ▄ 45%  ━━━━━━────  2:13/4:24  🎧 AirPods Pro`
+  - `Stacked — 123/456` — two lines: track, app & volume / stats & output
+  - `Custom…` — type any pattern into the chat next
 
-If that is **refused (exit 3)**, no now-playing read path works right now;
-relay the stderr reason, point to `/media:doctor`, and keep the arrangement
-saved (it applies once the segment works). Never bypass the refusal.
+- **Q3** header "Style" — single-select: "Restyle an item? (colors,
+  bold/italic, characters, icons — `off` hides a part)" — exactly these four
+  groups; mark groups holding `*custom` values in their descriptions:
+  - `Track & app` — title, artist, app name
+  - `Volume` — icon, bar shape & styling, percent
+  - `Progress bar & time` — playing/paused colors, bar characters, elapsed/total
+  - `Output device` — icon, device name
 
-## Step 3 — show the result
+  (An "Other" answer here that reads like "skip"/"none"/"그대로" means no
+  style change; a style wish typed there applies per Mode A instead.)
+
+### Apply the answers, in this order
+
+1. **Layout (Q2)**: `Keep current` → start from the current list. A preset or
+   an Other-typed pattern → map per the digit legend. `Custom…` → reply with
+   ONLY the digit legend table plus one line — "Type your pattern: digit
+   order = display order, `/` starts a new line, leave a digit out to drop
+   that item. Current: `<pattern>`" — then stop and wait; map the user's next
+   message (a pattern per the legend, anything else per Mode A), then
+   continue.
+2. **Items (Q1) as a diff**: compare each of volume/progressbar/time/output
+   against the CURRENT field list. Only act on differences: newly checked →
+   append to the end of the layout from step 1 (unless the pattern already
+   placed it); newly unchecked → remove it. An item whose checkbox matches
+   its current visibility leaves the layout result untouched — so a
+   deliberate pattern always wins.
+3. **Save** (skip when nothing changed) — **Step S**:
+
+   ```bash
+   "${CLAUDE_PLUGIN_ROOT}/scripts/media.sh" config statusline.fields "track,app,volume,/,progressbar,time,output"
+   ```
+
+   When the list has no `/` (one line), also write `statusline.multiline off`
+   so a leftover stacked flag cannot re-split it; with `/`, leave
+   `statusline.multiline` alone. If `display.statusline` is `off`, enable it
+   (`config display.statusline on`) — the arrangement is pointless without
+   the segment. If that is **refused (exit 3)**, relay the stderr reason,
+   point to `/media:doctor`, keep the arrangement saved, and never bypass
+   the refusal.
+4. **Style (Q3)**: run the chosen group's follow-up below. Skip when the
+   answer was a no-change "Other".
+
+### Style follow-ups — one sequential AskUserQuestion per group
+
+Ask ONE AskUserQuestion call whose questions are the group's parts (they
+render as tabs). Every question's FIRST option is `Keep current (<value>)` —
+a no-op. A `Default (<default>)` option maps to `config style.<key> reset`;
+`Off — hide` maps to the value `off`; an "Other" answer is the style spec
+itself (e.g. "bold, dim, italic, cyan" — commas are fine). Show the current
+value in each question text.
+
+- **Track & app** — 3 questions:
+  - "Title" (`style.track.title`): Keep current / `Default (bold)` /
+    `Off — hide the title` / Other → any spec
+  - "Artist" (`style.track.artist`): Keep current / `Default (italic)` /
+    `Off — hide the artist` / Other
+  - "App" (`style.app`): Keep current / `Default (dim)` /
+    `Off — hide the app name` / Other
+- **Volume** — 4 questions:
+  - "Icon" (`style.volume.icon`): Keep current / `Default — 🔈🔉🔊 by level
+    (auto)` / `Hide (none)` / Other → any glyph, e.g. `🎵`
+  - "Bar shape" (`style.volume.style`): Keep current / `Block ▄ (default)` /
+    `Progress ━━───` / `Stairs ▂▄▆█` (Other: type `off` on the NEXT question
+    to hide the bar itself)
+  - "Bar styling" (`style.volume.bar`): Keep current / `Default (dim)` /
+    `Cyan` / Other → any spec, or `off` to hide the bar
+  - "Percent" (`style.volume.percent`): Keep current / `Default (dim)` /
+    `Off — hide the percent` / Other
+- **Progress bar & time** — 4 questions:
+  - "Bar colors" (`style.progressbar.playing` / `.paused`): "playing/paused —
+    `cyan/black` colors them separately, a single color sets both". Keep
+    current / `Default (green / yellow)` / `cyan / black` / Other → `X/Y` or
+    one color
+  - "Bar characters" (`style.progressbar.style`): Keep current /
+    `Line ━━━━━━──── (default)` / `Blocks ██████░░░░` / Other → `wave`,
+    `dots`, or any two glyphs like `#-`
+  - "Elapsed" (`style.time.elapsed`): Keep current / `Default (bold)` /
+    `Bold cyan` / Other
+  - "Total" (`style.time.total`): Keep current / `Default (dim)` /
+    `Off — hide the total` / Other
+- **Output device** — 2 questions:
+  - "Icon" (`style.output.icon`): Keep current / `Default — by device kind
+    (auto)` / `Hide (none)` / Other → any glyph
+  - "Name" (`style.output`): Keep current / `Default (dim)` /
+    `Off — icon only` / Other
+
+Apply every non-Keep answer with `config style.<key> …` Bash calls (exit 2 →
+relay the stderr reason and re-ask that one value). Offer to continue with
+another group only if the user asked for more than one.
+
+## Show the result
 
 ```bash
 NO_COLOR=1 "${CLAUDE_PLUGIN_ROOT}/scripts/media.sh" statusline
 ```
 
-Show the output in a fenced code block (plain glyphs here; the real statusline
-is ANSI-styled). If it prints nothing, say why: nothing is playing right now —
-the arrangement is saved and will show once something plays.
-
-Close with one reminder: the segment appears in Claude Code's statusline once
-the one-time wrapper from `docs/statusline.md` is installed; on/off toggles,
-colors, and marquee live in `/media:config`, and per-item styles (bold /
-italic / color per part, progress-bar characters, the volume icon) in
-`/media:style`.
+Show the segment in a fenced code block (plain glyphs here; the real
+statusline is ANSI-styled) and report what changed — the saved pattern and/or
+each style key old → new. Colors cannot render in chat: the live statusline
+picks every change up within a second (each write drops the segment cache),
+so tell the user to glance at it. If a changed style is SGR-only while
+`statusline.color` is `off`, point that out (`config statusline.color on`).
+If `statusline` prints nothing, nothing is playing — the setup is saved and
+shows once something plays. Close with one reminder when relevant: the
+segment appears once the one-time wrapper from `docs/statusline.md` is
+installed; quick on/off toggles and the full reset live in `/media:config`.
