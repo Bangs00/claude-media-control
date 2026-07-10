@@ -57,7 +57,7 @@ Every visible part has a `style.*` config key:
 | `style.app` | app name `(Spotify)` | `dim` |
 | `style.volume.icon` | volume icon glyph | `auto` (🔈/🔉/🔊 by level) |
 | `style.volume.style` | volume bar shape | `block` (▄ height bar) |
-| `style.volume.bar` | volume bar styling | `dim` |
+| `style.volume.bar` | volume bar on/off | `on` (draws in the accent) |
 | `style.volume.percent` | volume percent `45%` | `dim` |
 | `style.progressbar.playing` | bar fill + ▶︎ accent while playing | `green` |
 | `style.progressbar.paused` | bar fill + ⏸ accent while paused | `yellow` |
@@ -79,18 +79,22 @@ disappears (with its line, when it sat alone on one).
 `●●●●●●○○○○` — or any two characters meaning "filled + empty" (`"#-"` →
 `######----`). **Volume bar shape** (`style.volume.style`): `block` (one ▄
 whose height tracks the level, default) · `progress` (a five-cell mini bar
-drawn with the progress-bar characters) · `stairs` (`▂▄▆█` steps).
-**Icons**: `style.volume.icon` and `style.output.icon` are `auto` (tiered by
-level / by device kind), `none` (hidden), or any short glyph (`♪`, `🎵`);
-muted always shows 🔇.
+drawn with the progress-bar characters) · `stairs` (`▂▄▆█` steps). The
+volume bar always draws in the playing/paused accent colors;
+`style.volume.bar` is just its on/off switch (`on` default, `off` hides the
+bar). **Icons**: `style.volume.icon` and `style.output.icon` are `auto`
+(tiered by level / by device kind), `none` (hidden), or any short glyph
+(`♪`, `🎵`); muted always shows 🔇.
 
 Notes you must apply when relevant:
 
 - SGR styles need `statusline.color` on (`NO_COLOR` always wins). Character
   choices — bar charsets, shapes, icons, and `off` — apply even with colors
   off.
-- The playing/paused colors style the bar fill **and** the ▶︎/⏸ icon in front
-  of the title (the icon keeps its bold) — one accent across the segment.
+- The playing/paused colors style the progress-bar fill, the ▶︎/⏸ icon in
+  front of the title (the icon keeps its bold), **and** the volume bar — one
+  accent across the segment. To recolor any of them, change
+  `style.progressbar.playing` / `.paused`.
 - Hiding a *part* (`off`) is not removing an *item*: dropping the whole
   volume/time/output item is an arrangement change (Items tab or pattern).
 - `config style.<key> reset` restores one default; `config style reset` all
@@ -112,9 +116,12 @@ Style wishes map onto `style.*` keys, applied one Bash call each:
 ```
 
 Mapping guide — "제목/title" → `style.track.title`, "가수/아티스트/artist" →
-`style.track.artist`, "앱/app" → `style.app`, "볼륨 바 색/스타일링" →
-`style.volume.bar`, "볼륨 바 모양(기본/progress/계단)" → `style.volume.style`
-(`계단(식)`/stairs → `stairs`, `기본`/default → `block`), "퍼센트/percent" →
+`style.track.artist`, "앱/app" → `style.app`, "볼륨 바 켜/꺼/숨겨" →
+`style.volume.bar on|off` (the bar's *color* follows the playing/paused
+accent — a volume-bar color wish maps to `style.progressbar.playing` /
+`.paused` and recolors the whole accent; say so), "볼륨 바
+모양(기본/progress/계단)" → `style.volume.style` (`계단(식)`/stairs →
+`stairs`, `기본`/default → `block`), "퍼센트/percent" →
 `style.volume.percent`, "볼륨 아이콘" → `style.volume.icon`, "재생 색/playing
 color" → `style.progressbar.playing`, "일시정지/정지 색" →
 `style.progressbar.paused`, "바 스타일/문자" → `style.progressbar.style`,
@@ -221,10 +228,10 @@ value in each question text.
   - "Icon" (`style.volume.icon`): Keep current / `Default — 🔈🔉🔊 by level
     (auto)` / `Hide (none)` / Other → any glyph, e.g. `🎵`
   - "Bar shape" (`style.volume.style`): Keep current / `Block ▄ (default)` /
-    `Progress ━━───` / `Stairs ▂▄▆█` (Other: type `off` on the NEXT question
-    to hide the bar itself)
-  - "Bar styling" (`style.volume.bar`): Keep current / `Default (dim)` /
-    `Cyan` / Other → any spec, or `off` to hide the bar
+    `Progress ━━───` / `Stairs ▂▄▆█` — every shape draws in the
+    playing/paused accent colors
+  - "Bar" (`style.volume.bar`): Keep current / `Show (on, default)` /
+    `Hide (off)`
   - "Percent" (`style.volume.percent`): Keep current / `Default (dim)` /
     `Off — hide the percent` / Other
 - **Progress bar & time** — 4 questions:

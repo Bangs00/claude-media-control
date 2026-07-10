@@ -128,8 +128,8 @@ Stacked — 명시적 2줄 배치(패턴 `123/456`, 즉
 세그먼트는 기본으로 스타일이 입혀져 나옵니다. Claude Code statusline은 ANSI
 코드를 렌더링하고, 아래 wrapper는 이를 손대지 않고 그대로 넘깁니다:
 
-- 아이콘과 진행 바의 채워진 부분은 재생 상태를 따라 색이 바뀝니다
-  (재생 중 green, 일시정지 yellow)
+- ▶︎/⏸ 아이콘, 진행 바의 채워진 부분, 볼륨 바는 재생 상태를 따라 색이
+  바뀝니다 (재생 중 green, 일시정지 yellow)
 - **굵은** 제목과 경과 시간(계속 움직이는 부분이라 또렷하게 보입니다),
   *기울임꼴* 아티스트, 흐리게 표시되는 전체 시간·빈 칸·앱 이름·출력 장치
 
@@ -150,7 +150,7 @@ underline` 조합에 색 하나(`black red green yellow blue magenta cyan white`
 | `style.track.title` / `style.track.artist` | 제목 / 아티스트 | `bold` / `italic` |
 | `style.app` | 앱 이름 `(Spotify)` | `dim` |
 | `style.time.elapsed` / `style.time.total` | `2:13` / `/4:24` | `bold` / `dim` |
-| `style.volume.icon` / `style.volume.style` / `style.volume.bar` / `style.volume.percent` | 볼륨 아이콘 / 바 모양 / 바 스타일 / 퍼센트 | `auto` / `block` / `dim` / `dim` |
+| `style.volume.icon` / `style.volume.style` / `style.volume.bar` / `style.volume.percent` | 볼륨 아이콘 / 바 모양 / 바 표시 여부 / 퍼센트 | `auto` / `block` / `on` / `dim` |
 | `style.progressbar.playing` / `style.progressbar.paused` | 바 채움 + ▶︎/⏸ 강조색 | `green` / `yellow` |
 | `style.progressbar.style` | 진행 바 문자 | `line` |
 | `style.output.icon` / `style.output` | 출력 아이콘 / 장치 이름 | `auto` / `dim` |
@@ -167,7 +167,10 @@ underline` 조합에 색 하나(`black red green yellow blue magenta cyan white`
 곳의 바가 항상 같은 모습입니다. 볼륨 바의 모양은
 `style.volume.style`입니다: `block`(볼륨에 따라 높이가 변하는 `▄` 하나,
 기본값), `progress`(진행 바 문자로 그리는 5칸 미니 바),
-`stairs`(`▂▄▆█` 계단). 아이콘(`style.volume.icon`,
+`stairs`(`▂▄▆█` 계단). 모양이 무엇이든 볼륨 바의 색은 진행 바의
+재생/일시정지 색을 따라갑니다 — 세그먼트 전체가 하나의 강조색을 쓰는
+것이고, `style.volume.bar`는 바를 켜고 끄는 스위치일 뿐입니다(기본 `on`).
+아이콘(`style.volume.icon`,
 `style.output.icon`)은 `auto`(레벨별 / 장치 종류별), `none`(숨김), 또는
 `♪` 같은 아무 글리프이며, 음소거 시에는 항상 🔇가 나옵니다. 문자를 바꾸는
 키와 `off`는 색을 꺼도 적용되고, 나머지 키는 `statusline.color`가 켜져

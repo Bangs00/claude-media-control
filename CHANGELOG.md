@@ -5,6 +5,21 @@ All notable changes to this project are documented here. The format follows
 [SemVer](https://semver.org/spec/v2.0.0.html), tracked in
 `.claude-plugin/plugin.json`.
 
+## [0.14.0] — 2026-07-10
+
+### Changed
+
+- **The volume bar draws in the progress bar's playing/paused colors.** The
+  segment now has one accent everywhere: the ▶︎/⏸ icon, the progress-bar
+  fill, and the volume bar (every shape — `block`, `progress`, `stairs`) all
+  follow `style.progressbar.playing` / `.paused`. Previously the volume bar
+  carried its own spec (`dim` by default).
+- **`style.volume.bar` is now an on/off toggle** (default `on`) that only
+  shows or hides the bar — with the color coming from the accent, there is
+  no spec left to set. A value stored by an earlier version (e.g. `dim`,
+  `cyan`) keeps the bar visible (treated as `on`), so nothing breaks on
+  upgrade.
+
 ## [0.13.0] — 2026-07-10
 
 ### Added

@@ -891,15 +891,42 @@ setup() {
   [ "$output" = "🔇" ]                      # muted always shows the mute glyph
 }
 
-@test "statusline: volume bar and percent are styled separately (color on)" {
+@test "statusline: volume bar draws in the accent; percent styled separately" {
   mkdir -p "$CLAUDE_PLUGIN_DATA"
   echo '{"display.statusline":true,"statusline.fields":["volume"]}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
-  [ "$output" = $'🔉 \e[2m▄\e[0m \e[2m45%\e[0m' ]   # plain icon, dim bar + percent
+  # Since 0.14.0 the bar follows the playing/paused accent (green while
+  # playing) — one accent across the segment; the percent keeps its own spec.
+  [ "$output" = $'🔉 \e[32m▄\e[0m \e[2m45%\e[0m' ]
   rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
   echo '{"display.statusline":true,"statusline.fields":["volume"],"style.volume.percent":"bold red"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
-  [ "$output" = $'🔉 \e[2m▄\e[0m \e[1;31m45%\e[0m' ]
+  [ "$output" = $'🔉 \e[32m▄\e[0m \e[1;31m45%\e[0m' ]
+  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  echo '{"display.statusline":true,"statusline.fields":["volume"],"style.progressbar.playing":"red"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$output" = $'🔉 \e[31m▄\e[0m \e[2m45%\e[0m' ]  # accent change recolors the bar
+}
+
+@test "config style.volume.bar: an on/off toggle since 0.14.0" {
+  run "$MEDIA" config style.volume.bar
+  [ "$output" = "on" ]
+  run "$MEDIA" config style.volume.bar off
+  [ "$status" -eq 0 ]
+  [ "$output" = "style.volume.bar = off" ]
+  run "$MEDIA" config style.volume.bar show          # alias
+  [ "$output" = "style.volume.bar = on" ]
+  run "$MEDIA" config style.volume.bar cyan          # specs no longer apply
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"on/off toggle"* ]]
+}
+
+@test "statusline: a legacy volume.bar spec still shows the bar (acts as on)" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.statusline":true,"statusline.fields":["volume"],"style.volume.bar":"dim"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$status" -eq 0 ]
+  [ "$output" = $'🔉 \e[32m▄\e[0m \e[2m45%\e[0m' ]   # pre-0.14 config: bar kept
 }
 
 @test "statusline: time and output styles apply" {

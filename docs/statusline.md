@@ -128,8 +128,8 @@ off:
 The segment ships styled by default — Claude Code statuslines render ANSI
 codes, and the wrapper below passes them through untouched:
 
-- icon and the filled part of the progress bar follow the playback state
-  (green playing, yellow paused)
+- the ▶︎/⏸ icon, the filled part of the progress bar, and the volume bar
+  follow the playback state (green playing, yellow paused)
 - **bold** title and elapsed time (the moving part stays readable), *italic*
   artist, dimmed total time, empty bar cells, app name, and output device
 
@@ -150,7 +150,7 @@ color (`black red green yellow blue magenta cyan white` or
 | `style.track.title` / `style.track.artist` | title / artist | `bold` / `italic` |
 | `style.app` | app name `(Spotify)` | `dim` |
 | `style.time.elapsed` / `style.time.total` | `2:13` / `/4:24` | `bold` / `dim` |
-| `style.volume.icon` / `style.volume.style` / `style.volume.bar` / `style.volume.percent` | volume icon / bar shape / bar styling / percent | `auto` / `block` / `dim` / `dim` |
+| `style.volume.icon` / `style.volume.style` / `style.volume.bar` / `style.volume.percent` | volume icon / bar shape / bar on-off / percent | `auto` / `block` / `on` / `dim` |
 | `style.progressbar.playing` / `style.progressbar.paused` | bar fill + ▶︎/⏸ accent | `green` / `yellow` |
 | `style.progressbar.style` | bar characters | `line` |
 | `style.output.icon` / `style.output` | output icon / device name | `auto` / `dim` |
@@ -167,7 +167,10 @@ The progress bar's characters come from `style.progressbar.style`: `line`
 so the two surfaces always match. The volume bar's shape is
 `style.volume.style`: `block` (one `▄` whose height tracks the level,
 default), `progress` (a five-cell mini bar drawn with the progress-bar
-characters), or `stairs` (`▂▄▆█` steps). The icons (`style.volume.icon`,
+characters), or `stairs` (`▂▄▆█` steps). Whatever its shape, the volume bar
+draws in the progress bar's playing/paused colors — one accent across the
+segment — and `style.volume.bar` is simply its on/off switch (`on` by
+default). The icons (`style.volume.icon`,
 `style.output.icon`) are `auto` (tiered by level / by device kind), `none`
 (hidden), or any glyph like `♪` — muted always shows 🔇. Character choices
 apply even with colors off; the other keys need `statusline.color` on.

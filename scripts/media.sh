@@ -508,7 +508,9 @@ do_statusline() {
     # 0; overridable via style.volume.icon), a bar shaped by
     # style.volume.style (block = one eighth-block whose height tracks the
     # level, 50% = half block; progress = a five-cell mini bar drawn with the
-    # progress-bar charset; stairs = ▂▄▆█ steps), and the percent. Muted
+    # progress-bar charset; stairs = ▂▄▆█ steps), and the percent. The bar
+    # draws in the playing/paused accent — style.volume.bar only toggles it
+    # on/off. Muted
     # shows 🔇 alone — the underlying level is not what plays. The `output`
     # icon follows style.output.icon (auto = by device kind, none = hidden,
     # any glyph verbatim); the device name takes style.output. Claude Code
@@ -690,28 +692,31 @@ do_statusline() {
                     :           "\x{1F50A}")
                    : $vic)
             unless $vic eq "none";
+          # The bar draws in the playing/paused accent — one accent across
+          # the segment (icon, bar fill, volume bar). style.volume.bar is
+          # just its on/off switch; any other stored value (a pre-0.14 SGR
+          # spec) counts as on.
           unless ($hid->("volume.bar")) {
             my $shape = lc($sty{"volume.style"} // "block");
             if ($shape eq "progress") {
               # Five-cell mini bar, drawn with the progress-bar charset so
               # the two bars always match.
               my $vf = int($v * 5 / 100 + 0.5);
-              push @vp, $st->(sgr($sty{"volume.bar"}), $fc x $vf)
+              push @vp, $st->($accsgr, $fc x $vf)
                       . $st->(2, $ec x (5 - $vf));
             } elsif ($shape eq "stairs") {
               # Staircase: ceil(v*4/100) of ▂▄▆█ (45% -> ▂▄), min one step.
               my @steps = ("\x{2582}", "\x{2584}", "\x{2586}", "\x{2588}");
               my $n = int(($v * 4 + 99) / 100);
               $n = 1 if $n < 1;
-              push @vp, $st->(sgr($sty{"volume.bar"}),
-                              join("", @steps[0 .. $n - 1]));
+              push @vp, $st->($accsgr, join("", @steps[0 .. $n - 1]));
             } else {
               # block (default): eighth-block whose height tracks the level —
               # ceil(v*8/100) maps 1-100 onto ▁..█ (50% = ▄); 0 keeps the
               # lowest sliver and the mute glyph.
               my $i = int(($v * 8 + 99) / 100);
               $i = 1 if $i < 1;
-              push @vp, $st->(sgr($sty{"volume.bar"}), chr(0x2580 + $i));
+              push @vp, $st->($accsgr, chr(0x2580 + $i));
             }
           }
           push @vp, $st->(sgr($sty{"volume.percent"}), "$v%")
@@ -911,7 +916,10 @@ config_set_statusline_fields() {
 # "off" hides regardless — it changes content, not styling.
 # style.progressbar.style, style.volume.icon, style.volume.style, and
 # style.output.icon change the characters instead, so they apply even with
-# colors off. Per key, the value "reset" deletes it (back to the default);
+# colors off. style.volume.bar is an on/off toggle: the bar draws in the
+# progress-bar playing/paused accent, so it has no spec of its own (a
+# pre-0.14 stored spec counts as on). Per key, the value "reset" deletes it
+# (back to the default);
 # "config style" lists everything, "config style reset" clears all style
 # customizations, and "config statusline reset" additionally restores the
 # statusline layout/line/color/marquee keys. The defaults reproduce the
@@ -920,8 +928,9 @@ config_set_statusline_fields() {
 STYLE_KEYS="style.track.title style.track.artist style.app style.volume.icon style.volume.style style.volume.bar style.volume.percent style.progressbar.playing style.progressbar.paused style.progressbar.style style.time.elapsed style.time.total style.output.icon style.output"
 
 # Text parts that accept the "off" (hide) value; the icon keys spell hiding
-# as none, and the bar colors/charsets cannot hide (drop the field instead).
-STYLE_OFF_KEYS="style.track.title style.track.artist style.app style.volume.bar style.volume.percent style.time.elapsed style.time.total style.output"
+# as none, style.volume.bar is a dedicated on/off toggle, and the bar
+# colors/charsets cannot hide (drop the field instead).
+STYLE_OFF_KEYS="style.track.title style.track.artist style.app style.volume.percent style.time.elapsed style.time.total style.output"
 
 # Print "key<TAB>value<TAB>default" for every style key, resolved against the
 # config file (stored strings win; absent keys fall back to the default).
@@ -936,7 +945,7 @@ style_resolve() {
       ["style.app",                 "dim"],
       ["style.volume.icon",         "auto"],
       ["style.volume.style",        "block"],
-      ["style.volume.bar",          "dim"],
+      ["style.volume.bar",          "on"],
       ["style.volume.percent",      "dim"],
       ["style.progressbar.playing", "green"],
       ["style.progressbar.paused",  "yellow"],
@@ -1000,6 +1009,15 @@ style_validate() {
       my $s = $shape{lc $val}
         or fail("volume bar style must be block|progress|stairs; got: $val");
       print $s; exit 0;
+    }
+    if ($key eq "style.volume.bar") {
+      # A visibility toggle since 0.14.0 — the bar itself draws in the
+      # progress-bar playing/paused accent, so there is no spec to take.
+      my %tog = (on => "on", show => "on",
+                 off => "off", hide => "off", hidden => "off", none => "off");
+      my $t = $tog{lc $val}
+        or fail("volume bar is an on/off toggle (its color follows the progress-bar playing/paused colors); got: $val");
+      print $t; exit 0;
     }
     if ($key eq "style.volume.icon" || $key eq "style.output.icon") {
       my $what = $key eq "style.volume.icon" ? "volume icon" : "output icon";
@@ -1090,6 +1108,7 @@ style_list() {
   echo " magenta cyan white or bright-<color> — or none; text parts also take off"
   echo " = hide that part; style.progressbar.style: blocks|wave|line|dots or two"
   echo " glyphs like \"~-\"; style.volume.style: block|progress|stairs;"
+  echo " style.volume.bar: on|off — the bar draws in the progress-bar accent;"
   echo " style.volume.icon / style.output.icon: auto|none|<glyph>."
   echo " Set: media.sh config <style key> \"<spec>\" — the value reset restores a"
   echo " default, media.sh config style reset clears them all, and media.sh config"
