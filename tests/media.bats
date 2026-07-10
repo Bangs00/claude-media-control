@@ -474,6 +474,68 @@ setup() {
   [[ "${lines[2]}" == *"Stub Speakers"* ]]
 }
 
+# ---- statusline explicit per-line layout ("/" breaks) ------------------------------
+
+@test "statusline.fields: / line breaks are stored and normalized" {
+  # Glued slashes split like separators; doubled and trailing breaks collapse.
+  run "$MEDIA" config statusline.fields "track,app//progressbar,time,/"
+  [ "$status" -eq 0 ]
+  run "$MEDIA" config statusline.fields
+  [ "$output" = "track app / progressbar time" ]
+  # A leading break is dropped too.
+  run "$MEDIA" config statusline.fields "/,time,track"
+  [ "$status" -eq 0 ]
+  run "$MEDIA" config statusline.fields
+  [ "$output" = "time track" ]
+}
+
+@test "statusline: explicit / layout renders the given lines (multiline off)" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["track","app","/","progressbar","time","output"]}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$status" -eq 0 ]
+  [ "${#lines[@]}" -eq 2 ]                 # track+app / bar+time+output
+  [[ "${lines[0]}" == *"Stub Song"* ]]
+  [[ "${lines[0]}" == *"(StubPlayer)"* ]]  # app right after track still folds
+  [[ "${lines[1]}" == *"1:15/3:20"* ]]
+  [[ "${lines[1]}" == *"Stub Speakers"* ]]
+}
+
+@test "statusline: explicit / layout overrides grouping rules and multiline" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  # progressbar and time end up on separate lines even though the legacy
+  # grouping would merge the adjacent pair — the user's breaks win.
+  echo '{"display.statusline":true,"statusline.multiline":true,"statusline.color":false,"statusline.fields":["progressbar","/","time","/","track"]}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$status" -eq 0 ]
+  [ "${#lines[@]}" -eq 3 ]                 # bar / time / track
+  [[ "${lines[0]}" != *"1:15"* ]]
+  [[ "${lines[1]}" == "1:15/3:20" ]]
+  [[ "${lines[2]}" == *"Stub Song"* ]]
+}
+
+@test "statusline: explicit layout keeps app standalone unless it follows the track" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["app","track","/","time"]}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$status" -eq 0 ]
+  [ "${#lines[@]}" -eq 2 ]
+  [[ "${lines[0]}" == "StubPlayer  "* ]]   # app leads, plain (no parens)
+  [[ "${lines[0]}" != *"(StubPlayer)"* ]]
+  [[ "${lines[1]}" == "1:15/3:20" ]]
+}
+
+@test "statusline: explicit layout drops a line whose items render nothing" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["track","/","output"]}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  # The JXA fallback carries no outputDevice, so the output line vanishes.
+  STUB_PRIMARY=null STUB_JXA_JSON='{"degraded":true,"title":"Jxa Song","artist":"Jxa Artist","playing":true,"elapsedTime":30,"duration":100}' \
+    run "$MEDIA" statusline
+  [ "$status" -eq 0 ]
+  [ "${#lines[@]}" -eq 1 ]                 # no blank second line
+  [[ "${lines[0]}" == *"Jxa Song"* ]]
+}
+
 @test "statusline: only chosen fields render (track only)" {
   mkdir -p "$CLAUDE_PLUGIN_DATA"
   echo '{"display.statusline":true,"statusline.fields":["track"]}' > "$CLAUDE_PLUGIN_DATA/config.json"

@@ -5,6 +5,42 @@ All notable changes to this project are documented here. The format follows
 [SemVer](https://semver.org/spec/v2.0.0.html), tracked in
 `.claude-plugin/plugin.json`.
 
+## [0.9.0] — 2026-07-10
+
+### Added
+
+- **Per-line statusline arrangements.** A `/` in `statusline.fields` starts
+  a new line and switches the segment to the explicit layout: every line
+  shows exactly the items placed on it, in that order — the grouping rules
+  and `statusline.multiline` no longer apply, and a line with nothing to
+  show right now (e.g. `output` without the native helper) disappears
+  instead of leaving a blank. Within a line, `app` right after `track`
+  still folds into it as `(App)`; anywhere else it renders as the plain app
+  name. Lists without `/` render exactly as before.
+
+  ```
+  /media:config statusline.fields "track,app,/,progressbar,time,/,output"
+  ```
+
+  ```
+  ▶︎ Karma Police — Radiohead (Spotify)
+  ██████░░░░  2:13/4:24
+  🔊 AirPods Pro
+  ```
+
+### Changed
+
+- **The `/media:statusline` picker speaks numeric patterns.** The layout
+  question offers two presets — Standard (`track,app,progressbar,time,output`
+  on one line; it now includes the output device) and Stacked (three explicit
+  lines: track + app / bar + time / output) — and `Custom…` asks for one
+  compact pattern like `12/34/5`: digits name the items (1 track, 2 app,
+  3 progress bar, 4 time, 5 output), `/` starts a new line, digit order is
+  display order, and a digit you leave out hides that item. Patterns also
+  work as arguments (`/media:statusline 125/34`). `Compact` still works as a
+  typed preset and `Everything` stays as an alias of Standard; saved
+  arrangements are untouched until you pick a new one.
+
 ## [0.8.0] — 2026-07-10
 
 ### Added

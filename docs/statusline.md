@@ -40,11 +40,14 @@ run `/media:doctor`.)
 
 ### Arrange what the segment shows
 
-Run `/media:statusline` to arrange the segment — the picker shows preset
-layouts (Standard / Everything / Compact) as visual previews, asks whether
-groups share one line or stack, and `Custom…` walks you through building
-your own arrangement: pick exactly which items appear, then which item
-leads. A quick preset picker also opens inside `/media:config`:
+Run `/media:statusline` to arrange the segment — the picker shows the two
+presets (Standard / Stacked) as visual previews, and `Custom…` places any
+items on any lines, in any order, with a compact numeric pattern: `1` track,
+`2` app, `3` progress bar, `4` time, `5` output — `/` starts a new line,
+digit order is display order, and a digit you leave out hides that item.
+`12/34/5` puts the track and app on line 1, the bar and time on line 2, and
+the output device on line 3. A quick preset picker also opens inside
+`/media:config`:
 
 - **Items** (any combination, **in any order**): `track` (▶︎ title — artist),
   `app` (the playing app, e.g. `(Spotify)`), `progressbar` (`██████░░░░`),
@@ -53,19 +56,23 @@ leads. A quick preset picker also opens inside `/media:config`:
 - **Order**: items render in exactly the order they are saved — ask for "time
   first" or "output device in front", or set it directly:
   `/media:config statusline.fields "time,progressbar,track,app"`.
-- **Layout**: one line, or each group on its own line (`statusline.multiline`).
-  `app` attaches to the track group; `progressbar` and `time` share a group
-  when they sit next to each other in the order, and so do the track and
-  `output` — put the output device right after the track to keep it on the
-  track's line when stacked.
+- **Lines**: a `/` in the field list starts a new line and switches to the
+  explicit per-line layout — every line shows exactly the items you put
+  there, in that order, and a line with nothing to show disappears (e.g.
+  `output` without the native helper). Without `/`, the classic grouped
+  layout applies: one line, or each group on its own line
+  (`statusline.multiline on`) — `app` attaches to the track group;
+  `progressbar` and `time` share a group when they sit next to each other in
+  the order, and so do the track and `output`.
 
-One line with all items:
+Standard — one line with all items:
 
 ```
 ▶︎ Karma Police — Radiohead (Spotify)  ██████░░░░  2:13/4:24  🔊 AirPods Pro
 ```
 
-Stacked (`statusline.multiline on`):
+Stacked — three explicit lines (pattern `12/34/5`, i.e.
+`statusline.fields "track,app,/,progressbar,time,/,output"`):
 
 ```
 ▶︎ Karma Police — Radiohead (Spotify)
@@ -73,15 +80,15 @@ Stacked (`statusline.multiline on`):
 🔊 AirPods Pro
 ```
 
-Stacked, output on the track line
-(`statusline.fields "track,app,output,progressbar,time"`):
+Output on the track's line (pattern `125/34`):
 
 ```
 ▶︎ Karma Police — Radiohead (Spotify)  🔊 AirPods Pro
 ██████░░░░  2:13/4:24
 ```
 
-Time first (`statusline.fields "time,progressbar,track,app"`):
+Time first, one line (pattern `4312`, i.e.
+`statusline.fields "time,progressbar,track,app"`):
 
 ```
 2:13/4:24  ██████░░░░  ▶︎ Karma Police — Radiohead (Spotify)

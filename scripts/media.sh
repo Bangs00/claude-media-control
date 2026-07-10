@@ -480,7 +480,14 @@ do_statusline() {
     # track group (so `track,app,output,progressbar,time` stacks as two lines:
     # track+app+output / bar+time). Adjacency is judged over the fields that
     # actually rendered a token, so a folded `app` between track and output is
-    # transparent. Fields the user didn't pick are omitted; Claude Code renders
+    # transparent. A "/" in the stored fields switches to the explicit layout:
+    # each "/" starts a new line, items render in the given order joined by
+    # two spaces, and the grouping rules plus statusline.multiline no longer
+    # apply — the user's lines ARE the layout. In a line, `app` right after
+    # `track` still folds into it as "(App)"; anywhere else it renders as the
+    # plain app name. A line whose items all rendered nothing (e.g. `output`
+    # without the native helper) disappears entirely — no blank lines.
+    # Fields the user didn't pick are omitted; Claude Code renders
     # multi-line statuslines as-is. Styling (statusline.color on):
     # state-colored icon + filled bar (green playing / yellow paused), bold
     # title and elapsed time (the moving part must stay readable, so only
@@ -494,8 +501,12 @@ do_statusline() {
     line="$(printf '%s' "$json" | /usr/bin/perl -MJSON::PP -e '
       binmode STDOUT, ":utf8";
       my (@order, %seen);
-      for (split /\s+/, ($ARGV[0] // "")) { push @order, $_ unless $seen{$_}++; }
-      my %w = map { $_ => 1 } @order;
+      for (split /\s+/, ($ARGV[0] // "")) {
+        if ($_ eq "/") { push @order, $_; next; }   # keep every line break
+        push @order, $_ unless $seen{$_}++;
+      }
+      my $explicit = grep { $_ eq "/" } @order;
+      my %w = map { $_ => 1 } grep { $_ ne "/" } @order;
       my $ml = ($ARGV[1] // "") eq "on";
       my $c  = ($ARGV[2] // "") eq "on";
       my $mq = ($ARGV[3] // "") eq "on";
@@ -539,9 +550,13 @@ do_statusline() {
         my $t = $st->("1;$accent", $icon) . " " . $st->(1, $title);
         $t .= " " . $st->(2, "\x{2014}") . " " . $st->(3, $d->{artist})
           if defined $d->{artist};
-        $t .= " " . $st->(2, "($app)") if $w{app} && defined $app;
+        $t .= " " . $st->(2, "($app)")
+          if !$explicit && $w{app} && defined $app;
         $tok{track} = $t;
-      } elsif ($w{app} && defined $app) {
+      }
+      # Standalone app token: always in the explicit layout (folding happens
+      # per line during assembly), only without a track in the grouped one.
+      if ($w{app} && defined $app && ($explicit || !$w{track})) {
         $tok{app} = $st->(2, $app);
       }
       my $pos = $d->{elapsedTimeNow} // $d->{elapsedTime};
@@ -559,6 +574,29 @@ do_statusline() {
       }
       if ($w{output} && defined $d->{outputDevice}) {
         $tok{output} = $st->(2, "\x{1F50A} " . $d->{outputDevice});
+      }
+      if ($explicit) {
+        my (@lines, @cur);
+        for my $f (@order) {
+          if ($f eq "/") { push @lines, [@cur] if @cur; @cur = (); next; }
+          push @cur, $f;
+        }
+        push @lines, [@cur] if @cur;
+        my @out;
+        for my $ln (@lines) {
+          my @fs = grep { exists $tok{$_} } @$ln;
+          my @parts;
+          for my $k (0 .. $#fs) {
+            if ($fs[$k] eq "app" && $k > 0 && $fs[$k - 1] eq "track") {
+              $parts[-1] .= " " . $st->(2, "($app)");
+              next;
+            }
+            push @parts, $tok{$fs[$k]};
+          }
+          push @out, join("  ", @parts) if @parts;
+        }
+        print join("\n", @out);
+        exit 0;
       }
       my @ro = grep { exists $tok{$_} } @order;
       my %pair = map { $_ => 1 } ("progressbar time", "time progressbar",
@@ -590,7 +628,10 @@ CONFIG_KEYS="display.progressbar display.statusline statusline.multiline statusl
 
 # Which segments the statusline renders, in the order they were stored
 # (arranged with /media:statusline or /media:config). "output" needs the
-# native helper (the JXA fallback carries no outputDevice field).
+# native helper (the JXA fallback carries no outputDevice field). Besides
+# these fields the stored list may hold "/" markers — each one starts a new
+# line and switches the segment to the explicit per-line layout (see
+# do_statusline).
 VALID_STATUSLINE_FIELDS="track app progressbar time output"
 DEFAULT_STATUSLINE_FIELDS="track app progressbar time"
 
@@ -641,6 +682,8 @@ config_write() {
 # order, falling back to the default set when the key is absent, empty, or
 # malformed. Names that are no longer valid fields (e.g. "spectrum" from a
 # pre-0.6.0 config) are filtered out here so stale configs stay harmless.
+# "/" line-break markers pass through, normalized: never leading or trailing,
+# never doubled (also after invalid neighbors were dropped).
 config_get_statusline_fields() {
   local v=""
   if [ -f "$CONFIG_FILE" ]; then
@@ -650,7 +693,13 @@ config_get_statusline_fields() {
       exit 0 unless ref $d eq "HASH";
       my $a = $d->{"statusline.fields"};
       exit 0 unless ref $a eq "ARRAY";
-      print join(" ", grep { defined && !ref && $valid{$_} } @$a);
+      my (@out, %seen);
+      for my $f (grep { defined && !ref } @$a) {
+        if ($f eq "/") { push @out, "/" if @out && $out[-1] ne "/"; next; }
+        push @out, $f if $valid{$f} && !$seen{$f}++;
+      }
+      pop @out while @out && $out[-1] eq "/";
+      print join(" ", @out);
     ' "$VALID_STATUSLINE_FIELDS" < "$CONFIG_FILE" 2>/dev/null)"
   fi
   if [ -n "$v" ]; then echo "$v"; else echo "$DEFAULT_STATUSLINE_FIELDS"; fi
@@ -658,12 +707,23 @@ config_get_statusline_fields() {
 
 # Store statusline.fields from a comma/space-separated list, keeping only known
 # fields in the order they were given — the segment renders in that order.
+# A "/" between items starts a new line (explicit per-line layout; also
+# accepted glued to a name, so "track,app/time" splits into `track app / time`).
 # Duplicates collapse onto their first occurrence, invalid names are dropped
-# silently, and an empty result is stored as [] so the segment renders nothing.
+# silently, breaks are kept only between items (never leading, trailing, or
+# doubled), and an empty result is stored as [] — which reads back as the
+# default set, like a missing key.
 config_set_statusline_fields() {
   local input="$1" ordered="" f g
-  input="$(printf '%s' "$input" | tr ',' ' ')"
+  input="$(printf '%s' "$input" | tr ',' ' ' | sed 's;/; / ;g')"
   for g in $input; do
+    if [ "$g" = "/" ]; then
+      case "$ordered" in
+        '' | *' /') ;;
+        *) ordered="$ordered /" ;;
+      esac
+      continue
+    fi
     for f in $VALID_STATUSLINE_FIELDS; do
       if [ "$f" = "$g" ]; then
         case " $ordered " in
@@ -674,6 +734,7 @@ config_set_statusline_fields() {
       fi
     done
   done
+  ordered="${ordered% /}"
   mkdir -p "$DATA_DIR"
   # shellcheck disable=SC2086
   /usr/bin/perl -MJSON::PP -e '
@@ -742,7 +803,7 @@ do_config() {
       case "$k" in
         display.progressbar) note="progress bar in /media:now and statusline output" ;;
         display.statusline)  note="statusline now-playing segment (recipe: docs/statusline.md)" ;;
-        statusline.multiline) note="statusline layout: on = each item on its own line, off = one line" ;;
+        statusline.multiline) note="statusline layout: on = each group on its own line, off = one line (unused when statusline.fields has / breaks)" ;;
         statusline.color)    note="ANSI colors/bold/italic in the statusline segment (honors NO_COLOR)" ;;
         statusline.marquee)  note="scroll statusline titles wider than 30 cells (1 char/second)" ;;
         history.record)      note="log played tracks to history.jsonl (view with /media:history)" ;;
@@ -750,7 +811,7 @@ do_config() {
       printf '%-21s %-6s %s\n' "$k" "$(config_get "$k")" "$note"
     done
     printf '%-21s %-6s %s\n' "statusline.fields" "-" \
-      "[$(config_get_statusline_fields)] — items in render order; arrange with /media:statusline"
+      "[$(config_get_statusline_fields)] — items in render order, / starts a new line; arrange with /media:statusline"
     echo ""
     echo "usage: media.sh config <key> [on|off]   (config file: $CONFIG_FILE)"
     return 0

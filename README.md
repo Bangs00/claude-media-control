@@ -51,16 +51,17 @@ Natural language, slash commands, or an interactive menu — all work:
 | "what played earlier?" | `/media:history` | recently played tracks (passive local log) |
 | "switch to my AirPods" | `/media:output airpods` | show / switch the audio output device |
 | "give me a remote" | `/media:menu` | interactive controller (arrow-key menu) |
-| "arrange my statusline" | `/media:statusline` | pick a layout from visual previews, or build a custom item order |
+| "arrange my statusline" | `/media:statusline` | pick a layout from visual previews, or place any item on any line with a numeric pattern |
 | "configure the statusline" | `/media:config` | interactive settings — layout plus every display toggle (progress bar, history, colors, marquee) |
 | — | `/media:doctor` | diagnose build / permissions / fallbacks |
 
 Optional: put now-playing in your statusline — see
 [docs/statusline.md](docs/statusline.md). `/media:statusline` shows the
 layouts as **visual previews** and lets you arrange the items (track, app,
-progress bar, time, output device) in any order, on one line or stacked —
-pick a preset, or go `Custom…` and choose exactly which items appear and
-which one leads. "time first" or "output device in front" works too, because
+progress bar, time, output device) in any order, on any lines — pick the
+Standard or Stacked preset, or go `Custom…` and type a numeric pattern like
+`12/34/5`: digits name the items, `/` starts a new line, and digit order is
+display order. "time first" or "output device in front" works too, because
 items render in exactly the order you save them. Titles wider than 30 cells
 scroll marquee-style (`statusline.marquee`), and the segment comes
 ANSI-styled — state-colored icon and progress bar, bold title and elapsed
