@@ -40,7 +40,7 @@ run `/media:doctor`.)
 
 ### Choose what the segment shows
 
-Run `/media:statusline` to pick which items appear and how they are laid out:
+Run `/media:config` to pick which items appear and how they are laid out:
 
 - **Items** (any combination): `track` (▶︎ title — artist), `app` (the playing
   app, e.g. `(Spotify)`), `progressbar` (`██████░░░░`), `time` (`2:13/4:24`),

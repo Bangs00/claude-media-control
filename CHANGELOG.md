@@ -5,6 +5,29 @@ All notable changes to this project are documented here. The format follows
 [SemVer](https://semver.org/spec/v2.0.0.html), tracked in
 `.claude-plugin/plugin.json`.
 
+## [0.5.0] — 2026-07-10
+
+### Changed
+
+- **`/media:config` is now interactive.** Running `/media:config` with no
+  arguments opens an AskUserQuestion settings picker: check which now-playing
+  items the statusline shows (track, app, progress bar, time, output device,
+  spectrum), toggle every display feature on/off from radio-style menus
+  (statusline segment, separate-line layout, colors, marquee, the
+  `/media:now` progress bar, playback history), and pick the spectrum style and
+  color. Each on/off setting is a checkbox — checked means on. The text form
+  `/media:config <key> on|off` (and `statusline.fields`, `spectrum.style`,
+  `spectrum.color`) still works for scripting and one-off changes, so the
+  underlying `media.sh config` interface is unchanged.
+
+### Removed
+
+- **`/media:statusline`** — folded into `/media:config`. Everything it did
+  (choosing which statusline items appear and their layout) is now part of the
+  interactive `/media:config` flow, alongside the display toggles it never
+  covered before. Run `/media:config` instead; the `media.sh statusline`
+  subcommand that renders the segment is untouched.
+
 ## [0.4.0] — 2026-07-09
 
 ### Added

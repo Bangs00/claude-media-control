@@ -52,14 +52,13 @@ Natural language, slash commands, or an interactive menu — all work:
 | "what played earlier?" | `/media:history` | recently played tracks (passive local log) |
 | "switch to my AirPods" | `/media:output airpods` | show / switch the audio output device |
 | "give me a remote" | `/media:menu` | interactive controller (arrow-key menu) |
-| — | `/media:statusline` | choose what the now-playing statusline shows + layout |
-| — | `/media:config` | toggle display features (progress bar, statusline, spectrum, …) |
+| "configure the statusline" | `/media:config` | interactive settings — statusline items & layout, plus every display toggle (progress bar, spectrum, history, colors, marquee) |
 | — | `/media:doctor` | diagnose build / permissions / fallbacks |
 
 Optional: put now-playing in your statusline — see
 [docs/statusline.md](docs/statusline.md). Pick which items appear (track, app,
 progress bar, time, output device, spectrum) and whether they stack on
-separate lines with `/media:statusline`. Titles wider than 30 cells scroll
+separate lines with `/media:config`. Titles wider than 30 cells scroll
 marquee-style (`statusline.marquee`), and the segment comes ANSI-styled —
 state-colored icon and progress bar, bold title, italic artist, tinted
 spectrum (solid color or a positional rainbow via `spectrum.style`) —
@@ -96,7 +95,7 @@ you're in.
 ```
 
 `--live <seconds>` streams several frames, and you can add a mini spectrum to
-your statusline with `/media:statusline`.
+your statusline with `/media:config`.
 
 The bars are tinted `spectrum.color` (default cyan) — or set
 `/media:config spectrum.style rainbow` for a front-to-back color cycle by bar
@@ -139,7 +138,7 @@ leaves your machine; `/media:config history.record off` stops logging and
 `/media:output` shows every audio output device and switches between them
 ("play it on my AirPods") through the public CoreAudio API — no extra
 permissions. The statusline can show the active device too: pick the `output`
-item in `/media:statusline`.
+item in `/media:config`.
 
 ## Requirements
 

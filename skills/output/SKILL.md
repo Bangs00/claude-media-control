@@ -42,4 +42,4 @@ Error handling:
   in the list — switching cannot connect it; the user must connect it first.
 
 Tip: the statusline can show the current output device — the `output` item in
-`/media:statusline`.
+`/media:config`.

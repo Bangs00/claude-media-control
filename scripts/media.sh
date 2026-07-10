@@ -682,7 +682,7 @@ do_spectrum() {
 CONFIG_KEYS="display.progressbar display.statusline display.spectrum statusline.multiline statusline.color statusline.marquee history.record"
 
 # Which segments the statusline renders, in fixed display order. Chosen with
-# /media:statusline (AskUserQuestion). "spectrum" additionally requires
+# /media:config (AskUserQuestion). "spectrum" additionally requires
 # display.spectrum on + the audio-recording grant; "output" needs the native
 # helper (the JXA fallback carries no outputDevice field).
 VALID_STATUSLINE_FIELDS="track app progressbar time output spectrum"
@@ -868,7 +868,7 @@ SPECTRUM_COLORS="red green yellow blue magenta cyan white"
 do_config() {
   local key="${1:-}" value="${2:-}"
 
-  # statusline.fields is array-valued (chosen with /media:statusline); handle
+  # statusline.fields is array-valued (chosen with /media:config); handle
   # it before the boolean keys.
   if [ "$key" = "statusline.fields" ]; then
     if [ -z "$value" ]; then
@@ -934,7 +934,7 @@ do_config() {
       printf '%-21s %-6s %s\n' "$k" "$(config_get "$k")" "$note"
     done
     printf '%-21s %-6s %s\n' "statusline.fields" "-" \
-      "[$(config_get_statusline_fields)] — choose with /media:statusline"
+      "[$(config_get_statusline_fields)] — choose with /media:config"
     printf '%-21s %-6s %s\n' "spectrum.style" "$(config_get_str spectrum.style solid)" \
       "statusline spectrum coloring: solid (one color) or rainbow (front-to-back cycle)"
     printf '%-21s %-6s %s\n' "spectrum.color" "$(config_get_str spectrum.color cyan)" \
