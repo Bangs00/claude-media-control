@@ -442,6 +442,38 @@ setup() {
   [[ "${lines[2]}" == "1:15/3:20" ]]
 }
 
+@test "statusline: multiline merges output into an adjacent track group" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.statusline":true,"statusline.multiline":true,"statusline.color":false,"statusline.fields":["track","app","output","progressbar","time"]}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$status" -eq 0 ]
+  [ "${#lines[@]}" -eq 2 ]                 # track+app+output / bar+time
+  [[ "${lines[0]}" == *"Stub Song"* ]]
+  [[ "${lines[0]}" == *"(StubPlayer)"* ]]  # folded app stays transparent for adjacency
+  [[ "${lines[0]}" == *"Stub Speakers"* ]]
+  [[ "${lines[1]}" == *"1:15/3:20"* ]]
+}
+
+@test "statusline: multiline merges a leading output into the track group" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.statusline":true,"statusline.multiline":true,"statusline.color":false,"statusline.fields":["output","track","progressbar","time"]}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$status" -eq 0 ]
+  [ "${#lines[@]}" -eq 2 ]                 # output+track / bar+time
+  [[ "${lines[0]}" == *"Stub Speakers"* ]]
+  [[ "${lines[0]}" == *"Stub Song"* ]]
+  [[ "${lines[1]}" == *"1:15/3:20"* ]]
+}
+
+@test "statusline: multiline keeps a non-adjacent output on its own line" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.statusline":true,"statusline.multiline":true,"statusline.color":false,"statusline.fields":["track","app","progressbar","time","output"]}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$status" -eq 0 ]
+  [ "${#lines[@]}" -eq 3 ]                 # track / bar+time / output — Everything order unchanged
+  [[ "${lines[2]}" == *"Stub Speakers"* ]]
+}
+
 @test "statusline: only chosen fields render (track only)" {
   mkdir -p "$CLAUDE_PLUGIN_DATA"
   echo '{"display.statusline":true,"statusline.fields":["track"]}' > "$CLAUDE_PLUGIN_DATA/config.json"

@@ -20,10 +20,12 @@ Current settings (see `display.statusline` and `statusline.multiline`):
 ## How arrangement works
 
 `statusline.fields` is an **ordered** list — the segment renders the items in
-exactly the order they are saved. Two grouping rules: `app` attaches to the
-track group when both are chosen (`▶︎ Title — Artist (App)`), and `progressbar`
-+ `time` share one group when adjacent (they stay on one line in the stacked
-layout). `statusline.multiline on` puts each group on its own line.
+exactly the order they are saved. Three grouping rules: `app` attaches to the
+track group when both are chosen (`▶︎ Title — Artist (App)`); `progressbar`
++ `time` share one group when adjacent; `output` joins the track group when
+they sit next to each other (a folded `app` in between does not break the
+adjacency). Groups matter in the stacked layout: `statusline.multiline on`
+puts each group on its own line, and grouped items stay on one line.
 
 The presets (named arrangements, usable as `$ARGUMENTS`):
 
@@ -41,7 +43,9 @@ Map the request onto an ordered field list + a multiline value, then save
 (`time,track`) passes through as-is. A described arrangement maps by intent —
 e.g. "time first" → `time,progressbar,track,app`; "output device in front" →
 `output,track,app,progressbar,time`; "one item per line" → keep the current
-fields, `statusline.multiline on`.
+fields, `statusline.multiline on`; "track, app and output on line 1, bar and
+time on line 2" → `track,app,output,progressbar,time` +
+`statusline.multiline on` (the adjacent output joins the track group's line).
 
 ## Mode B — no arguments → interactive arrangement
 
@@ -142,7 +146,10 @@ Ask a SECOND AskUserQuestion call with exactly TWO questions:
 Build the final field list: take the Q4 template and delete the items the
 user did not choose in Q3 (keep `track` unless they excluded it via Other).
 The templates keep `progressbar` and `time` adjacent on purpose — they render
-as one group; only a hand-typed order via Other separates them.
+as one group; only a hand-typed order via Other separates them. To keep the
+output device on the track's line in the stacked layout, order it right next
+to the track group (`track,app,output,progressbar,time`) — an adjacent track
++ output pair shares a group too.
 
 In ANY question, "Other" free text is a Mode A request: map an exact list or
 a described arrangement ("artist… I mean app at the very end") onto an

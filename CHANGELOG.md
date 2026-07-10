@@ -5,6 +5,26 @@ All notable changes to this project are documented here. The format follows
 [SemVer](https://semver.org/spec/v2.0.0.html), tracked in
 `.claude-plugin/plugin.json`.
 
+## [0.8.0] — 2026-07-10
+
+### Added
+
+- **The output device can share the track's line in the stacked layout.**
+  `output` now joins the track group when the two sit next to each other in
+  the saved order — and an `app` folded into the track group no longer breaks
+  that adjacency. So `statusline.fields "track,app,output,progressbar,time"`
+  with `statusline.multiline on` renders as two lines:
+
+  ```
+  ▶︎ Karma Police — Radiohead (Spotify)  🔊 AirPods Pro
+  ██████░░░░  2:13/4:24
+  ```
+
+  Previously `output` always formed a group of its own, so the stacked layout
+  forced it onto a separate line. Nothing changes on one line (grouping is
+  invisible there), and the presets keep `output` at the end — away from the
+  track — so existing stacked arrangements render exactly as before.
+
 ## [0.7.0] — 2026-07-10
 
 ### Added

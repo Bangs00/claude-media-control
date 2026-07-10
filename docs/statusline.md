@@ -55,7 +55,9 @@ leads. A quick preset picker also opens inside `/media:config`:
   `/media:config statusline.fields "time,progressbar,track,app"`.
 - **Layout**: one line, or each group on its own line (`statusline.multiline`).
   `app` attaches to the track group; `progressbar` and `time` share a group
-  when they sit next to each other in the order.
+  when they sit next to each other in the order, and so do the track and
+  `output` — put the output device right after the track to keep it on the
+  track's line when stacked.
 
 One line with all items:
 
@@ -69,6 +71,14 @@ Stacked (`statusline.multiline on`):
 ▶︎ Karma Police — Radiohead (Spotify)
 ██████░░░░  2:13/4:24
 🔊 AirPods Pro
+```
+
+Stacked, output on the track line
+(`statusline.fields "track,app,output,progressbar,time"`):
+
+```
+▶︎ Karma Police — Radiohead (Spotify)  🔊 AirPods Pro
+██████░░░░  2:13/4:24
 ```
 
 Time first (`statusline.fields "time,progressbar,track,app"`):

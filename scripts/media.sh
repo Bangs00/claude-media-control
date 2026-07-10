@@ -476,8 +476,11 @@ do_statusline() {
     # Render the chosen fields as groups in their stored order (arrange with
     # /media:statusline), joined by two spaces inline or a newline in multiline
     # layout. `app` folds into the track group when both are chosen; adjacent
-    # progressbar+time share one group (so they stay on one line in multiline
-    # layout). Fields the user didn't pick are omitted; Claude Code renders
+    # progressbar+time share one group, and `output` merges into an adjacent
+    # track group (so `track,app,output,progressbar,time` stacks as two lines:
+    # track+app+output / bar+time). Adjacency is judged over the fields that
+    # actually rendered a token, so a folded `app` between track and output is
+    # transparent. Fields the user didn't pick are omitted; Claude Code renders
     # multi-line statuslines as-is. Styling (statusline.color on):
     # state-colored icon + filled bar (green playing / yellow paused), bold
     # title and elapsed time (the moving part must stay readable, so only
@@ -557,20 +560,19 @@ do_statusline() {
       if ($w{output} && defined $d->{outputDevice}) {
         $tok{output} = $st->(2, "\x{1F50A} " . $d->{outputDevice});
       }
+      my @ro = grep { exists $tok{$_} } @order;
+      my %pair = map { $_ => 1 } ("progressbar time", "time progressbar",
+                                  "track output", "output track");
       my @groups;
       my $i = 0;
-      while ($i < @order) {
-        my $f = $order[$i];
-        if (exists $tok{$f}) {
-          my $n = ($i + 1 < @order) ? $order[$i + 1] : "";
-          if ((($f eq "progressbar" && $n eq "time")
-            || ($f eq "time" && $n eq "progressbar")) && exists $tok{$n}) {
-            push @groups, $tok{$f} . "  " . $tok{$n};
-            $i += 2;
-            next;
-          }
-          push @groups, $tok{$f};
+      while ($i < @ro) {
+        my $n = ($i + 1 < @ro) ? $ro[$i + 1] : "";
+        if ($n ne "" && $pair{"$ro[$i] $n"}) {
+          push @groups, $tok{$ro[$i]} . "  " . $tok{$n};
+          $i += 2;
+          next;
         }
+        push @groups, $tok{$ro[$i]};
         $i++;
       }
       print join($ml ? "\n" : "  ", @groups);

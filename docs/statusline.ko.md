@@ -55,7 +55,9 @@ Claude Code 안에서:
   `/media:config statusline.fields "time,progressbar,track,app"`.
 - **배치**: 한 줄로 붙이거나, 그룹마다 줄을 나누거나(`statusline.multiline`).
   `app`은 track 그룹에 붙고, `progressbar`와 `time`은 순서상 이웃해 있을 때
-  한 그룹(여러 줄 배치에서는 한 줄)을 이룹니다.
+  한 그룹(여러 줄 배치에서는 한 줄)을 이룹니다. track과 `output`도
+  마찬가지라서, 출력 장치를 track 바로 뒤에 두면 줄을 나눠도 track과 같은
+  줄에 남습니다.
 
 모든 항목을 한 줄로:
 
@@ -69,6 +71,14 @@ Claude Code 안에서:
 ▶︎ Karma Police — Radiohead (Spotify)
 ██████░░░░  2:13/4:24
 🔊 AirPods Pro
+```
+
+출력 장치를 track 줄에
+(`statusline.fields "track,app,output,progressbar,time"`):
+
+```
+▶︎ Karma Police — Radiohead (Spotify)  🔊 AirPods Pro
+██████░░░░  2:13/4:24
 ```
 
 시간을 앞으로(`statusline.fields "time,progressbar,track,app"`):
