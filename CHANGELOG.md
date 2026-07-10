@@ -5,6 +5,45 @@ All notable changes to this project are documented here. The format follows
 [SemVer](https://semver.org/spec/v2.0.0.html), tracked in
 `.claude-plugin/plugin.json`.
 
+## [0.19.0] — 2026-07-11
+
+### Added
+
+- **The statusline segment updates only in the session you're using.**
+  With several Claude Code sessions open, every one used to tick the
+  now-playing line once a second; now only the session whose terminal
+  last consumed input updates live — typing, scrolling, or simply
+  focusing its tab (Claude Code enables terminal focus reporting, so a
+  tab switch alone moves it). The other sessions keep the segment's last
+  line, frozen — the bar and elapsed time stop moving, no per-tick read
+  work happens there — and catch up within a tick or two of the tab being
+  used again. Detection walks the statusline process's ancestry to the
+  Claude Code process owning the session tty (statusline commands
+  themselves run detached) and compares terminal last-input times (`w`'s
+  IDLE signal) through a tiny state file whose mtime doubles as the
+  holder's heartbeat, so a closed session forfeits the live segment
+  within seconds; each live render drops the per-terminal freeze
+  snapshot the inactive session reprints. Only the plugin's segment is
+  gated — a pre-existing statusline keeps running live in every session,
+  untouched. Sessions without a tty of their own (VS Code, the desktop
+  app, headless runs) always update, and every gate failure fails open
+  (live, never frozen). New config key **`statusline.activetab`**
+  (default `on`); `off` = every session updates.
+
+### Fixed
+
+- **History no longer corrupts or duplicates entries when the title lags
+  an artist change** — the reverse of the 0.18.0 fix. A track change can
+  also surface artist-first: the transitional snapshot pairs the OLD title
+  with the NEW artist, and the 0.18.0 amend then *overwrote the previous
+  real entry* with that mix (same title + different artist looked like an
+  artist correction). The title-first amend now requires evidence the
+  artist was junk — borrowed from the entry before, or empty (a partial
+  snapshot) — and the artist-first mix is repaired one read later by a
+  sandwich rule: an entry sharing its title with its predecessor and its
+  artist with the corrected read is superseded in place. Same 10-second
+  window, same no-self-polling design.
+
 ## [0.18.0] — 2026-07-11
 
 ### Changed

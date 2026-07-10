@@ -79,6 +79,13 @@ Optional: put now-playing in your statusline — fully automatic, one command:
   registered automatically, removed on uninstall. Other terminals just
   show the plain segment; `/media:config statusline.links off` turns the
   links off (details: [docs/statusline.md](docs/statusline.md)).
+- **Updates follow the tab you're using** — with several Claude Code
+  sessions open, the segment updates only in the tab you're actually using
+  (typing, scrolling, or focusing it counts); the other tabs keep its last
+  line frozen — the bar and time just stop moving — and catch up the moment
+  you're back. Your own statusline keeps running live everywhere; only the
+  plugin's line is gated. `/media:config statusline.activetab off` = every
+  session updates.
 - **Make it yours** with `/media:statusline` — one hub for everything visual.
   Toggle items, pick a layout or type a pattern like `123/456` (each digit
   is an item — track, app, volume, bar, time, output — and `/` starts a new

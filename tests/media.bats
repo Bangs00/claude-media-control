@@ -439,6 +439,137 @@ setup() {
   [ -z "$output" ]
 }
 
+# ---- statusline active-tab gate ---------------------------------------------------
+# The gate ranks sessions by their tty's atime (last consumed input) through
+# MEDIA_STATUSLINE_TTY, which points it at plain files whose atime/mtime the
+# tests control with touch. The state file statusline.tty names the holder;
+# its mtime is the holder's heartbeat. An inactive session reprints its
+# statusline.frozen.<tty> snapshot instead of rendering.
+
+@test "statusline: activetab — first session claims the segment and renders live" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.statusline":true}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  touch "$BATS_TEST_TMPDIR/tty-a"
+  MEDIA_STATUSLINE_TTY="$BATS_TEST_TMPDIR/tty-a" run "$MEDIA" statusline
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Stub Song"* ]]
+  [ "$(cat "$CLAUDE_PLUGIN_DATA/statusline.tty")" = "$BATS_TEST_TMPDIR/tty-a" ]
+  # The live render also lays down this terminal's freeze snapshot.
+  [ -f "$CLAUDE_PLUGIN_DATA/statusline.frozen.tty-a" ]
+  grep -q "Stub Song" "$CLAUDE_PLUGIN_DATA/statusline.frozen.tty-a"
+}
+
+@test "statusline: activetab — another session in use -> frozen line, no update" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.statusline":true}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  touch -a -t 202601010000 "$BATS_TEST_TMPDIR/tty-a"          # mine: idle
+  touch "$BATS_TEST_TMPDIR/tty-b"                             # theirs: in use
+  printf '%s' "$BATS_TEST_TMPDIR/tty-b" > "$CLAUDE_PLUGIN_DATA/statusline.tty"
+  printf 'FROZEN_LINE' > "$CLAUDE_PLUGIN_DATA/statusline.frozen.tty-a"
+  printf 'LIVE_CACHE' > "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  MEDIA_STATUSLINE_TTY="$BATS_TEST_TMPDIR/tty-a" run "$MEDIA" statusline
+  [ "$status" -eq 0 ]
+  # The frozen snapshot is reprinted — not the (newer) shared cache, and
+  # no re-render happens.
+  [ "$output" = "FROZEN_LINE" ]
+  # The holder is untouched by a losing challenger.
+  [ "$(cat "$CLAUDE_PLUGIN_DATA/statusline.tty")" = "$BATS_TEST_TMPDIR/tty-b" ]
+}
+
+@test "statusline: activetab — first inactive tick bootstraps its freeze from the cache" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.statusline":true}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  touch -a -t 202601010000 "$BATS_TEST_TMPDIR/tty-a"
+  touch "$BATS_TEST_TMPDIR/tty-b"
+  printf '%s' "$BATS_TEST_TMPDIR/tty-b" > "$CLAUDE_PLUGIN_DATA/statusline.tty"
+  printf 'CACHE_AT_FREEZE' > "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  MEDIA_STATUSLINE_TTY="$BATS_TEST_TMPDIR/tty-a" run "$MEDIA" statusline
+  [ "$output" = "CACHE_AT_FREEZE" ]
+  # ...and stays frozen there even when the active tab moves the cache on.
+  printf 'NEWER_CACHE' > "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  MEDIA_STATUSLINE_TTY="$BATS_TEST_TMPDIR/tty-a" run "$MEDIA" statusline
+  [ "$output" = "CACHE_AT_FREEZE" ]
+}
+
+@test "statusline: activetab — fresher input takes the segment over" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.statusline":true}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  touch "$BATS_TEST_TMPDIR/tty-a"                             # mine: in use
+  touch -a -t 202601010000 "$BATS_TEST_TMPDIR/tty-b"          # theirs: idle
+  printf '%s' "$BATS_TEST_TMPDIR/tty-b" > "$CLAUDE_PLUGIN_DATA/statusline.tty"
+  MEDIA_STATUSLINE_TTY="$BATS_TEST_TMPDIR/tty-a" run "$MEDIA" statusline
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Stub Song"* ]]
+  [ "$(cat "$CLAUDE_PLUGIN_DATA/statusline.tty")" = "$BATS_TEST_TMPDIR/tty-a" ]
+}
+
+@test "statusline: activetab — stopped heartbeat forfeits the segment" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.statusline":true}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  touch -a -t 202601010000 "$BATS_TEST_TMPDIR/tty-a"          # mine: idle
+  touch "$BATS_TEST_TMPDIR/tty-b"                             # theirs: fresher, but
+  printf '%s' "$BATS_TEST_TMPDIR/tty-b" > "$CLAUDE_PLUGIN_DATA/statusline.tty"
+  touch -t 202601010000 "$CLAUDE_PLUGIN_DATA/statusline.tty"  # ...its session died
+  MEDIA_STATUSLINE_TTY="$BATS_TEST_TMPDIR/tty-a" run "$MEDIA" statusline
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Stub Song"* ]]
+  [ "$(cat "$CLAUDE_PLUGIN_DATA/statusline.tty")" = "$BATS_TEST_TMPDIR/tty-a" ]
+}
+
+@test "statusline: activetab — holder tty gone -> takeover" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.statusline":true}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  touch -a -t 202601010000 "$BATS_TEST_TMPDIR/tty-a"
+  printf '%s' "$BATS_TEST_TMPDIR/tty-gone" > "$CLAUDE_PLUGIN_DATA/statusline.tty"
+  MEDIA_STATUSLINE_TTY="$BATS_TEST_TMPDIR/tty-a" run "$MEDIA" statusline
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Stub Song"* ]]
+  [ "$(cat "$CLAUDE_PLUGIN_DATA/statusline.tty")" = "$BATS_TEST_TMPDIR/tty-a" ]
+}
+
+@test "statusline: activetab — back in use -> live updates resume" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.statusline":true}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  touch "$BATS_TEST_TMPDIR/tty-a"                             # mine: in use again
+  touch -a -t 202601010000 "$BATS_TEST_TMPDIR/tty-b"
+  printf '%s' "$BATS_TEST_TMPDIR/tty-b" > "$CLAUDE_PLUGIN_DATA/statusline.tty"
+  printf 'FROZEN_LINE' > "$CLAUDE_PLUGIN_DATA/statusline.frozen.tty-a"
+  MEDIA_STATUSLINE_TTY="$BATS_TEST_TMPDIR/tty-a" run "$MEDIA" statusline
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Stub Song"* ]]                            # live, not frozen
+  grep -q "Stub Song" "$CLAUDE_PLUGIN_DATA/statusline.frozen.tty-a"  # snapshot refreshed
+}
+
+@test "statusline: activetab — session without a tty renders live and never competes" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.statusline":true}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  MEDIA_STATUSLINE_TTY= run "$MEDIA" statusline
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Stub Song"* ]]
+  [ ! -f "$CLAUDE_PLUGIN_DATA/statusline.tty" ]
+  [ -z "$(ls "$CLAUDE_PLUGIN_DATA"/statusline.frozen.* 2>/dev/null)" ]
+}
+
+@test "statusline: activetab off -> every session renders" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.statusline":true,"statusline.activetab":false}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  touch -a -t 202601010000 "$BATS_TEST_TMPDIR/tty-a"          # mine: idle
+  touch "$BATS_TEST_TMPDIR/tty-b"                             # theirs: in use
+  printf '%s' "$BATS_TEST_TMPDIR/tty-b" > "$CLAUDE_PLUGIN_DATA/statusline.tty"
+  MEDIA_STATUSLINE_TTY="$BATS_TEST_TMPDIR/tty-a" run "$MEDIA" statusline
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Stub Song"* ]]
+}
+
+@test "config: statusline.activetab defaults to on and toggles" {
+  run "$MEDIA" config statusline.activetab
+  [ "$output" = "on" ]
+  run "$MEDIA" config statusline.activetab off
+  [ "$status" -eq 0 ]
+  run "$MEDIA" config statusline.activetab
+  [ "$output" = "off" ]
+}
+
 # ---- config -----------------------------------------------------------------------
 
 @test "config: no args prints the full key table" {

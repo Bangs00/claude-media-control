@@ -90,6 +90,38 @@ Notes:
 - Uninstalling the plugin (or `media.sh statusline uninstall`) unregisters
   and deletes the handler app together with the rest of the wiring.
 
+## Updates follow the tab you're using
+
+With several Claude Code sessions open, each one runs its own statusline —
+but the now-playing segment **updates only in the session you are actually
+using**. The other sessions keep the segment's last line, frozen: the track
+still shows, the bar and elapsed time just stop moving, and none of the
+per-tick read work happens there. (Whatever statusline you already had
+keeps running live in every session, untouched — only the plugin's own line
+is gated.) No setup: the session whose terminal last consumed input gets
+the live segment — keystrokes, scrolling, or simply switching to its tab
+all count (Claude Code enables terminal focus reporting, so a focus change
+alone is enough) — and the segment catches up within a tick or two when you
+move back.
+
+How it works: a statusline command runs without a controlling tty, so the
+segment walks its process ancestry to the Claude Code process that owns the
+session's terminal and compares the terminals' last-input times (the atime
+signal `w` prints as IDLE) through a tiny state file in the plugin data dir
+(`statusline.tty` — the holder's device; its mtime is the holder's
+heartbeat, so a closed session forfeits within seconds). Each live render
+also drops a per-terminal snapshot (`statusline.frozen.<tty>`) — that is
+the line an inactive session reprints. Sessions without a terminal of
+their own (VS Code, the desktop app, headless runs) cannot be ranked and
+always render live, without competing. Every failure in the gate fails
+open — it renders live rather than freezes.
+
+Prefer the segment ticking in every session, like before?
+
+```
+/media:config statusline.activetab off
+```
+
 ## Design guarantees (why this is safe)
 
 1. Your existing statusline command is **not replaced** — the wrapper runs it
