@@ -5,7 +5,9 @@
 // passes the mediaremoted entitlement check introduced in macOS 15.4.
 //
 // Exported entry points (installed as XSUBs by loader.pl, `void f(void)`):
-//   adapter_get         — print now-playing JSON (or "null") to stdout
+//   adapter_get         — print now-playing JSON (or "null") to stdout,
+//                         enriched with outputDevice/outputKind + volume/muted
+//                         (CoreAudio, public API) for the statusline fields
 //   adapter_send        — send a playback command; id via $MEDIA_SEND_COMMAND
 //   adapter_seek        — set absolute position; seconds via $MEDIA_SEEK_SECONDS
 //   adapter_test        — self-diagnosis; result via exit code (see below)
@@ -32,6 +34,11 @@
 //          adapter.m -o libadapter.dylib
 
 #import <AppKit/AppKit.h>
+// Only the kAudioHardwareServiceDeviceProperty_VirtualMainVolume selector is
+// used from this header (read via AudioObjectGetPropertyData) — the
+// deprecated AudioHardwareService* functions are not, so no extra framework
+// is linked.
+#import <AudioToolbox/AudioHardwareService.h>
 #import <CoreAudio/CoreAudio.h>
 #import <Foundation/Foundation.h>
 
@@ -146,6 +153,46 @@ static NSString *deviceName(AudioObjectID dev) {
         return nil;
     }
     return CFBridgingRelease(name);
+}
+
+// Coarse device category for the statusline `output` icon, derived from the
+// public transport type (plus the built-in data source, which tells the
+// 3.5mm headphone jack apart from the internal speakers). Returns one of
+// "headphones" / "display" / "airplay" / "speaker", or nil when unreadable.
+static NSString *outputKind(AudioObjectID dev) {
+    AudioObjectPropertyAddress taddr =
+        globalAddr(kAudioDevicePropertyTransportType);
+    UInt32 transport = 0;
+    UInt32 size = sizeof(transport);
+    if (AudioObjectGetPropertyData(dev, &taddr, 0, NULL, &size, &transport) !=
+        noErr) {
+        return nil;
+    }
+    switch (transport) {
+    case kAudioDeviceTransportTypeBluetooth:
+    case kAudioDeviceTransportTypeBluetoothLE:
+        return @"headphones";
+    case kAudioDeviceTransportTypeHDMI:
+    case kAudioDeviceTransportTypeDisplayPort:
+        return @"display";
+    case kAudioDeviceTransportTypeAirPlay:
+        return @"airplay";
+    case kAudioDeviceTransportTypeBuiltIn: {
+        AudioObjectPropertyAddress daddr = {kAudioDevicePropertyDataSource,
+                                            kAudioObjectPropertyScopeOutput,
+                                            kAudioObjectPropertyElementMain};
+        UInt32 source = 0;
+        size = sizeof(source);
+        if (AudioObjectGetPropertyData(dev, &daddr, 0, NULL, &size, &source) ==
+                noErr &&
+            source == 'hdpn') { // Apple's built-in headphone-jack source id
+            return @"headphones";
+        }
+        return @"speaker";
+    }
+    default:
+        return @"speaker";
+    }
 }
 
 static AudioObjectID defaultOutputDevice(void) {
@@ -329,12 +376,40 @@ void adapter_get(void) {
             printOut(@"null");
             return;
         }
-        // Enrich with the current output device (cheap CoreAudio read) so the
-        // statusline `output` field costs no extra process spawn.
+        // Enrich with the current output device and its volume/mute state
+        // (cheap CoreAudio reads) so the statusline `output` and `volume`
+        // fields cost no extra process spawn. Unreadable properties (e.g.
+        // fixed-volume HDMI outputs) are simply omitted.
         NSMutableDictionary *out = [data mutableCopy];
-        NSString *dev = deviceName(defaultOutputDevice());
-        if (dev != nil) {
-            out[@"outputDevice"] = dev;
+        AudioObjectID dev = defaultOutputDevice();
+        NSString *devName = deviceName(dev);
+        if (devName != nil) {
+            out[@"outputDevice"] = devName;
+        }
+        if (dev != kAudioObjectUnknown) {
+            NSString *kind = outputKind(dev);
+            if (kind != nil) {
+                out[@"outputKind"] = kind;
+            }
+            AudioObjectPropertyAddress vaddr = {
+                kAudioHardwareServiceDeviceProperty_VirtualMainVolume,
+                kAudioObjectPropertyScopeOutput,
+                kAudioObjectPropertyElementMain};
+            Float32 vol = 0;
+            UInt32 size = sizeof(vol);
+            if (AudioObjectGetPropertyData(dev, &vaddr, 0, NULL, &size, &vol) ==
+                noErr) {
+                out[@"volume"] = @((int)lround(vol * 100.0));
+            }
+            AudioObjectPropertyAddress maddr = {kAudioDevicePropertyMute,
+                                                kAudioObjectPropertyScopeOutput,
+                                                kAudioObjectPropertyElementMain};
+            UInt32 muted = 0;
+            size = sizeof(muted);
+            if (AudioObjectGetPropertyData(dev, &maddr, 0, NULL, &size,
+                                           &muted) == noErr) {
+                out[@"muted"] = muted ? @YES : @NO;
+            }
         }
         printJSONObject(out);
     }

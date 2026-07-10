@@ -58,15 +58,17 @@ Natural language, slash commands, or an interactive menu — all work:
 Optional: put now-playing in your statusline — see
 [docs/statusline.md](docs/statusline.md). `/media:statusline` shows the
 layouts as **visual previews** and lets you arrange the items (track, app,
-progress bar, time, output device) in any order, on any lines — pick the
-Standard or Stacked preset, or go `Custom…` and type a numeric pattern like
-`12/34/5`: digits name the items, `/` starts a new line, and digit order is
-display order. "time first" or "output device in front" works too, because
-items render in exactly the order you save them. Titles wider than 30 cells
-scroll marquee-style (`statusline.marquee`), and the segment comes
-ANSI-styled — state-colored icon and progress bar, bold title and elapsed
-time, italic artist — `/media:config statusline.color off` (or `NO_COLOR`)
-restores plain text.
+volume, progress bar, time, output device) in any order, on any lines — pick
+the Standard or Stacked preset, or go `Custom…` and type a numeric pattern
+like `123/456` straight into the chat: digits name the items, `/` starts a
+new line, and digit order is display order. "time first" or "output device
+in front" works too, because items render in exactly the order you save
+them. The volume item shows icon + level bar + percent (`🔉 ▄ 45%`), the
+output item's icon follows the device kind (`🎧` Bluetooth, `📺` HDMI, `📶`
+AirPlay, `🔊` speakers), titles wider than 30 cells scroll marquee-style
+(`statusline.marquee`), and the segment comes ANSI-styled — state-colored
+icon and progress bar, bold title and elapsed time, italic artist —
+`/media:config statusline.color off` (or `NO_COLOR`) restores plain text.
 
 ## How it works
 

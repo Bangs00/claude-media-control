@@ -42,61 +42,65 @@ run `/media:doctor`.)
 
 Run `/media:statusline` to arrange the segment — the picker shows the two
 presets (Standard / Stacked) as visual previews, and `Custom…` places any
-items on any lines, in any order, with a compact numeric pattern: `1` track,
-`2` app, `3` progress bar, `4` time, `5` output — `/` starts a new line,
-digit order is display order, and a digit you leave out hides that item.
-`12/34/5` puts the track and app on line 1, the bar and time on line 2, and
-the output device on line 3. A quick preset picker also opens inside
-`/media:config`:
+items on any lines, in any order, with a compact numeric pattern typed
+straight into the chat: `1` track, `2` app, `3` volume, `4` progress bar,
+`5` time, `6` output — `/` starts a new line, digit order is display order,
+and a digit you leave out hides that item. `123/456` puts the track, app and
+volume on line 1 and the bar, time and output device on line 2. A quick
+preset picker also opens inside `/media:config`:
 
 - **Items** (any combination, **in any order**): `track` (▶︎ title — artist),
-  `app` (the playing app, e.g. `(Spotify)`), `progressbar` (`██████░░░░`),
-  `time` (`2:13/4:24`), `output` (🔊 current audio output device). The default
-  set is `track app progressbar time`.
+  `app` (the playing app, e.g. `(Spotify)`), `volume` (the system volume as
+  icon + level-height bar + percent, e.g. `🔉 ▄ 45%`; `🔇` when muted),
+  `progressbar` (`██████░░░░`), `time` (`2:13/4:24`), `output` (the current
+  audio output device, its icon following the device kind — `🎧` Bluetooth
+  and headphone jack, `📺` HDMI/DisplayPort, `📶` AirPlay, `🔊` speakers).
+  The default set is `track app progressbar time`.
 - **Order**: items render in exactly the order they are saved — ask for "time
   first" or "output device in front", or set it directly:
   `/media:config statusline.fields "time,progressbar,track,app"`.
 - **Lines**: a `/` in the field list starts a new line and switches to the
   explicit per-line layout — every line shows exactly the items you put
   there, in that order, and a line with nothing to show disappears (e.g.
-  `output` without the native helper). Without `/`, the classic grouped
-  layout applies: one line, or each group on its own line
+  `output` or `volume` without the native helper). Without `/`, the classic
+  grouped layout applies: one line, or each group on its own line
   (`statusline.multiline on`) — `app` attaches to the track group;
   `progressbar` and `time` share a group when they sit next to each other in
-  the order, and so do the track and `output`.
+  the order; `output` and `volume` join an adjacent track group, and an
+  adjacent `output`+`volume` share a group.
 
-Standard — one line with all items:
-
-```
-▶︎ Karma Police — Radiohead (Spotify)  ██████░░░░  2:13/4:24  🔊 AirPods Pro
-```
-
-Stacked — three explicit lines (pattern `12/34/5`, i.e.
-`statusline.fields "track,app,/,progressbar,time,/,output"`):
+Standard — one line with all items (pattern `123456`):
 
 ```
-▶︎ Karma Police — Radiohead (Spotify)
+▶︎ Karma Police — Radiohead (Spotify)  🔉 ▄ 45%  ██████░░░░  2:13/4:24  🎧 AirPods Pro
+```
+
+Stacked — two explicit lines (pattern `123/456`, i.e.
+`statusline.fields "track,app,volume,/,progressbar,time,output"`):
+
+```
+▶︎ Karma Police — Radiohead (Spotify)  🔉 ▄ 45%
+██████░░░░  2:13/4:24  🎧 AirPods Pro
+```
+
+Output on the track's line, no volume (pattern `126/45`):
+
+```
+▶︎ Karma Police — Radiohead (Spotify)  🎧 AirPods Pro
 ██████░░░░  2:13/4:24
-🔊 AirPods Pro
 ```
 
-Output on the track's line (pattern `125/34`):
-
-```
-▶︎ Karma Police — Radiohead (Spotify)  🔊 AirPods Pro
-██████░░░░  2:13/4:24
-```
-
-Time first, one line (pattern `4312`, i.e.
+Time first, one line (pattern `5412`, i.e.
 `statusline.fields "time,progressbar,track,app"`):
 
 ```
 2:13/4:24  ██████░░░░  ▶︎ Karma Police — Radiohead (Spotify)
 ```
 
-The `output` item needs the native helper (it rides the same read as the rest
-of the segment, so it adds no extra cost). Switch devices with
-`/media:output`; the segment updates on the next tick.
+The `output` and `volume` items need the native helper (they ride the same
+read as the rest of the segment, so they add no extra cost). Switch devices
+with `/media:output`, change the level with `/media:volume`; the segment
+updates on the next tick.
 
 ### Long titles: marquee scrolling
 

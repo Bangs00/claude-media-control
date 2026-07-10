@@ -41,62 +41,65 @@ Claude Code 안에서:
 ### 항목 배치하기
 
 `/media:statusline`을 실행하면 두 가지 프리셋(Standard / Stacked)을
-미리보기로 직접 보면서 고를 수 있고, `Custom…`을 고르면 숫자 패턴 하나로
-어떤 항목이든 원하는 줄에 원하는 순서로 놓을 수 있습니다: `1` track,
-`2` app, `3` 진행 바, `4` 시간, `5` 출력 장치 — `/`가 새 줄을 시작하고,
-숫자 순서가 곧 표시 순서이며, 뺀 숫자의 항목은 표시되지 않습니다.
-`12/34/5`라고 입력하면 1번째 줄에 track과 app, 2번째 줄에 진행 바와 시간,
-3번째 줄에 출력 장치가 나옵니다. 간단한 프리셋 picker는 `/media:config`
-안에서도 열립니다:
+미리보기로 직접 보면서 고를 수 있고, `Custom…`을 고르면 숫자 패턴 하나를
+채팅 입력창에 바로 입력해 어떤 항목이든 원하는 줄에 원하는 순서로 놓을 수
+있습니다: `1` track, `2` app, `3` 볼륨, `4` 진행 바, `5` 시간, `6` 출력
+장치 — `/`가 새 줄을 시작하고, 숫자 순서가 곧 표시 순서이며, 뺀 숫자의
+항목은 표시되지 않습니다. `123/456`이라고 입력하면 1번째 줄에 track·app·
+볼륨, 2번째 줄에 진행 바·시간·출력 장치가 나옵니다. 간단한 프리셋 picker는
+`/media:config` 안에서도 열립니다:
 
 - **항목** (원하는 대로 조합, **원하는 순서로**): `track`(▶︎ 제목 —
-  아티스트), `app`(재생 중인 앱, 예: `(Spotify)`),
-  `progressbar`(`██████░░░░`), `time`(`2:13/4:24`), `output`(🔊 현재 오디오
-  출력 장치). 기본 구성은 `track app progressbar time`입니다.
+  아티스트), `app`(재생 중인 앱, 예: `(Spotify)`), `volume`(시스템 볼륨을
+  아이콘 + 볼륨량 높이 바 + 퍼센트로, 예: `🔉 ▄ 45%`; 음소거면 `🔇`),
+  `progressbar`(`██████░░░░`), `time`(`2:13/4:24`), `output`(현재 오디오
+  출력 장치 — 아이콘이 장치 종류를 따라갑니다: Bluetooth·헤드폰 잭은 `🎧`,
+  HDMI/DisplayPort는 `📺`, AirPlay는 `📶`, 스피커는 `🔊`). 기본 구성은
+  `track app progressbar time`입니다.
 - **순서**: 항목은 저장한 순서 그대로 그려집니다. "시간을 맨 앞에",
   "출력 장치를 앞으로"라고 말해도 되고, 직접 지정할 수도 있습니다:
   `/media:config statusline.fields "time,progressbar,track,app"`.
 - **줄 배치**: 항목 목록에 `/`를 넣으면 그 자리에서 줄이 바뀌고, 목록
   전체가 줄 단위 명시 배치로 전환됩니다 — 각 줄에는 거기에 둔 항목만 그
   순서대로 나오고, 보여줄 것이 없는 줄은 통째로 사라집니다(예: 네이티브
-  helper가 없을 때의 `output`). `/`가 없으면 기존 그룹 배치가 그대로
-  적용됩니다: 한 줄로 붙이거나, 그룹마다 줄을 나누거나
+  helper가 없을 때의 `output`·`volume`). `/`가 없으면 기존 그룹 배치가
+  그대로 적용됩니다: 한 줄로 붙이거나, 그룹마다 줄을 나누거나
   (`statusline.multiline on`) — `app`은 track 그룹에 붙고, `progressbar`와
-  `time`은 순서상 이웃해 있을 때 한 그룹을 이루며, track과 `output`도
-  마찬가지입니다.
+  `time`은 순서상 이웃해 있을 때 한 그룹을 이루며, `output`과 `volume`은
+  이웃한 track 그룹에 합류하고 서로 이웃하면 둘이 한 그룹이 됩니다.
 
-Standard — 모든 항목을 한 줄로:
-
-```
-▶︎ Karma Police — Radiohead (Spotify)  ██████░░░░  2:13/4:24  🔊 AirPods Pro
-```
-
-Stacked — 명시적 3줄 배치(패턴 `12/34/5`, 즉
-`statusline.fields "track,app,/,progressbar,time,/,output"`):
+Standard — 모든 항목을 한 줄로(패턴 `123456`):
 
 ```
-▶︎ Karma Police — Radiohead (Spotify)
+▶︎ Karma Police — Radiohead (Spotify)  🔉 ▄ 45%  ██████░░░░  2:13/4:24  🎧 AirPods Pro
+```
+
+Stacked — 명시적 2줄 배치(패턴 `123/456`, 즉
+`statusline.fields "track,app,volume,/,progressbar,time,output"`):
+
+```
+▶︎ Karma Police — Radiohead (Spotify)  🔉 ▄ 45%
+██████░░░░  2:13/4:24  🎧 AirPods Pro
+```
+
+출력 장치를 track 줄에, 볼륨은 빼고(패턴 `126/45`):
+
+```
+▶︎ Karma Police — Radiohead (Spotify)  🎧 AirPods Pro
 ██████░░░░  2:13/4:24
-🔊 AirPods Pro
 ```
 
-출력 장치를 track 줄에(패턴 `125/34`):
-
-```
-▶︎ Karma Police — Radiohead (Spotify)  🔊 AirPods Pro
-██████░░░░  2:13/4:24
-```
-
-시간을 앞으로, 한 줄(패턴 `4312`, 즉
+시간을 앞으로, 한 줄(패턴 `5412`, 즉
 `statusline.fields "time,progressbar,track,app"`):
 
 ```
 2:13/4:24  ██████░░░░  ▶︎ Karma Police — Radiohead (Spotify)
 ```
 
-`output` 항목은 네이티브 helper가 필요합니다(세그먼트가 원래 하던 조회에
-함께 실려 오기 때문에 추가 비용은 없습니다). 장치 전환은 `/media:output`으로
-하면 되고, 세그먼트는 다음 갱신 때 바로 반영됩니다.
+`output`과 `volume` 항목은 네이티브 helper가 필요합니다(세그먼트가 원래
+하던 조회에 함께 실려 오기 때문에 추가 비용은 없습니다). 장치 전환은
+`/media:output`, 볼륨 조절은 `/media:volume`으로 하면 되고, 세그먼트는
+다음 갱신 때 바로 반영됩니다.
 
 ### 긴 제목: marquee 스크롤
 

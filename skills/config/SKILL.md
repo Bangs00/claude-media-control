@@ -36,7 +36,7 @@ Valid keys:
 - `statusline.color` — ANSI colors/bold/italic in the statusline (default `on`; the `NO_COLOR` env var also disables it)
 - `statusline.marquee` — scroll statusline titles wider than 30 cells, one char/second (default `on`)
 - `history.record` — log played tracks to the local history (default `on`; view with `/media:history`)
-- `statusline.fields` — which items the statusline shows, as a comma/space list of `track app progressbar time output`; **saved in the order given, which is the render order**, and a `/` between items starts a new line (explicit per-line layout, e.g. `track,app,/,progressbar,time`; interactive picker: `/media:statusline`)
+- `statusline.fields` — which items the statusline shows, as a comma/space list of `track app progressbar time output volume`; **saved in the order given, which is the render order**, and a `/` between items starts a new line (explicit per-line layout, e.g. `track,app,volume,/,progressbar,time,output`; interactive picker: `/media:statusline`)
 
 Rules you must follow:
 
@@ -54,7 +54,7 @@ current state** (checked = the key is `on` / the item is chosen).
 
 ### Step 1 — ask
 
-Send these three questions together in one AskUserQuestion call:
+Send these four questions together in one AskUserQuestion call:
 
 - **Q1** header "Layout" — single-select: "How should the statusline be arranged?"
   Give each option a `preview` (samples below; if previews are unsupported,
@@ -64,42 +64,53 @@ Send these three questions together in one AskUserQuestion call:
     line; otherwise `statusline.multiline` decides) using the same sample
     track as the other previews
   - `Standard` — everything on one line — preview:
-    `▶︎ Karma Police — Radiohead (Spotify)  ██████░░░░  2:13/4:24  🔊 AirPods Pro`
-  - `Stacked` — three lines — preview:
-    `▶︎ Karma Police — Radiohead (Spotify)` ⏎ `██████░░░░  2:13/4:24` ⏎ `🔊 AirPods Pro`
+    `▶︎ Karma Police — Radiohead (Spotify)  🔉 ▄ 45%  ██████░░░░  2:13/4:24  🎧 AirPods Pro`
+  - `Stacked` — two lines — preview:
+    `▶︎ Karma Police — Radiohead (Spotify)  🔉 ▄ 45%` ⏎ `██████░░░░  2:13/4:24  🎧 AirPods Pro`
   - `Compact` — track and time only — preview:
     `▶︎ Karma Police — Radiohead  2:13/4:24`
 
-  (Per-line custom arrangements — numeric patterns like `12/34/5` — live in
-  `/media:statusline`; a wish typed via "Other" — e.g. "time first" — maps to
-  an ordered field list there.)
+  (Per-line custom arrangements — numeric patterns like `123/456` — live in
+  `/media:statusline`; a pattern or wish typed via "Other" — e.g. "time
+  first" — maps to an ordered field list there.)
 
 - **Q2** header "Statusline" — `multiSelect: true`: "Statusline options? (checked = on)"
   - `Show statusline` — render the now-playing segment at all (`display.statusline`)
-  - `Output device item` — append 🔊 current audio output to the items (needs the native helper)
   - `Colors` — ANSI color/bold/italic (`statusline.color`)
   - `Marquee` — scroll titles wider than 30 cells (`statusline.marquee`)
 
-- **Q3** header "Features" — `multiSelect: true`: "Other display features? (checked = on)"
+- **Q3** header "Items" — `multiSelect: true`: "Extra statusline items? (checked = shown; both need the native helper)"
+  - `Output device` — the current audio output, icon by device kind (`🎧 AirPods Pro`, 🔊 speakers, 📺 HDMI, 📶 AirPlay)
+  - `Volume` — the system volume as icon + level bar + percent (`🔉 ▄ 45%`, `🔇` when muted)
+
+- **Q4** header "Features" — `multiSelect: true`: "Other display features? (checked = on)"
   - `Progress bar in /media:now` — the bar in the `/media:now` reply (`display.progressbar`)
   - `Playback history` — log played tracks (`history.record`, viewed with `/media:history`)
 
-### Step 2 — save the layout (Q1 + Q2's output item)
+### Step 2 — save the layout (Q1 + Q3)
 
-Map the preset to an ordered field list + a multiline value — Standard =
-`track,app,progressbar,time,output` + `off`, Stacked =
-`track,app,/,progressbar,time,/,output` + `off` (the `/` breaks make the
-lines), Compact = `track,time` + `off`. For `Keep current`, start from the
-current item list and leave `statusline.multiline` alone. Then apply Q2's
-`Output device item`: checked → append `output` to the list (if absent);
-unchecked → drop it (a line left empty disappears on save). Save:
+Map the preset to an ordered field list — Standard =
+`track,app,volume,progressbar,time,output`, Stacked =
+`track,app,volume,/,progressbar,time,output` (the `/` break makes the lines),
+Compact = `track,time`. For `Keep current`, start from the current item list.
+Then apply Q3 to that list: a checked item is kept (append `output` / `volume`
+if absent); an unchecked item is dropped (a line left empty disappears on
+save). Save:
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT}/scripts/media.sh" config statusline.fields "track,app,/,progressbar,time,/,output"
-"${CLAUDE_PLUGIN_ROOT}/scripts/media.sh" config statusline.multiline off   # skip for Keep current
+"${CLAUDE_PLUGIN_ROOT}/scripts/media.sh" config statusline.fields "track,app,volume,/,progressbar,time,output"
 ```
 
-### Step 3 — save the toggles (Q2 + Q3)
+When the final list has no `/` (a one-line arrangement) and the layout
+changed, also write `statusline.multiline off` so a leftover stacked flag
+cannot re-split it; when it contains `/` (or `Keep current`), leave
+`statusline.multiline` alone:
+
+```bash
+"${CLAUDE_PLUGIN_ROOT}/scripts/media.sh" config statusline.multiline off   # one-line layouts only
+```
+
+### Step 3 — save the toggles (Q2 + Q4)
 
 For EACH key below, write `on` if its option was checked, `off` if not — one Bash call each:
 
@@ -107,8 +118,8 @@ For EACH key below, write `on` if its option was checked, `off` if not — one B
 "${CLAUDE_PLUGIN_ROOT}/scripts/media.sh" config display.statusline on      # Q2 Show statusline
 "${CLAUDE_PLUGIN_ROOT}/scripts/media.sh" config statusline.color on        # Q2 Colors
 "${CLAUDE_PLUGIN_ROOT}/scripts/media.sh" config statusline.marquee on      # Q2 Marquee
-"${CLAUDE_PLUGIN_ROOT}/scripts/media.sh" config display.progressbar on     # Q3 Progress bar in /media:now
-"${CLAUDE_PLUGIN_ROOT}/scripts/media.sh" config history.record on          # Q3 Playback history
+"${CLAUDE_PLUGIN_ROOT}/scripts/media.sh" config display.progressbar on     # Q4 Progress bar in /media:now
+"${CLAUDE_PLUGIN_ROOT}/scripts/media.sh" config history.record on          # Q4 Playback history
 ```
 
 If enabling `display.statusline` is **refused (exit 3)**, no now-playing read

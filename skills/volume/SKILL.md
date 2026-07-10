@@ -23,3 +23,7 @@ Requested volume: $ARGUMENTS
 The command prints `{"volume":N,"muted":bool}`. Confirm in one short markdown
 line, e.g. `🔊 Volume **45%**` (append `*(muted)*` when `muted` is true). This
 is the system output volume — it does not change per-app sliders.
+
+Tip: the statusline can show the volume as icon + level bar + percent
+(`🔉 ▄ 45%`) — check "Volume" in `/media:config`, or place it anywhere with
+`/media:statusline` (digit 3).

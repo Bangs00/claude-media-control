@@ -5,6 +5,44 @@ All notable changes to this project are documented here. The format follows
 [SemVer](https://semver.org/spec/v2.0.0.html), tracked in
 `.claude-plugin/plugin.json`.
 
+## [0.10.0] — 2026-07-10
+
+### Added
+
+- **A `volume` statusline item.** Renders as icon + level bar + percent:
+  a speaker glyph tiered by level (🔈/🔉/🔊, 🔇 at zero), an eighth-block
+  bar whose height tracks the level (50% = the half block `▄`), and the
+  percent — `🔉 ▄ 45%`; muted collapses to `🔇`. The value rides the same
+  native read as the rest of the segment (CoreAudio virtual main volume,
+  a public API), so the item adds no extra process spawn per tick; like
+  `output`, it needs the native helper. Setting the volume with
+  `/media:volume` shows up on the next tick. In the classic grouped
+  layout, `volume` joins an adjacent track group, and adjacent
+  `output`+`volume` share a group.
+- **Device-kind icons for the `output` item.** The icon now follows the
+  device type (CoreAudio transport type, public API): `🎧` Bluetooth
+  devices and the built-in headphone jack, `📺` HDMI/DisplayPort audio,
+  `📶` AirPlay, `🔊` everything else.
+
+### Changed
+
+- **The presets include the volume item, in a new default order.**
+  Standard = `track,app,volume,progressbar,time,output` on one line;
+  Stacked = two explicit lines, `track,app,volume` /
+  `progressbar,time,output`. Saved arrangements are untouched until you
+  pick a preset again, and the engine's default field set
+  (`track app progressbar time`) is unchanged.
+- **Numeric-pattern digits follow the default order**: 1 track, 2 app,
+  3 volume, 4 progress bar, 5 time, 6 output — so Standard is `123456`
+  and Stacked is `123/456`.
+- **`Custom…` takes the pattern straight from the chat input.** The
+  picker no longer asks a second multiple-choice question (whose option
+  hotkeys swallowed the digits you tried to type); it prints a digit
+  legend — which number is which item, with a sample of each — plus your
+  current arrangement as a pattern, and you type the new pattern (e.g.
+  `123/456`) as a normal reply. In `/media:config`, the extra statusline
+  items moved to their own "Items" question (Output device / Volume).
+
 ## [0.9.0] — 2026-07-10
 
 ### Added

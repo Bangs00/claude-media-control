@@ -1,7 +1,7 @@
 ---
 name: statusline
-description: Arrange the now-playing statusline — pick the Standard or Stacked preset from visual previews, or build any custom arrangement: which items appear (track, app, progress bar, time, output device), which items sit on which line, and in what order — typed compactly as a numeric pattern like 12/34/5. Use when the user wants to lay out, arrange, reorder, or redesign the statusline items or lines, or asks what statusline layouts look like.
-argument-hint: [preset | pattern like 12/34/5 | ordered item list]
+description: Arrange the now-playing statusline — pick the Standard or Stacked preset from visual previews, or build any custom arrangement: which items appear (track, app, volume, progress bar, time, output device), which items sit on which line, and in what order — typed compactly as a numeric pattern like 123/456. Use when the user wants to lay out, arrange, reorder, or redesign the statusline items or lines, or asks what statusline layouts look like.
+argument-hint: [preset | pattern like 123/456 | ordered item list]
 allowed-tools: Bash, AskUserQuestion
 ---
 
@@ -20,42 +20,45 @@ Current settings (see `display.statusline` and `statusline.multiline`):
 ## How arrangement works
 
 `statusline.fields` is an **ordered** list — the segment renders the items in
-exactly the order they are saved. Three grouping rules: `app` attaches to the
-track group when both are chosen (`▶︎ Title — Artist (App)`); `progressbar`
-+ `time` share one group when adjacent; `output` joins the track group when
-they sit next to each other (a folded `app` in between does not break the
-adjacency). Groups matter in the stacked layout: `statusline.multiline on`
-puts each group on its own line, and grouped items stay on one line.
+exactly the order they are saved. Grouping rules: `app` attaches to the track
+group when both are chosen (`▶︎ Title — Artist (App)`); `progressbar` + `time`
+share one group when adjacent; `output` and `volume` join the track group
+when they sit next to it, and adjacent `output`+`volume` share one group (a
+folded `app` in between does not break the adjacency). Groups matter in the
+stacked layout: `statusline.multiline on` puts each group on its own line,
+and grouped items stay on one line.
 
 **Explicit lines** — full per-line control: a `/` in the field list starts a
 new line, and the whole list switches to the explicit layout. Every line then
 shows exactly the items placed on it, in that order; the grouping rules and
 `statusline.multiline` no longer apply. Within a line, `app` directly after
 `track` still folds into it as `(App)`; anywhere else it renders as the plain
-app name. A line whose items have nothing to show right now (e.g. `output`
-without the native helper) disappears entirely — no blank lines.
+app name. A line whose items have nothing to show right now (e.g. `output` or
+`volume` without the native helper) disappears entirely — no blank lines.
 
-**Numeric patterns** — wherever an arrangement can be given ($ARGUMENTS, an
-"Other" answer), digits name the items, `/` starts a new line, digit order =
-display order, and digits left out are omitted:
+**Numeric patterns** — wherever an arrangement can be given ($ARGUMENTS, a
+typed reply, an "Other" answer), digits name the items, `/` starts a new
+line, digit order = display order, and digits left out are omitted. The digit
+order is also the default item order:
 
 | digit | item | looks like |
 | --- | --- | --- |
 | 1 | `track` | `▶︎ Karma Police — Radiohead` |
 | 2 | `app` | `(Spotify)` |
-| 3 | `progressbar` | `██████░░░░` |
-| 4 | `time` | `2:13/4:24` |
-| 5 | `output` | `🔊 AirPods Pro` |
+| 3 | `volume` | `🔉 ▄ 45%` (🔇 when muted) |
+| 4 | `progressbar` | `██████░░░░` |
+| 5 | `time` | `2:13/4:24` |
+| 6 | `output` | `🎧 AirPods Pro` (icon by device: 🔊 speakers · 🎧 Bluetooth/headphones · 📺 HDMI/DisplayPort · 📶 AirPlay) |
 
-`12/34/5` → `track,app,/,progressbar,time,/,output` (three lines);
-`43/125` → `time,progressbar,/,track,app,output`; `14` → `track,time`.
+`123/456` → `track,app,volume,/,progressbar,time,output` (two lines);
+`45/126` → `progressbar,time,/,track,app,output`; `15` → `track,time`.
 
 The presets (named arrangements, usable as `$ARGUMENTS`):
 
 | Preset | `statusline.fields` | `statusline.multiline` |
 | --- | --- | --- |
-| Standard | `track,app,progressbar,time,output` | `off` |
-| Stacked | `track,app,/,progressbar,time,/,output` | `off` (the `/` breaks make the lines) |
+| Standard | `track,app,volume,progressbar,time,output` | `off` |
+| Stacked | `track,app,volume,/,progressbar,time,output` | `off` (the `/` break makes the lines) |
 | Compact | `track,time` | `off` |
 
 (`Everything` is a legacy alias — accept it, save Standard.)
@@ -66,98 +69,80 @@ Map the request onto an ordered field list, then save (Step 2). A preset name
 maps per the table above. A numeric pattern maps per the digit legend. An
 explicit list (`time,track` or `track,app,/,progressbar,time`) passes through
 as-is. A described arrangement maps by intent — e.g. "time first" →
-`time,progressbar,track,app`; "track, app and output on line 1, bar and time
-on line 2" → `track,app,output,/,progressbar,time`; "3 lines: track / bar and
-time / output" → `track,app,/,progressbar,time,/,output`; "time alone on
-top" → `time,/,track,app,progressbar`. Order within a line is the order
-within its `/` span.
+`time,progressbar,track,app`; "track, app and volume on line 1, the rest on
+line 2" → `track,app,volume,/,progressbar,time,output`; "3 lines: track /
+bar and time / output" → `track,app,/,progressbar,time,/,output`; "time
+alone on top" → `time,/,track,app,progressbar`. Order within a line is the
+order within its `/` span.
 
 ## Mode B — no arguments → interactive arrangement
 
 ### Call 1 — layout
 
 Ask ONE **AskUserQuestion** call with exactly ONE question (single-select,
-header "Layout"): "How should the statusline look?" Mark the option matching
-the current state "(current)" in its label — compare the current field list
-against the preset rows. Use exactly these previews (they match the real
-renderer); if your AskUserQuestion does not support option previews, put the
-sample lines in the option descriptions instead.
+header "Layout"): "How should the statusline look? (`Custom…` lets you type a
+numeric pattern; typing one via Other works right away too)". Mark the option
+matching the current state "(current)" in its label — compare the current
+field list against the preset rows. Use exactly these previews (they match
+the real renderer); if your AskUserQuestion does not support option previews,
+put the sample lines in the option descriptions instead.
 
 - `Standard` — everything on one line
 
   ```
-  ▶︎ Karma Police — Radiohead (Spotify)  ██████░░░░  2:13/4:24  🔊 AirPods Pro
+  ▶︎ Karma Police — Radiohead (Spotify)  🔉 ▄ 45%  ██████░░░░  2:13/4:24  🎧 AirPods Pro
   ```
 
-- `Stacked` — three lines: track / progress / output
+- `Stacked` — two lines: track, app & volume / stats & output
 
   ```
-  ▶︎ Karma Police — Radiohead (Spotify)
-  ██████░░░░  2:13/4:24
-  🔊 AirPods Pro
+  ▶︎ Karma Police — Radiohead (Spotify)  🔉 ▄ 45%
+  ██████░░░░  2:13/4:24  🎧 AirPods Pro
   ```
 
-- `Custom…` — put any items on any lines, in any order (next step)
+- `Custom…` — type which items go on which lines as a numeric pattern
 
   ```
-  1 track · 2 app · 3 bar · 4 time · 5 output
-  e.g. 12/34/5 → track+app / bar+time / output
+  1 track · 2 app · 3 volume · 4 bar · 5 time · 6 output
+  next: type a pattern like 123/456 into the chat
   ```
 
-### Call 2 — ONLY when Call 1 = `Custom…`
+An "Other" answer here is already the arrangement — map it (a numeric pattern
+per the legend, anything else per Mode A) and continue with Step 2.
 
-Ask ONE question (single-select, header "Lines") whose text carries the item
-legend and the input syntax, e.g.:
+### Call 2 — ONLY when Call 1 = `Custom…` → direct pattern input
 
-> Which items go on which lines? Pick a pattern, or type your own via Other —
-> 1 track, 2 app, 3 progress bar, 4 time, 5 output; `/` starts a new line;
-> digit order = display order; leave a digit out to hide that item
-> (e.g. `12/34/5`, `43/125`, `14`).
+Do NOT ask another AskUserQuestion — the pattern is typed straight into the
+normal chat input, where digits and `/` need no option-navigation. End your
+reply with the digit legend and the syntax, then stop and wait for the user's
+next message. Reply with exactly this shape (translate prose to the
+conversation language, keep the table):
 
-Options — the label IS the pattern; previews show all five items:
+> Type your pattern: each digit is an item, digit order = display order, `/`
+> starts a new line, and a digit you leave out hides that item.
+> Current: `123/456`
+>
+> | # | item | looks like |
+> | --- | --- | --- |
+> | 1 | track | ▶︎ Karma Police — Radiohead |
+> | 2 | app | (Spotify) |
+> | 3 | volume | 🔉 ▄ 45% |
+> | 4 | progress bar | ██████░░░░ |
+> | 5 | time | 2:13/4:24 |
+> | 6 | output | 🎧 AirPods Pro |
+>
+> e.g. `123456` = one line · `123/456` = two lines · `1/45` = track on top,
+> bar & time below
 
-- `125/34` — track, app & output on top, progress & time below
-
-  ```
-  ▶︎ Karma Police — Radiohead (Spotify)  🔊 AirPods Pro
-  ██████░░░░  2:13/4:24
-  ```
-
-- `12/345` — track & app on top, stats with output below
-
-  ```
-  ▶︎ Karma Police — Radiohead (Spotify)
-  ██████░░░░  2:13/4:24  🔊 AirPods Pro
-  ```
-
-- `43/125` — time & bar on top, track below
-
-  ```
-  2:13/4:24  ██████░░░░
-  ▶︎ Karma Police — Radiohead (Spotify)  🔊 AirPods Pro
-  ```
-
-- `1/2/3/4/5` — one item per line
-
-  ```
-  ▶︎ Karma Police — Radiohead
-  Spotify
-  ██████░░░░
-  2:13/4:24
-  🔊 AirPods Pro
-  ```
-
-  (an `app` on its own line renders as the plain app name — parens only when
-  it sits right after the track)
-
-An "Other" answer that is a numeric pattern maps per the legend; anything
-else (an item list, "time first") is a Mode A request — map it, then continue
-with Step 2.
+For `Current:` convert the current field list to digits (`/` stays `/`, e.g.
+`track app / time` → `1/5`). Map the reply: a numeric pattern per the legend;
+an item list or described arrangement per Mode A; if it maps to nothing,
+restate the legend line briefly and ask again. Then continue with Step 2.
 
 ## Step 2 — save
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT}/scripts/media.sh" config statusline.fields "track,app,/,progressbar,time,/,output"
+"${CLAUDE_PLUGIN_ROOT}/scripts/media.sh" config statusline.fields "track,app,volume,/,progressbar,time,output"
 ```
 
 When the list contains `/`, leave `statusline.multiline` alone — explicit

@@ -260,6 +260,20 @@ setup() {
   fi
 }
 
+@test "volume: set drops the statusline cache (no-op set to the current level)" {
+  run "$MEDIA" volume
+  if [ "$status" -ne 0 ]; then
+    skip "no standard audio output device on this machine"
+  fi
+  [[ "$output" =~ \"volume\":([0-9]+) ]]
+  cur="${BASH_REMATCH[1]}"
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  printf 'stale' > "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  run "$MEDIA" volume "$cur"               # same level: no audible change
+  [ "$status" -eq 0 ]
+  [ ! -f "$CLAUDE_PLUGIN_DATA/statusline.cache" ]
+}
+
 # ---- output device ----------------------------------------------------------
 
 @test "output: lists current + devices as JSON" {
@@ -622,6 +636,105 @@ setup() {
   run "$MEDIA" statusline
   [ "$status" -eq 0 ]
   [[ "$output" != *"Stub Speakers"* ]]
+}
+
+@test "statusline: output icon follows the device kind" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["output"]}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$output" = "🔊 Stub Speakers" ]             # speaker kind (stub default)
+  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  STUB_OUTPUT_KIND=headphones run "$MEDIA" statusline
+  [ "$output" = "🎧 Stub Speakers" ]             # bluetooth / headphone jack
+  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  STUB_OUTPUT_KIND=display run "$MEDIA" statusline
+  [ "$output" = "📺 Stub Speakers" ]             # HDMI / DisplayPort audio
+}
+
+# ---- statusline volume field --------------------------------------------------
+
+@test "statusline.fields: volume is a valid field" {
+  run "$MEDIA" config statusline.fields "track,volume"
+  [ "$status" -eq 0 ]
+  run "$MEDIA" config statusline.fields
+  [ "$output" = "track volume" ]
+}
+
+@test "statusline: volume field renders the system level when selected" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["track","volume"]}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"🔉 ▄ 45%"* ]]          # icon tier + level-height bar + %
+}
+
+@test "statusline: volume field omitted by default" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.statusline":true}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$status" -eq 0 ]
+  [[ "$output" != *"45%"* ]]
+}
+
+@test "statusline: volume icon and bar height follow the level; muted collapses to 🔇" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["volume"]}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  STUB_VOLUME=90 run "$MEDIA" statusline
+  [ "$output" = "🔊 █ 90%" ]                     # high tier, full-height bar
+  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"   # beat the 1s TTL between runs
+  STUB_VOLUME=50 run "$MEDIA" statusline
+  [ "$output" = "🔉 ▄ 50%" ]                     # 50% = half-height bar
+  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  STUB_VOLUME=10 run "$MEDIA" statusline
+  [ "$output" = "🔈 ▁ 10%" ]                     # low tier, sliver bar
+  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  STUB_MUTED=true run "$MEDIA" statusline
+  [ "$output" = "🔇" ]
+}
+
+@test "statusline: multiline merges volume into an adjacent track group" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  # The Standard order: a folded app stays transparent, so track and volume
+  # count as adjacent and share the first line.
+  echo '{"display.statusline":true,"statusline.multiline":true,"statusline.color":false,"statusline.fields":["track","app","volume","progressbar","time"]}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$status" -eq 0 ]
+  [ "${#lines[@]}" -eq 2 ]                 # track+app+volume / bar+time
+  [[ "${lines[0]}" == *"(StubPlayer)"* ]]
+  [[ "${lines[0]}" == *"🔉 ▄ 45%"* ]]
+  [[ "${lines[1]}" == *"1:15/3:20"* ]]
+}
+
+@test "statusline: multiline merges volume into an adjacent output group" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.statusline":true,"statusline.multiline":true,"statusline.color":false,"statusline.fields":["track","progressbar","output","volume"]}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$status" -eq 0 ]
+  [ "${#lines[@]}" -eq 3 ]                 # track / bar / output+volume
+  [[ "${lines[2]}" == *"Stub Speakers"* ]]
+  [[ "${lines[2]}" == *"🔉 ▄ 45%"* ]]
+}
+
+@test "statusline: explicit layout puts volume on the chosen line" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["track","app","volume","/","progressbar","time","output"]}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$status" -eq 0 ]
+  [ "${#lines[@]}" -eq 2 ]                 # the Stacked preset, two lines
+  [[ "${lines[0]}" == *"(StubPlayer)"* ]]
+  [[ "${lines[0]}" == *"🔉 ▄ 45%"* ]]
+  [[ "${lines[1]}" == *"1:15/3:20"* ]]
+  [[ "${lines[1]}" == *"Stub Speakers"* ]]
+}
+
+@test "statusline: degraded read drops the volume item (JXA carries no volume)" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["track","/","volume"]}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  STUB_PRIMARY=null STUB_JXA_JSON='{"degraded":true,"title":"Jxa Song","artist":"Jxa Artist","playing":true,"elapsedTime":30,"duration":100}' \
+    run "$MEDIA" statusline
+  [ "$status" -eq 0 ]
+  [ "${#lines[@]}" -eq 1 ]                 # the volume line vanishes, no blank
+  [[ "${lines[0]}" == *"Jxa Song"* ]]
 }
 
 @test "statusline: marquee windows titles wider than 30 cells (default on)" {

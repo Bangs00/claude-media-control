@@ -387,6 +387,8 @@ do_volume() {
       echo "media: setting the system volume failed. Run /media:doctor." >&2
       exit 1
     fi
+    # The statusline `volume` field must show the change on the next tick.
+    rm -f "$DATA_DIR/statusline.cache"
   fi
   local vol muted
   vol="$(/usr/bin/osascript -e 'output volume of (get volume settings)' 2>/dev/null || true)"
@@ -476,9 +478,10 @@ do_statusline() {
     # Render the chosen fields as groups in their stored order (arrange with
     # /media:statusline), joined by two spaces inline or a newline in multiline
     # layout. `app` folds into the track group when both are chosen; adjacent
-    # progressbar+time share one group, and `output` merges into an adjacent
+    # progressbar+time share one group, `output` merges into an adjacent
     # track group (so `track,app,output,progressbar,time` stacks as two lines:
-    # track+app+output / bar+time). Adjacency is judged over the fields that
+    # track+app+output / bar+time), and `volume` merges into an adjacent
+    # track or output group. Adjacency is judged over the fields that
     # actually rendered a token, so a folded `app` between track and output is
     # transparent. A "/" in the stored fields switches to the explicit layout:
     # each "/" starts a new line, items render in the given order joined by
@@ -491,7 +494,11 @@ do_statusline() {
     # multi-line statuslines as-is. Styling (statusline.color on):
     # state-colored icon + filled bar (green playing / yellow paused), bold
     # title and elapsed time (the moving part must stay readable, so only
-    # the "/duration" tail is dim), italic artist, dim chrome. Claude Code
+    # the "/duration" tail is dim), italic artist, dim chrome. The `volume`
+    # field renders icon + level bar + percent (`🔉 ▄ 45%`): a speaker glyph
+    # tiered by level (🔈/🔉/🔊, 🔇 at 0), an eighth-block bar whose height
+    # tracks the level (50% = half block), and the percent. Muted shows 🔇
+    # alone — the underlying level is not what plays. Claude Code
     # statuslines render ANSI SGR
     # codes; every token resets with \e[0m so surrounding statusline content is
     # never restyled. statusline.marquee scrolls titles wider than 30 display
@@ -573,7 +580,31 @@ do_statusline() {
                    . $st->(2, "/" . (defined $dur ? mss($dur) : "LIVE"));
       }
       if ($w{output} && defined $d->{outputDevice}) {
-        $tok{output} = $st->(2, "\x{1F50A} " . $d->{outputDevice});
+        # Icon by device kind (adapter outputKind): headphones for Bluetooth
+        # devices and the built-in jack, a TV for HDMI/DisplayPort audio,
+        # signal bars for AirPlay, a speaker for everything else.
+        my %oicon = ("headphones" => "\x{1F3A7}", "display" => "\x{1F4FA}",
+                     "airplay" => "\x{1F4F6}");
+        my $oi = $oicon{$d->{outputKind} // ""} // "\x{1F50A}";
+        $tok{output} = $st->(2, "$oi " . $d->{outputDevice});
+      }
+      if ($w{volume} && defined $d->{volume}) {
+        my $v = int($d->{volume});
+        $v = 0 if $v < 0; $v = 100 if $v > 100;
+        if ($d->{muted}) {
+          $tok{volume} = $st->(2, "\x{1F507}");
+        } else {
+          my $icon = $v == 0 ? "\x{1F507}"
+                   : $v < 34 ? "\x{1F508}"
+                   : $v < 67 ? "\x{1F509}"
+                   :           "\x{1F50A}";
+          # Eighth-block bar whose height tracks the level: ceil(v*8/100)
+          # maps 1-100 onto ▁..█ (50% = ▄, the half block); 0 keeps the
+          # lowest sliver and the mute glyph.
+          my $i = int(($v * 8 + 99) / 100);
+          $i = 1 if $i < 1;
+          $tok{volume} = $st->(2, "$icon " . chr(0x2580 + $i) . " $v%");
+        }
       }
       if ($explicit) {
         my (@lines, @cur);
@@ -600,7 +631,9 @@ do_statusline() {
       }
       my @ro = grep { exists $tok{$_} } @order;
       my %pair = map { $_ => 1 } ("progressbar time", "time progressbar",
-                                  "track output", "output track");
+                                  "track output", "output track",
+                                  "track volume", "volume track",
+                                  "output volume", "volume output");
       my @groups;
       my $i = 0;
       while ($i < @ro) {
@@ -627,12 +660,12 @@ do_statusline() {
 CONFIG_KEYS="display.progressbar display.statusline statusline.multiline statusline.color statusline.marquee history.record"
 
 # Which segments the statusline renders, in the order they were stored
-# (arranged with /media:statusline or /media:config). "output" needs the
-# native helper (the JXA fallback carries no outputDevice field). Besides
-# these fields the stored list may hold "/" markers — each one starts a new
-# line and switches the segment to the explicit per-line layout (see
-# do_statusline).
-VALID_STATUSLINE_FIELDS="track app progressbar time output"
+# (arranged with /media:statusline or /media:config). "output" and "volume"
+# need the native helper (the JXA fallback carries no outputDevice /
+# volume / muted fields). Besides these fields the stored list may hold "/"
+# markers — each one starts a new line and switches the segment to the
+# explicit per-line layout (see do_statusline).
+VALID_STATUSLINE_FIELDS="track app progressbar time output volume"
 DEFAULT_STATUSLINE_FIELDS="track app progressbar time"
 
 config_default() {

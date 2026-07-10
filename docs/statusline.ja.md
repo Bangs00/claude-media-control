@@ -42,63 +42,67 @@ Claude Code の中で:
 ### 項目を配置する
 
 `/media:statusline` を実行すると、2 つのプリセット（Standard / Stacked）を
-プレビューで見比べながら選べます。`Custom…` を選べば、数字パターンひとつで
-どの項目をどの行にどの順序で置くかを自由に決められます: `1` track、
-`2` app、`3` 進行バー、`4` 時間、`5` 出力デバイス — `/` で新しい行が始まり、
-数字の並びがそのまま表示順になり、書かなかった数字の項目は表示されません。
-`12/34/5` なら 1 行目に track とアプリ、2 行目にバーと時間、3 行目に出力
-デバイスが並びます。簡易版のプリセットピッカーは `/media:config` の中からも
-開けます:
+プレビューで見比べながら選べます。`Custom…` を選べば、数字パターンひとつを
+チャット入力欄にそのまま打ち込むだけで、どの項目をどの行にどの順序で置くかを
+自由に決められます: `1` track、`2` app、`3` 音量、`4` 進行バー、`5` 時間、
+`6` 出力デバイス — `/` で新しい行が始まり、数字の並びがそのまま表示順になり、
+書かなかった数字の項目は表示されません。`123/456` なら 1 行目に track・
+アプリ・音量、2 行目にバー・時間・出力デバイスが並びます。簡易版のプリセット
+ピッカーは `/media:config` の中からも開けます:
 
 - **項目**（自由な組み合わせで、**好きな順序に**）: `track`（▶︎ 曲名 —
-  アーティスト）、`app`（再生中のアプリ、例: `(Spotify)`）、
-  `progressbar`（`██████░░░░`）、`time`（`2:13/4:24`）、`output`（🔊 現在の
-  オーディオ出力デバイス）。デフォルトの構成は
-  `track app progressbar time` です。
+  アーティスト）、`app`（再生中のアプリ、例: `(Spotify)`）、`volume`
+  （システム音量をアイコン + 音量に応じた高さのバー + パーセントで、例:
+  `🔉 ▄ 45%`。ミュート中は `🔇`）、`progressbar`（`██████░░░░`）、
+  `time`（`2:13/4:24`）、`output`（現在のオーディオ出力デバイス — アイコンは
+  デバイスの種類に合わせて変わります: Bluetooth・ヘッドホンジャックは `🎧`、
+  HDMI/DisplayPort は `📺`、AirPlay は `📶`、スピーカーは `🔊`）。デフォルト
+  の構成は `track app progressbar time` です。
 - **順序**: 項目は保存した順序どおりに描画されます。「時間を先頭に」
   「出力デバイスを前に」と頼んでもいいし、直接指定もできます:
   `/media:config statusline.fields "time,progressbar,track,app"`。
 - **行の割り当て**: 項目リストに `/` を入れると、そこで行が変わり、リスト
   全体が行単位の明示レイアウトに切り替わります — 各行にはそこに置いた項目
   だけがその順序で表示され、表示するものがない行は行ごと消えます（例:
-  ネイティブヘルパーがないときの `output`）。`/` がなければ従来のグループ
-  レイアウトのままです: 1 行にまとめるか、グループごとに行を分けるか
+  ネイティブヘルパーがないときの `output`・`volume`）。`/` がなければ従来の
+  グループレイアウトのままです: 1 行にまとめるか、グループごとに行を分けるか
   （`statusline.multiline on`）— `app` は track のグループに付き、
   `progressbar` と `time` は順序上隣り合っているときに 1 つのグループに
-  なり、track と `output` も同様です。
+  なり、`output` と `volume` は隣り合う track グループに合流し、両者が
+  隣り合えば 2 つで 1 つのグループになります。
 
-Standard — 全項目を 1 行で:
-
-```
-▶︎ Karma Police — Radiohead (Spotify)  ██████░░░░  2:13/4:24  🔊 AirPods Pro
-```
-
-Stacked — 明示的な 3 行レイアウト（パターン `12/34/5`、つまり
-`statusline.fields "track,app,/,progressbar,time,/,output"`）:
+Standard — 全項目を 1 行で（パターン `123456`）:
 
 ```
-▶︎ Karma Police — Radiohead (Spotify)
+▶︎ Karma Police — Radiohead (Spotify)  🔉 ▄ 45%  ██████░░░░  2:13/4:24  🎧 AirPods Pro
+```
+
+Stacked — 明示的な 2 行レイアウト（パターン `123/456`、つまり
+`statusline.fields "track,app,volume,/,progressbar,time,output"`）:
+
+```
+▶︎ Karma Police — Radiohead (Spotify)  🔉 ▄ 45%
+██████░░░░  2:13/4:24  🎧 AirPods Pro
+```
+
+出力デバイスを track の行に、音量は外して（パターン `126/45`）:
+
+```
+▶︎ Karma Police — Radiohead (Spotify)  🎧 AirPods Pro
 ██████░░░░  2:13/4:24
-🔊 AirPods Pro
 ```
 
-出力デバイスを track の行に（パターン `125/34`）:
-
-```
-▶︎ Karma Police — Radiohead (Spotify)  🔊 AirPods Pro
-██████░░░░  2:13/4:24
-```
-
-時間を先頭に、1 行で（パターン `4312`、つまり
+時間を先頭に、1 行で（パターン `5412`、つまり
 `statusline.fields "time,progressbar,track,app"`）:
 
 ```
 2:13/4:24  ██████░░░░  ▶︎ Karma Police — Radiohead (Spotify)
 ```
 
-`output` 項目にはネイティブヘルパーが必要です（セグメントが元々行う読み取り
-に相乗りするため、追加コストはありません）。デバイスの切り替えは
-`/media:output` で行え、セグメントには次の更新で反映されます。
+`output` と `volume` の項目にはネイティブヘルパーが必要です（セグメントが
+元々行う読み取りに相乗りするため、追加コストはありません）。デバイスの
+切り替えは `/media:output`、音量の変更は `/media:volume` で行え、セグメント
+には次の更新で反映されます。
 
 ### 長いタイトル: マーキースクロール
 
