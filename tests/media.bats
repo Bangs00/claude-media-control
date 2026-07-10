@@ -21,6 +21,11 @@ setup() {
   cp "$PROJECT_ROOT/tests/stubs/loader.pl" "$PLUGIN/native/loader.pl"
   chmod +x "$PLUGIN/scripts/media.sh" "$PLUGIN/scripts/build-native.sh"
   export CLAUDE_PLUGIN_DATA="$BATS_TEST_TMPDIR/data"
+  # Statusline wiring writes to $HOME/.claude (settings.json + wrapper), and
+  # enabling display.statusline wires automatically — isolate every test from
+  # the developer's real home directory.
+  export HOME="$BATS_TEST_TMPDIR/home"
+  mkdir -p "$HOME"
   MEDIA="$PLUGIN/scripts/media.sh"
 }
 
@@ -1139,6 +1144,183 @@ setup() {
   [ "$status" -eq 0 ]
   run "$MEDIA" config statusline.color
   [ "$output" = "off" ]
+}
+
+# ---- statusline wiring (settings.json install / uninstall / self-heal) --------
+
+@test "statusline install: fresh settings -> wrapper, statusLine entry, null backup" {
+  run "$MEDIA" statusline install
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"wired into settings.json"* ]]
+  [ -x "$HOME/.claude/statusline-media.sh" ]
+  grep -q "managed-by: claude-media-control" "$HOME/.claude/statusline-media.sh"
+  grep -q 'statusline-media.sh' "$HOME/.claude/settings.json"
+  grep -q '"refreshInterval": 1' "$HOME/.claude/settings.json"
+  grep -q '"statusLine": null' "$HOME/.claude/statusline-media.backup.json"
+}
+
+@test "statusline install: existing statusLine is wrapped, backed up, keys preserved" {
+  mkdir -p "$HOME/.claude"
+  printf '%s\n' '{"model":"opus","statusLine":{"type":"command","command":"echo OLD-LINE","padding":3,"refreshInterval":5}}' \
+    > "$HOME/.claude/settings.json"
+  run "$MEDIA" statusline install
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"previous statusline still runs first"* ]]
+  grep -q '"command": "echo OLD-LINE"' "$HOME/.claude/statusline-media.backup.json"
+  grep -q 'statusline-media.sh' "$HOME/.claude/settings.json"
+  grep -q '"padding": 3' "$HOME/.claude/settings.json"           # merged into the new entry
+  grep -q '"refreshInterval": 5' "$HOME/.claude/settings.json"   # explicit interval kept
+  grep -q '"model": "opus"' "$HOME/.claude/settings.json"        # unrelated keys intact
+  grep -q 'echo OLD-LINE' "$HOME/.claude/statusline-media.sh"    # embedded for pass-through
+}
+
+@test "statusline install: idempotent — second run refreshes, backup not clobbered" {
+  mkdir -p "$HOME/.claude"
+  echo '{"statusLine":{"type":"command","command":"echo OLD-LINE"}}' > "$HOME/.claude/settings.json"
+  run "$MEDIA" statusline install
+  run "$MEDIA" statusline install
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"already wired"* ]]
+  # The backup still holds the pre-plugin value, not the wrapper pointer.
+  grep -q '"command": "echo OLD-LINE"' "$HOME/.claude/statusline-media.backup.json"
+  ! grep -q 'statusline-media' "$HOME/.claude/statusline-media.backup.json"
+}
+
+@test "statusline install: a manual setup is detected and left untouched" {
+  mkdir -p "$HOME/.claude"
+  printf '#!/bin/bash\necho MY-CUSTOM\n' > "$HOME/.claude/statusline-media.sh"
+  chmod +x "$HOME/.claude/statusline-media.sh"
+  echo '{"statusLine":{"type":"command","command":"\"$HOME/.claude/statusline-media.sh\""}}' > "$HOME/.claude/settings.json"
+  run "$MEDIA" statusline install
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"your own setup"* ]]
+  grep -q 'MY-CUSTOM' "$HOME/.claude/statusline-media.sh"        # not regenerated
+  [ ! -f "$HOME/.claude/statusline-media.backup.json" ]          # nothing backed up
+  run "$MEDIA" statusline uninstall
+  [ "$status" -eq 1 ]                                            # manual: refuse to touch
+  [ -f "$HOME/.claude/statusline-media.sh" ]
+}
+
+@test "statusline install: unparseable settings.json refuses to wire" {
+  mkdir -p "$HOME/.claude"
+  echo '{ not json' > "$HOME/.claude/settings.json"
+  run "$MEDIA" statusline install
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"cannot parse"* ]]
+  grep -q 'not json' "$HOME/.claude/settings.json"               # left exactly as it was
+  [ ! -f "$HOME/.claude/statusline-media.sh" ]
+}
+
+@test "config display.statusline on: wires settings.json automatically" {
+  run "$MEDIA" config display.statusline on
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"wired into settings.json"* ]]
+  [[ "$output" == *"display.statusline = on"* ]]
+  [ -x "$HOME/.claude/statusline-media.sh" ]
+  grep -q 'statusline-media.sh' "$HOME/.claude/settings.json"
+}
+
+@test "config display.statusline off: hides the segment but keeps the wiring" {
+  run "$MEDIA" config display.statusline on
+  run "$MEDIA" config display.statusline off
+  [ "$status" -eq 0 ]
+  [ -x "$HOME/.claude/statusline-media.sh" ]                     # cheap re-enable later
+  grep -q 'statusline-media.sh' "$HOME/.claude/settings.json"
+  run bash -c 'printf "{}" | "$HOME/.claude/statusline-media.sh"'
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]                                               # wired but silent
+}
+
+@test "wrapper: previous statusline passes through first, segment appended" {
+  mkdir -p "$HOME/.claude"
+  echo '{"statusLine":{"type":"command","command":"echo OLD-LINE"}}' > "$HOME/.claude/settings.json"
+  run "$MEDIA" config display.statusline on
+  [ "$status" -eq 0 ]
+  run bash -c 'printf "{}" | "$HOME/.claude/statusline-media.sh"'
+  [ "$status" -eq 0 ]
+  [ "${lines[0]}" = "OLD-LINE" ]                                 # byte-for-byte, first
+  [[ "${lines[1]}" == *"Stub Song"* ]]                           # segment as its own line
+}
+
+@test "wrapper: disabled plugin renders the previous statusline only" {
+  mkdir -p "$HOME/.claude/plugins"
+  echo '{"statusLine":{"type":"command","command":"echo OLD-LINE"}}' > "$HOME/.claude/settings.json"
+  run "$MEDIA" config display.statusline on
+  echo '{"version":2,"plugins":{"media@claude-media-control":[{"scope":"user"}]}}' \
+    > "$HOME/.claude/plugins/installed_plugins.json"
+  # Claude Code records a disable as enabledPlugins: false.
+  /usr/bin/perl -MJSON::PP -e '
+    local $/; open my $f, "<", $ARGV[0]; my $d = decode_json(<$f>); close $f;
+    $d->{enabledPlugins}{"media\@claude-media-control"} = JSON::PP::false;
+    open my $o, ">", $ARGV[0]; print $o encode_json($d); close $o;
+  ' "$HOME/.claude/settings.json"
+  run bash -c 'printf "{}" | "$HOME/.claude/statusline-media.sh"'
+  [ "$status" -eq 0 ]
+  [ "$output" = "OLD-LINE" ]                                     # no segment, wiring kept
+  [ -f "$HOME/.claude/statusline-media.sh" ]
+}
+
+@test "wrapper self-heal: uninstalled plugin restores settings and removes itself" {
+  mkdir -p "$HOME/.claude"
+  echo '{"model":"opus","statusLine":{"type":"command","command":"echo OLD-LINE","padding":3}}' > "$HOME/.claude/settings.json"
+  run "$MEDIA" config display.statusline on
+  [ "$status" -eq 0 ]
+  # Uninstall: no registry entry, and the recorded dev checkout is gone.
+  mkdir -p "$HOME/.claude/plugins"
+  echo '{"version":2,"plugins":{}}' > "$HOME/.claude/plugins/installed_plugins.json"
+  mv "$PLUGIN" "$PLUGIN-gone"
+  run bash -c 'printf "{}" | "$HOME/.claude/statusline-media.sh"'
+  [ "$status" -eq 0 ]
+  [ "$output" = "OLD-LINE" ]                                     # last tick still renders
+  grep -q '"command": "echo OLD-LINE"' "$HOME/.claude/settings.json"
+  grep -q '"padding": 3' "$HOME/.claude/settings.json"           # object restored verbatim
+  ! grep -q 'statusline-media' "$HOME/.claude/settings.json"
+  grep -q '"model": "opus"' "$HOME/.claude/settings.json"        # other keys survive
+  [ ! -f "$HOME/.claude/statusline-media.sh" ]                   # retired itself
+  [ ! -f "$HOME/.claude/statusline-media.backup.json" ]
+}
+
+@test "wrapper self-heal: no previous statusline -> statusLine key removed" {
+  run "$MEDIA" config display.statusline on
+  [ "$status" -eq 0 ]
+  mkdir -p "$HOME/.claude/plugins"
+  echo '{"version":2,"plugins":{}}' > "$HOME/.claude/plugins/installed_plugins.json"
+  mv "$PLUGIN" "$PLUGIN-gone"
+  run bash -c 'printf "{}" | "$HOME/.claude/statusline-media.sh"'
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+  ! grep -q 'statusLine' "$HOME/.claude/settings.json"
+  [ ! -f "$HOME/.claude/statusline-media.sh" ]
+}
+
+@test "statusline uninstall: restores settings, removes files, toggles off" {
+  mkdir -p "$HOME/.claude"
+  echo '{"statusLine":{"type":"command","command":"echo OLD-LINE"}}' > "$HOME/.claude/settings.json"
+  run "$MEDIA" config display.statusline on
+  run "$MEDIA" statusline uninstall
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"unwired"* ]]
+  grep -q '"command": "echo OLD-LINE"' "$HOME/.claude/settings.json"
+  ! grep -q 'statusline-media' "$HOME/.claude/settings.json"
+  [ ! -f "$HOME/.claude/statusline-media.sh" ]
+  [ ! -f "$HOME/.claude/statusline-media.backup.json" ]
+  run "$MEDIA" config display.statusline
+  [ "$output" = "off" ]
+}
+
+@test "statusline status: reflects none -> managed" {
+  run "$MEDIA" statusline status
+  [ "$status" -eq 0 ]
+  [[ "$output" == none* ]]
+  run "$MEDIA" statusline install
+  run "$MEDIA" statusline status
+  [[ "$output" == managed* ]]
+}
+
+@test "statusline: unknown subcommand-argument -> usage, exit 2" {
+  run "$MEDIA" statusline frobnicate
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"usage: media.sh"* ]]
 }
 
 # ---- removed features ------------------------------------------------------------

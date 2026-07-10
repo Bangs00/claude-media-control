@@ -56,16 +56,22 @@ Claude Code에서 두 줄이면 끝납니다. Homebrew 단계는 없습니다:
 | "히스토리 꺼줘" | `/media:config` | 빠른 설정 — statusline, `/media:now` 진행 바, 히스토리 켜고 끄기 + statusline 초기화 |
 | — | `/media:doctor` | 빌드 / 권한 / fallback 상태 진단 |
 
-원한다면 statusline에 지금 재생 중인 곡을 띄울 수도 있습니다 — 한 번만
-설정하면 되고, 방법은 [docs/statusline.ko.md](docs/statusline.ko.md)에
-있습니다:
+원한다면 statusline에 지금 재생 중인 곡을 띄울 수도 있습니다 — 명령 한
+번이면 전부 자동으로 설정됩니다:
 
 ```
 ▶︎ Karma Police — Radiohead (Spotify)  🔉 ▄ 45%
 ━━━━━━────  2:13/4:24  🎧 AirPods Pro
 ```
 
-- **설정은 `/media:statusline` 하나로** — 항목을 켜고 끄고, 레이아웃을
+- **켜기는 `/media:config display.statusline on`** 하나면 됩니다
+  (`/media:statusline`에서 배치를 저장해도 함께 켜집니다). 켜는 순간
+  세그먼트가 `settings.json`에 스스로 배선됩니다 — 기존 statusline은
+  그대로 돌고 재생 정보는 별도 줄로만 덧붙으며, 이전 `statusLine` 값은
+  백업해 두었다가 **플러그인을 삭제하면 자동으로 복원됩니다**. 재시작도,
+  수동 단계도 없습니다(자세한 동작과 설계 보장:
+  [docs/statusline.ko.md](docs/statusline.ko.md)).
+- **꾸미기는 `/media:statusline` 하나로** — 항목을 켜고 끄고, 레이아웃을
   고르거나 `123/456` 같은 숫자 패턴으로 정하고(숫자가 항목 — 곡 정보, 앱,
   볼륨, 진행 바, 시간, 출력 장치 — 이고 `/`가 줄바꿈), 부분별 스타일까지
   바꿉니다: 굵게/기울임/색, 재생·일시정지 강조색, 진행 바 문자(기본 `line`
@@ -158,11 +164,17 @@ Homebrew도, Node도, Python도, API 키도 필요 없습니다.
 
 제거하면 **컴퓨터가 설치 전 상태로 완전히 돌아갑니다.** 플러그인이 만드는
 모든 것은 Claude가 관리하는 두 디렉터리(`~/.claude/plugins/cache/...`,
-`~/.claude/plugins/data/...`) 안에만 있고, 제거할 때 둘 다 삭제됩니다.
-LaunchAgent도, 로그인 항목도, 홈 디렉터리에 남는 파일도, `settings.json`
-수정도, 시스템 패키지도 없습니다. 플러그인은 그 밖의 어디에도 쓰지
-않습니다. 임시 앨범 커버는 `$TMPDIR`에 저장되는데, 이곳은 macOS가 알아서
-비웁니다.
+`~/.claude/plugins/data/...`) 안에만 있고, Claude Code가 정리합니다.
+LaunchAgent도, 로그인 항목도, 시스템 패키지도 없습니다. 임시 앨범 커버는
+`$TMPDIR`에 저장되는데, 이곳은 macOS가 알아서 비웁니다.
+
+단 하나의 예외는 의도된 것이고 스스로 원복됩니다: **statusline** 세그먼트를
+켰다면 플러그인이 `settings.json`의 키 하나(`statusLine`)를 수정한
+상태인데, 수정 전 값을 반드시 백업해 둡니다. Claude Code에는 uninstall
+훅이 없기 때문에 statusline wrapper가 스스로 치유하도록 만들었습니다 —
+제거 후 첫 statusline 틱에 이전 `statusLine`을 복원하고 자기 자신과 백업
+파일을 삭제합니다. 제거하고 1초 안에 statusline이 원래 모습 그대로
+돌아옵니다([docs/statusline.ko.md](docs/statusline.ko.md) 참고).
 
 플러그인 파일이 아니라서 남을 수 있는 것이 두 가지 있는데, 둘 다
 무해합니다:
@@ -170,8 +182,9 @@ LaunchAgent도, 로그인 항목도, 홈 디렉터리에 남는 파일도, `sett
 - AppleScript fallback을 썼다면 macOS가 **자동화 허용** 기록("터미널 →
   Spotify/Music")을 시스템 권한 데이터베이스에 남깁니다. 지우고 싶으면
   `tccutil reset AppleEvents`를 실행하세요.
-- statusline wrapper를 추가했다면 `~/.claude/statusline-media.sh`를 지우고
-  `settings.json`의 `"statusLine"` 값을 원래대로 되돌리면 됩니다.
+- statusline을 **직접 손으로** 배선했다면(docs/statusline.ko.md의 커스텀
+  레시피) 그 파일들은 사용자의 것입니다. 세그먼트는 알아서 조용해지지만,
+  wrapper 삭제와 `"statusLine"` 값 복원은 직접 해 주세요.
 
 ## 로드맵
 

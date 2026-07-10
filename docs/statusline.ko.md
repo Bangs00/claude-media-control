@@ -14,20 +14,7 @@ Claude Code statusline에 현재 곡을 한 줄 추가해 보여줍니다:
 정보 조회는 TTL 구간마다 최대 한 번만 일어나므로, statusline이 다시 그려질
 때 경과 시간과 진행 바는 대략 1초에 한 번씩 갱신됩니다.
 
-## 설계상 보장되는 것 (안심하고 추가해도 되는 이유)
-
-1. 기존 statusline 명령은 **대체되지 않습니다**. wrapper가 기존 명령을 원래
-   모습 그대로 먼저 실행합니다.
-2. 그 출력은 **한 바이트도 바뀌지 않고** 그대로 통과합니다.
-3. 재생 정보는 언제나 **별도의 줄로만 덧붙습니다**.
-4. `display.statusline`이 꺼져 있으면(기본값) 세그먼트 명령은 아무것도
-   출력하지 않습니다. 빈 줄조차 없습니다. Claude Code가 없는 줄을 접어
-   주기 때문에 statusline은 이전과 똑같이 보입니다.
-
-플러그인이 `settings.json`을 대신 고치는 일은 없습니다. 아래 과정은 전부
-직접 하는, 언제든 되돌릴 수 있는 수정입니다.
-
-## 1단계 — 세그먼트 켜기
+## 켜기
 
 Claude Code 안에서:
 
@@ -35,10 +22,64 @@ Claude Code 안에서:
 /media:config display.statusline on
 ```
 
-(켜기 전에 재생 정보를 실제로 읽을 수 있는지 먼저 검증합니다. 거부되면
-`/media:doctor`를 실행해 보세요.)
+설정은 이게 전부입니다. 켜기 전에 재생 정보를 실제로 읽을 수 있는지 먼저
+검증하고(거부되면 `/media:doctor`를 실행해 보세요), 이어서 세그먼트를
+Claude Code에 스스로 배선합니다:
 
-### 항목 배치하기
+1. `~/.claude/settings.json`의 현재 `"statusLine"` 값을
+   `~/.claude/statusline-media.backup.json`에 백업합니다(원래 없었다면
+   `null`).
+2. `~/.claude/statusline-media.sh`에 wrapper 스크립트를 생성합니다. 기존
+   statusline 명령을 먼저 실행하고, 그 뒤에 재생 정보 줄을 덧붙입니다.
+3. `settings.json`의 `statusLine`이 wrapper를 가리키게 합니다. 기존 항목의
+   다른 키(예: `padding`)는 모두 보존되고, `refreshInterval`을 직접 설정해
+   두지 않았다면 `refreshInterval: 1`이 추가됩니다 — statusline은 원래 대화
+   이벤트가 있을 때만 갱신되는데, 이 1초 주기 재실행이 있어야 가만히 있는
+   동안에도 경과 시간과 진행 바가 움직입니다. (다시 그리는 횟수를 줄이고
+   싶다면 `settings.json`에서 값을 올리거나 빼세요. 다시 그릴 때마다 기존
+   statusline 명령도 함께 실행됩니다.)
+
+세그먼트는 다음 statusline 틱에 바로 나타납니다 — 재시작도, 수동 단계도
+없습니다. `/media:statusline`에서 배치를 저장해도 같은 방식으로 켜지고
+배선됩니다.
+
+## 설계상 보장되는 것 (안심해도 되는 이유)
+
+1. 기존 statusline 명령은 **대체되지 않습니다**. wrapper가 기존 명령을 원래
+   모습 그대로 먼저 실행하고, 그 출력은 **한 바이트도 바뀌지 않고** 그대로
+   통과합니다. 재생 정보는 언제나 **별도의 줄로만 덧붙습니다**.
+2. `display.statusline`이 꺼져 있으면(기본값) 세그먼트는 아무것도 출력하지
+   않습니다. 빈 줄조차 없습니다. Claude Code가 없는 줄을 접어 주기 때문에
+   statusline은 이전과 똑같이 보입니다. (`off`는 세그먼트를 즉시 숨기되
+   배선은 남겨 두므로 다시 켜는 것도 즉시입니다.)
+3. `settings.json`에서 건드리는 키는 정확히 하나 — `statusLine` — 이며,
+   반드시 이전 값을 `statusline-media.backup.json`에 저장한 뒤에만
+   수정합니다. 쓰기는 원자적이고, 심링크를 따라가며(dotfile 구성도
+   안전합니다), 다른 설정 키는 전혀 손대지 않습니다.
+4. **플러그인을 삭제하면 모든 것이 저절로 원복됩니다.** Claude Code에는
+   플러그인이 쓸 수 있는 uninstall 훅이 없기 때문에, wrapper가 스스로
+   치유하도록 만들었습니다: 매 틱마다 설치된 플러그인 목록을 확인하고,
+   플러그인이 사라졌으면 백업해 둔 `statusLine`을 `settings.json`에
+   복원한 뒤 자기 자신과 백업 파일을 삭제합니다. 아무것도 남지 않습니다 —
+   삭제 후 1초 안에 statusline이 원래 모습 그대로 돌아옵니다.
+5. 플러그인을 **비활성화**만 해 두면 wrapper는 아무것도 덧붙이지 않고
+   기다립니다 — 기존 statusline은 평소대로 돌고, 배선은 다시 켤 때를 위해
+   남아 있습니다.
+6. **직접 손으로** 배선한 statusline(아래 레시피, 또는 세그먼트를 이미
+   실행하는 어떤 명령이든)은 감지해서 설치·해제 어느 쪽에서도 절대
+   건드리지 않습니다.
+
+플러그인을 삭제하지 않고 배선만 해제하려면 — 백업을 복원하고 wrapper와
+백업 파일을 지우며 `display.statusline`도 꺼 줍니다:
+
+```
+media.sh statusline uninstall     # 또는 그냥 "statusline 배선 해제해줘"라고 말하세요
+```
+
+`media.sh statusline status`는 현재 배선 상태(`managed`, `manual`,
+`none`)를 알려 주고, `/media:doctor` 리포트에도 포함됩니다.
+
+## 항목 배치하기
 
 `/media:statusline`을 실행하세요 — 세그먼트의 모습을 한 곳에서 정하는
 허브입니다. 탭 세 개가 열립니다: **Items**(볼륨·진행 바·시간·출력 장치
@@ -126,7 +167,7 @@ Stacked — 명시적 2줄 배치(패턴 `123/456`, 즉
 ### 색상과 항목별 스타일
 
 세그먼트는 기본으로 스타일이 입혀져 나옵니다. Claude Code statusline은 ANSI
-코드를 렌더링하고, 아래 wrapper는 이를 손대지 않고 그대로 넘깁니다:
+코드를 렌더링하고, wrapper는 이를 손대지 않고 그대로 넘깁니다:
 
 - ▶︎/⏸ 아이콘, 진행 바의 채워진 부분, 볼륨 바는 재생 상태를 따라 색이
   바뀝니다 (재생 중 green, 일시정지 yellow)
@@ -187,10 +228,17 @@ underline` 조합에 색 하나(`black red green yellow blue magenta cyan white`
 `media.sh config style`을 실행하면 모든 키의 현재 값과 기본값이 나옵니다.
 변경은 다음 statusline 틱에 바로 반영되며 재시작은 필요 없습니다.
 
-## 2단계 — wrapper 스크립트 만들기
+## 수동 설정 (커스텀 statusline)
 
-아래 내용을 `~/.claude/statusline-media.sh`로 저장하고 실행 권한을 주세요
-(`chmod +x ~/.claude/statusline-media.sh`):
+배선을 직접 관리하고 싶다면 — 예컨대 세그먼트를 별도 줄로 덧붙이는 대신
+자기 statusline 스크립트 *안에* 넣고 싶다면? 명령을 **먼저** 구성해 두고 그
+다음에 세그먼트를 켜세요. 자동 배선은 세그먼트를 이미 실행하는
+`statusLine` 명령(`statusline-media.sh` 또는 `media.sh … statusline`이
+들어 있는 명령)을 인식해서 완전히 그대로 두고, 켜기는 표시 토글만
+바꿉니다.
+
+출발점으로 쓸 만한 범용 wrapper — `~/.claude/statusline-media.sh`로
+저장하고 실행 권한을 주세요(`chmod +x ~/.claude/statusline-media.sh`):
 
 ```bash
 #!/bin/bash
@@ -219,39 +267,36 @@ fi
 exit 0
 ```
 
-체크아웃한 리포에서 개발 중이라면(`claude --plugin-dir`) `MEDIA_DIR` 블록을
-리포 경로로 바꾸면 됩니다:
-`np="$(/path/to/claude-media-control/scripts/media.sh statusline 2>/dev/null)"`
-
-## 3단계 — settings.json이 wrapper를 가리키게 하기
-
-`~/.claude/settings.json`에서:
+그다음 `~/.claude/settings.json`이 이 파일을 가리키게 직접 수정합니다:
 
 ```json
 {
   "statusLine": {
     "type": "command",
-    "command": "\"$HOME/.claude/statusline-media.sh\""
+    "command": "\"$HOME/.claude/statusline-media.sh\"",
+    "refreshInterval": 1
   }
 }
 ```
 
-**실시간처럼 움직이는 statusline을 원한다면** `"command"` 옆에
-`"refreshInterval": 1`을 추가하는 것을 추천합니다. statusline은 원래 대화
-이벤트가 있을 때만 갱신되기 때문에, 가만히 있는 동안에는 경과 시간과 진행
-바가 멈춰 있습니다. `refreshInterval`을 주면 명령을 주기적으로 다시
-실행하는데, 최솟값인 `1`이 세그먼트의 1초 캐시와 맞물려 시간과 진행 바가
-매초 움직입니다. 다시 그리는 횟수를 줄이고 싶다면 빼거나 값을 올리세요
-(다시 그릴 때마다 기존 statusline 명령도 함께 실행됩니다).
+(`refreshInterval: 1`은 가만히 있는 동안에도 시간과 바가 움직이게
+해 줍니다 — 위의 "켜기" 참고.) 체크아웃한 리포에서 개발
+중이라면(`claude --plugin-dir`) `MEDIA_DIR` 블록을 리포 경로로 바꾸면
+됩니다:
+`np="$(/path/to/claude-media-control/scripts/media.sh statusline 2>/dev/null)"`
 
 ## 관리 팁
 
-- wrapper의 `EXISTING`에 들어 있는 것은 이전 statusline 명령의
-  **복사본**입니다. 나중에 statusline 구성을 바꾸면 이 줄도 같이
-  고쳐 주세요.
-- 전부 되돌리려면: `settings.json`의 `"statusLine"` 값을 원래대로 복원하고
-  `~/.claude/statusline-media.sh`를 지우면 됩니다. 플러그인만 제거해도
-  세그먼트는 알아서 사라지지만(플러그인이 없으면 wrapper가 아무것도
-  출력하지 않습니다), wrapper 파일 자체는 직접 지워야 합니다.
+- **자동 배선(managed)**: wrapper는 생성된 파일이므로 직접 고치지 마세요.
+  플러그인 업데이트 시(세션 시작 warm-up) 그리고 `media.sh statusline
+  install`을 다시 실행할 때 새로 생성됩니다. `media.sh statusline
+  uninstall`은 배선을 해제하고 이전 statusline을 복원하며, 플러그인을
+  삭제하면 다음 statusline 틱에 같은 일이 자동으로 일어납니다.
+- **수동 배선(manual)**: 파일들은 사용자의 것이고 플러그인은 절대 건드리지
+  않습니다. 나중에 statusline 구성을 바꾸면 `EXISTING` 줄도 같이 고쳐
+  주세요. 되돌리려면 `settings.json`의 `"statusLine"` 값을 원래대로
+  복원하고 wrapper를 지우면 됩니다. 플러그인만 삭제해도 세그먼트는 알아서
+  조용해지지만(플러그인 설정이 데이터 디렉토리와 함께 사라집니다), 파일
+  자체는 직접 지워야 합니다.
 - `/media:config display.statusline off`는 즉시 반영됩니다. 끄는 순간
   캐시된 줄이 삭제되므로 statusline을 재시작할 필요가 없습니다.

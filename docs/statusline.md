@@ -14,20 +14,7 @@ cache (default 1s) in well under 50ms — it never slows your statusline down.
 The real now-playing read runs at most once per TTL window, so the elapsed
 time and progress bar advance about once a second when the statusline redraws.
 
-## Design guarantees (why this is safe to add)
-
-1. Your existing statusline command is **not replaced** — the wrapper runs it
-   first, exactly as it was.
-2. Its output passes through **byte-for-byte unmodified**.
-3. Now-playing is only ever **appended as its own line**.
-4. With `display.statusline` off (the default) the segment command prints
-   nothing — not even an empty line. Claude Code collapses the missing line,
-   so your statusline looks exactly like before.
-
-The plugin never edits `settings.json` for you; everything below is a manual,
-reversible edit.
-
-## Step 1 — enable the segment
+## Turn it on
 
 Inside Claude Code:
 
@@ -35,10 +22,63 @@ Inside Claude Code:
 /media:config display.statusline on
 ```
 
-(Enabling verifies a working now-playing read path first; if it is refused,
-run `/media:doctor`.)
+That's the whole setup. Enabling verifies a working now-playing read path
+first (if it is refused, run `/media:doctor`), then wires the segment into
+Claude Code by itself:
 
-### Arrange what the segment shows
+1. Your current `"statusLine"` value in `~/.claude/settings.json` is backed
+   up to `~/.claude/statusline-media.backup.json` (`null` when you had none).
+2. A wrapper script is generated at `~/.claude/statusline-media.sh`: it runs
+   your previous statusline command first and appends the now-playing line.
+3. `settings.json`'s `statusLine` is pointed at the wrapper. Every other key
+   of your entry (e.g. `padding`) is preserved, and `refreshInterval: 1` is
+   added unless you already set one — statuslines normally refresh only on
+   conversation events, and the once-a-second re-run is what makes the
+   elapsed time and progress bar tick while you're idle (raise or remove it
+   in `settings.json` if you prefer fewer redraws; each redraw re-runs your
+   existing statusline command too).
+
+The segment shows up on the next statusline tick — no restart, no manual
+steps. Arranging the segment in `/media:statusline` enables (and wires) it
+the same way.
+
+## Design guarantees (why this is safe)
+
+1. Your existing statusline command is **not replaced** — the wrapper runs it
+   first, exactly as it was, and its output passes through **byte-for-byte
+   unmodified**. Now-playing is only ever **appended as its own line**.
+2. With `display.statusline` off (the default) the segment prints nothing —
+   not even an empty line. Claude Code collapses the missing line, so your
+   statusline looks exactly like before. (`off` hides the segment instantly
+   and keeps the wiring, so re-enabling is instant too.)
+3. Exactly one `settings.json` key is ever touched — `statusLine` — and only
+   after its previous value is saved to `statusline-media.backup.json`. The
+   write is atomic, follows symlinks (dotfile setups survive), and keeps
+   every other settings key untouched.
+4. **Uninstalling the plugin reverts everything by itself.** Claude Code has
+   no uninstall hook a plugin could run, so the wrapper is self-healing: on
+   every tick it checks the installed-plugins registry, and once the plugin
+   is gone it restores your backed-up `statusLine` into `settings.json` and
+   deletes itself and the backup. No leftovers — your statusline is back to
+   exactly what it was, within a second of the uninstall.
+5. While the plugin is merely **disabled**, the wrapper adds nothing and
+   waits — your previous statusline runs as usual and the wiring stays for
+   re-enabling.
+6. A statusline you wired **by hand** (the recipe below, or any command that
+   already runs the segment) is detected and never touched, installed or
+   uninstalled.
+
+Unwire without uninstalling the plugin — restores the backup and removes the
+wrapper + backup files, and turns `display.statusline` off:
+
+```
+media.sh statusline uninstall     # or just ask Claude: "unwire the statusline"
+```
+
+`media.sh statusline status` reports the current wiring state (`managed`,
+`manual`, or `none`), and `/media:doctor` includes it in its report.
+
+## Arrange what the segment shows
 
 Run `/media:statusline` — the one hub for the segment's look. It opens three
 tabs: **Items** (volume, progress bar, time, and output device on/off),
@@ -126,7 +166,7 @@ off:
 ### Colors & per-item styles
 
 The segment ships styled by default — Claude Code statuslines render ANSI
-codes, and the wrapper below passes them through untouched:
+codes, and the wrapper passes them through untouched:
 
 - the ▶︎/⏸ icon, the filled part of the progress bar, and the volume bar
   follow the playback state (green playing, yellow paused)
@@ -186,10 +226,17 @@ apply even with colors off; the other keys need `statusline.color` on.
 `media.sh config style` lists every key with its current value and default.
 Changes show up on the next statusline tick — no restart needed.
 
-## Step 2 — create the wrapper script
+## Manual setup (custom statuslines)
 
-Save as `~/.claude/statusline-media.sh` and make it executable
-(`chmod +x ~/.claude/statusline-media.sh`):
+Prefer to own the wiring yourself — say, to embed the segment *inside* your
+own statusline script instead of appending it as a line? Set your command up
+**first**, then enable the segment: the automatic wiring recognizes a
+`statusLine` command that already runs the segment (it mentions
+`statusline-media.sh` or `media.sh … statusline`) and leaves it completely
+alone — enabling then only flips the visibility toggle.
+
+A universal wrapper to start from — save as `~/.claude/statusline-media.sh`
+and make it executable (`chmod +x ~/.claude/statusline-media.sh`):
 
 ```bash
 #!/bin/bash
@@ -218,39 +265,35 @@ fi
 exit 0
 ```
 
-Developing from a checkout (`claude --plugin-dir`)? Replace the `MEDIA_DIR`
-block with your repo path: `np="$(/path/to/claude-media-control/scripts/media.sh statusline 2>/dev/null)"`.
-
-## Step 3 — point settings.json at the wrapper
-
-In `~/.claude/settings.json`:
+Then point `~/.claude/settings.json` at it yourself:
 
 ```json
 {
   "statusLine": {
     "type": "command",
-    "command": "\"$HOME/.claude/statusline-media.sh\""
+    "command": "\"$HOME/.claude/statusline-media.sh\"",
+    "refreshInterval": 1
   }
 }
 ```
 
-**Recommended for a live-feeling statusline:** add `"refreshInterval": 1` next
-to `"command"`. Statuslines normally refresh on conversation events only, so
-while you are idle the elapsed time and progress bar freeze. `refreshInterval`
-re-runs the command periodically; `1` (the minimum) pairs with the 1-second
-segment cache so the time and bar tick every second. Drop it or raise it if you
-prefer fewer redraws (each redraw also re-runs your existing statusline
-command).
+(`refreshInterval: 1` keeps the time and bar ticking while you're idle — see
+"Turn it on" above.) Developing from a checkout (`claude --plugin-dir`)?
+Replace the `MEDIA_DIR` block with your repo path:
+`np="$(/path/to/claude-media-control/scripts/media.sh statusline 2>/dev/null)"`.
 
 ## Maintenance notes
 
-- The wrapper stores a **copy** of your previous statusline command in
-  `EXISTING`. If you later change your statusline setup, update that line
-  too.
-- To undo everything: restore your old `"statusLine"` value in
-  `settings.json` and delete `~/.claude/statusline-media.sh`. Uninstalling
-  the plugin makes the segment disappear on its own (the wrapper prints
-  nothing when the plugin is gone), but the wrapper file itself is yours to
-  remove.
+- **Managed wiring** (the automatic setup): the wrapper is a generated file —
+  don't edit it; it is refreshed on plugin updates (session-start warm-up)
+  and by re-running `media.sh statusline install`. `media.sh statusline
+  uninstall` unwires and restores your previous statusline; uninstalling the
+  plugin does the same automatically on the next statusline tick.
+- **Manual wiring**: the files are yours; the plugin never touches them. If
+  you change your statusline setup later, update the `EXISTING` line too. To
+  undo, restore your old `"statusLine"` value in `settings.json` and delete
+  your wrapper. After a plugin uninstall the segment goes quiet on its own
+  (the plugin's config dies with its data directory), but the files are
+  yours to remove.
 - The segment honors `/media:config display.statusline off` instantly — the
   cached line is deleted on disable, no statusline restart needed.

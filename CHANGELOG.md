@@ -5,6 +5,48 @@ All notable changes to this project are documented here. The format follows
 [SemVer](https://semver.org/spec/v2.0.0.html), tracked in
 `.claude-plugin/plugin.json`.
 
+## [0.15.0] — 2026-07-10
+
+### Added
+
+- **Enabling the statusline now applies immediately — the plugin wires
+  itself into `~/.claude/settings.json`.** `config display.statusline on`
+  (the `/media:config` toggle, or saving an arrangement in
+  `/media:statusline`) snapshots your current `"statusLine"` value into
+  `~/.claude/statusline-media.backup.json`, generates a wrapper at
+  `~/.claude/statusline-media.sh` that runs your previous statusline first
+  (byte-for-byte) and appends the segment, and points `settings.json` at
+  it — preserving your other statusLine keys (e.g. `padding`) and adding
+  `refreshInterval: 1` unless you already set one. The segment shows up on
+  the next statusline tick; the manual wrapper recipe is no longer needed
+  (it remains supported for custom setups, which are detected and never
+  touched).
+- **Uninstalling the plugin reverts the statusline wiring by itself.**
+  Claude Code has no plugin-uninstall hook, so the generated wrapper is
+  self-healing: each tick it checks the installed-plugins registry (the
+  plugin cache directory is swept lazily and proves nothing), and once the
+  plugin is gone it restores the backed-up `statusLine` into
+  `settings.json` and deletes itself and the backup — settings return to
+  their exact pre-install state within a second of the uninstall. While
+  the plugin is merely disabled, the wrapper renders nothing and keeps the
+  wiring.
+- **`media.sh statusline install | uninstall | status`.** `install` wires
+  (idempotent; refreshes a managed wrapper in place), `uninstall` restores
+  the backup, removes the wrapper + backup and turns `display.statusline`
+  off, `status` reports the wiring state (`managed`, `manual`, `none`).
+  `doctor` gained a `[8] Statusline` wiring line, and the session-start
+  warm-up refreshes a managed wrapper after plugin updates.
+
+### Changed
+
+- `config display.statusline off` keeps the wiring (the segment just prints
+  nothing, as before), so re-enabling is instant; unwiring is the new
+  `statusline uninstall`.
+- Docs: `docs/statusline.md` is restructured around the automatic setup
+  (what exactly is written, the backup/restore guarantees, and the manual
+  recipe kept as a custom-setup appendix); the README statusline and
+  uninstall sections follow — in all four languages.
+
 ## [0.14.0] — 2026-07-10
 
 ### Changed

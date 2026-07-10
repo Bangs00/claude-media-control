@@ -10,6 +10,9 @@
 #   output [device]              audio output device list / switch, JSON
 #   history [n|clear|--json]     recently played tracks (passive local log)
 #   statusline                   one-line segment for a statusline (TTL cache)
+#   statusline install           wire the segment into ~/.claude/settings.json
+#   statusline uninstall         unwire it and restore the previous statusLine
+#   statusline status            report how the segment is wired
 #   test                         primary-path self-check (exit code only)
 #   config [key] [value]         display toggles + per-item statusline styles
 #   doctor [--rebuild]           full diagnosis (+ optional cache rebuild)
@@ -52,7 +55,8 @@ usage() {
   cat >&2 <<'EOF'
 usage: media.sh <subcommand>
   now | play | pause | toggle | next | prev | seek <seconds>
-  artwork [path-prefix] | volume [0-100] | output [device] | statusline
+  artwork [path-prefix] | volume [0-100] | output [device]
+  statusline [install | uninstall | status]
   history [count | clear | --json [count]]
   test | config [key] [on|off|value] | doctor [--rebuild] | detect | warmup
 EOF
@@ -773,6 +777,359 @@ do_statusline() {
   return 0
 }
 
+# ---- statusline wiring (settings.json install / uninstall) --------------------
+
+# Enabling display.statusline wires the segment into Claude Code by itself:
+# the previous "statusLine" value from ~/.claude/settings.json is snapshotted
+# into a sidecar backup, a wrapper script runs that previous command first
+# (byte-for-byte) and appends the segment, and settings.json is pointed at the
+# wrapper. Claude Code has no plugin-uninstall hook, so the wrapper is
+# self-healing: on every tick it checks the installed-plugins registry, and
+# when the plugin is gone it restores the backed-up "statusLine" and deletes
+# itself and the backup — uninstalling the plugin reverts settings.json
+# without any manual step. A statusline the user wired by hand (the
+# docs/statusline.md recipe, or any command that already runs the segment) is
+# detected and never touched.
+CLAUDE_SETTINGS_DIR="$HOME/.claude"
+SETTINGS_FILE="$CLAUDE_SETTINGS_DIR/settings.json"
+WRAPPER_FILE="$CLAUDE_SETTINGS_DIR/statusline-media.sh"
+WRAPPER_BACKUP_FILE="$CLAUDE_SETTINGS_DIR/statusline-media.backup.json"
+WRAPPER_MARKER="managed-by: claude-media-control"
+
+# Print the current settings.json statusLine command (empty when absent or
+# not a command-type statusline). Read-only probe; parse errors read as "".
+settings_statusline_cmd() {
+  [ -f "$SETTINGS_FILE" ] || return 0
+  /usr/bin/perl -MJSON::PP -e '
+    local $/; my $d = eval { decode_json(<STDIN>) };
+    exit 0 unless ref $d eq "HASH" && ref $d->{statusLine} eq "HASH";
+    my $c = $d->{statusLine}{command};
+    print $c if defined $c && !ref $c;
+  ' < "$SETTINGS_FILE" 2>/dev/null
+}
+
+# How the segment reaches Claude Code right now: "managed" (our generated
+# wrapper), "manual" (the user wired it by hand — never touch it), or "none".
+statusline_wiring_state() {
+  local cmd
+  cmd="$(settings_statusline_cmd)"
+  case "$cmd" in
+    *statusline-media.sh*)
+      if [ -f "$WRAPPER_FILE" ] && /usr/bin/grep -q "$WRAPPER_MARKER" "$WRAPPER_FILE" 2>/dev/null; then
+        echo managed
+      else
+        echo manual
+      fi
+      ;;
+    *media.sh*statusline*)
+      echo manual
+      ;;
+    *)
+      echo none
+      ;;
+  esac
+}
+
+# Snapshot the current statusLine into the sidecar backup (null when there is
+# none — restore then removes the key) and print its command string for the
+# wrapper. Refuses (die -> non-zero) when settings.json cannot be parsed:
+# never rewrite a file we cannot read back.
+statusline_backup_write() {
+  mkdir -p "$CLAUDE_SETTINGS_DIR"
+  /usr/bin/perl -MJSON::PP -e '
+    my ($settings, $backup) = @ARGV;
+    my $s = {};
+    if (-f $settings) {
+      local $/;
+      open my $sf, "<", $settings or die "cannot read $settings: $!\n";
+      $s = eval { decode_json(<$sf>) };
+      die "cannot parse $settings — fix it first, or wire manually (docs/statusline.md)\n"
+        unless ref $s eq "HASH";
+      close $sf;
+    }
+    my $orig = $s->{statusLine};
+    my $tmp = "$backup.tmp$$";
+    open my $bf, ">", $tmp or die "cannot write $backup: $!\n";
+    print $bf JSON::PP->new->utf8->canonical->pretty->space_before(0)
+      ->indent_length(2)->encode({ statusLine => $orig });
+    close $bf;
+    rename $tmp, $backup or die "cannot save $backup: $!\n";
+    if (ref $orig eq "HASH" && defined $orig->{command} && !ref $orig->{command}
+        && ($orig->{type} // "command") eq "command") {
+      print $orig->{command};
+    }
+  ' "$SETTINGS_FILE" "$WRAPPER_BACKUP_FILE"
+}
+
+# The previous statusline command as recorded in the sidecar backup (empty
+# when there was none) — the single source of truth for wrapper regeneration.
+statusline_backup_cmd() {
+  [ -f "$WRAPPER_BACKUP_FILE" ] || return 0
+  /usr/bin/perl -MJSON::PP -e '
+    local $/; my $d = eval { decode_json(<STDIN>) };
+    exit 0 unless ref $d eq "HASH" && ref $d->{statusLine} eq "HASH";
+    my $c = $d->{statusLine}{command};
+    print $c if defined $c && !ref $c
+      && ($d->{statusLine}{type} // "command") eq "command";
+  ' < "$WRAPPER_BACKUP_FILE" 2>/dev/null
+}
+
+# Generate the wrapper script. $1 = the previous statusline command (may be
+# empty or multi-line; embedded through a quoted heredoc so any content is
+# safe). The plugin root is recorded for dev checkouts (claude --plugin-dir)
+# only — marketplace installs are recognized via the registry, because their
+# cache directory is swept lazily and would mask an uninstall.
+statusline_wrapper_write() {
+  local dev_root=""
+  case "$PLUGIN_ROOT" in
+    */plugins/cache/*) ;;
+    *) dev_root="$PLUGIN_ROOT" ;;
+  esac
+  mkdir -p "$CLAUDE_SETTINGS_DIR"
+  MEDIA_WRAPPER_ORIG="$1" MEDIA_WRAPPER_DEV="$dev_root" /usr/bin/perl -e '
+    my $t = do { local $/; <STDIN> };
+    my $orig = $ENV{MEDIA_WRAPPER_ORIG} // "";
+    my $dev  = $ENV{MEDIA_WRAPPER_DEV} // "";
+    $t =~ s/\@ORIG\@/$orig/;
+    $t =~ s/\@DEV\@/$dev/;
+    print $t;
+  ' <<'WRAPPER_EOF' > "$WRAPPER_FILE.tmp"
+#!/bin/bash
+# statusline-media.sh — your previous statusline (verbatim) + a now-playing
+# line from the claude-media-control plugin.
+# managed-by: claude-media-control (generated by media.sh statusline install)
+#
+# Generated file — edits are lost on regeneration. The statusLine value this
+# replaced is kept in statusline-media.backup.json; when the media plugin is
+# uninstalled, this wrapper restores it into settings.json and deletes itself
+# and the backup on the next statusline tick. Unwire manually with:
+#   media.sh statusline uninstall
+input=$(cat)
+
+# ── 1. The statusline command this install wrapped, byte-for-byte.
+EXISTING=$(/bin/cat <<'MEDIA_WRAP_EOF'
+@ORIG@
+MEDIA_WRAP_EOF
+)
+[ -n "$EXISTING" ] && printf '%s' "$input" | /bin/bash -c "$EXISTING"
+
+# ── 2. Is the media plugin still installed? Marketplace installs are listed
+#       in the registry (their cache dir is swept lazily, so it proves
+#       nothing); a dev checkout is the recorded path below.
+MEDIA_DEV_ROOT='@DEV@'
+installed=""
+/usr/bin/grep -q '"media@' "$HOME/.claude/plugins/installed_plugins.json" 2>/dev/null && installed=1
+[ -n "$MEDIA_DEV_ROOT" ] && [ -x "$MEDIA_DEV_ROOT/scripts/media.sh" ] && installed=1
+if [ -z "$installed" ]; then
+  # Uninstalled -> put the previous statusLine back and retire this wrapper.
+  /usr/bin/perl -MJSON::PP -MCwd=abs_path -e '
+    my ($settings, $backup) = @ARGV;
+    my $real = abs_path($settings) or exit 0;
+    local $/;
+    open my $sf, "<", $real or exit 0;
+    my $s = eval { decode_json(<$sf>) }; close $sf;
+    exit 0 unless ref $s eq "HASH";
+    my $cur = $s->{statusLine};
+    exit 0 unless ref $cur eq "HASH"
+      && defined $cur->{command} && !ref $cur->{command}
+      && $cur->{command} =~ /statusline-media\.sh/;
+    my $orig;
+    if (open my $bf, "<", $backup) {
+      my $b = eval { decode_json(<$bf>) }; close $bf;
+      $orig = $b->{statusLine} if ref $b eq "HASH";
+    }
+    if (defined $orig) { $s->{statusLine} = $orig } else { delete $s->{statusLine} }
+    my $tmp = "$real.tmp$$";
+    open my $out, ">", $tmp or exit 0;
+    print $out JSON::PP->new->utf8->canonical->pretty->space_before(0)
+      ->indent_length(2)->encode($s);
+    close $out;
+    my @st = stat($real); chmod $st[2] & 07777, $tmp if @st;
+    rename $tmp, $real;
+  ' "$HOME/.claude/settings.json" "$HOME/.claude/statusline-media.backup.json" 2>/dev/null
+  rm -f "$HOME/.claude/statusline-media.sh" "$HOME/.claude/statusline-media.backup.json"
+  exit 0
+fi
+
+# ── 3. Plugin disabled -> keep the wiring, render nothing extra.
+/usr/bin/grep -Eq '"media@[^"]*"[[:space:]]*:[[:space:]]*false' \
+  "$HOME/.claude/settings.json" 2>/dev/null && exit 0
+
+# ── 4. Now-playing (empty when off / nothing playing). The newest installed
+#       version wins, so the wrapper survives plugin updates.
+MEDIA_DIR="$(ls -d "$HOME"/.claude/plugins/cache/*/media/*/ 2>/dev/null \
+  | /usr/bin/awk -F/ '{ print $(NF-1) "\t" $0 }' \
+  | /usr/bin/sort -t. -k1,1n -k2,2n -k3,3n \
+  | /usr/bin/tail -1 | /usr/bin/cut -f2-)"
+# Absolute candidates only — an empty MEDIA_DIR or dev root must never turn
+# this into a relative path that resolves inside the caller's cwd.
+MEDIA_SH=""
+[ -n "$MEDIA_DIR" ] && MEDIA_SH="${MEDIA_DIR}scripts/media.sh"
+if [ ! -x "$MEDIA_SH" ] && [ -n "$MEDIA_DEV_ROOT" ]; then
+  MEDIA_SH="$MEDIA_DEV_ROOT/scripts/media.sh"
+fi
+if [ -n "$MEDIA_SH" ] && [ -x "$MEDIA_SH" ]; then
+  np="$("$MEDIA_SH" statusline 2>/dev/null)"
+  [ -n "$np" ] && printf '%s\n' "$np"
+fi
+exit 0
+WRAPPER_EOF
+  chmod +x "$WRAPPER_FILE.tmp"
+  mv "$WRAPPER_FILE.tmp" "$WRAPPER_FILE"
+}
+
+# Point settings.json statusLine at the wrapper, preserving every other key
+# of the original statusLine object (padding etc.) and an explicit
+# refreshInterval; without one, refreshInterval 1 makes the elapsed time and
+# progress bar tick once a second (see docs/statusline.md). Writes through a
+# symlink to its target, atomically, keeping the file mode.
+statusline_settings_wire() {
+  /usr/bin/perl -MJSON::PP -MCwd=abs_path -e '
+    my ($settings, $backup) = @ARGV;
+    my $s = {};
+    my $real = $settings;
+    if (-e $settings) {
+      $real = abs_path($settings) // $settings;
+      local $/;
+      open my $sf, "<", $real or die "cannot read $settings: $!\n";
+      $s = eval { decode_json(<$sf>) };
+      die "cannot parse $settings\n" unless ref $s eq "HASH";
+      close $sf;
+    }
+    my $orig;
+    if (open my $bf, "<", $backup) {
+      local $/; my $b = eval { decode_json(<$bf>) }; close $bf;
+      $orig = $b->{statusLine} if ref $b eq "HASH";
+    }
+    my %sl = ref $orig eq "HASH" ? %$orig : ();
+    $sl{type} = "command";
+    $sl{command} = "\"\$HOME/.claude/statusline-media.sh\"";
+    $sl{refreshInterval} = 1 unless defined $sl{refreshInterval};
+    $s->{statusLine} = \%sl;
+    my $tmp = "$real.tmp$$";
+    open my $out, ">", $tmp or die "cannot write $settings: $!\n";
+    print $out JSON::PP->new->utf8->canonical->pretty->space_before(0)
+      ->indent_length(2)->encode($s);
+    close $out;
+    my @st = stat($real); chmod $st[2] & 07777, $tmp if @st;
+    rename $tmp, $real or die "cannot save $settings: $!\n";
+  ' "$SETTINGS_FILE" "$WRAPPER_BACKUP_FILE"
+}
+
+# Restore the backed-up statusLine into settings.json — but only while
+# statusLine still points at our wrapper; a value the user changed since is
+# not ours to overwrite. (The wrapper embeds this same logic for the
+# self-heal after an uninstall, where this script is gone.)
+statusline_settings_restore() {
+  /usr/bin/perl -MJSON::PP -MCwd=abs_path -e '
+    my ($settings, $backup) = @ARGV;
+    exit 0 unless -f $settings;
+    my $real = abs_path($settings) // $settings;
+    local $/;
+    open my $sf, "<", $real or die "cannot read $settings: $!\n";
+    my $s = eval { decode_json(<$sf>) }; close $sf;
+    die "cannot parse $settings\n" unless ref $s eq "HASH";
+    my $cur = $s->{statusLine};
+    exit 0 unless ref $cur eq "HASH"
+      && defined $cur->{command} && !ref $cur->{command}
+      && $cur->{command} =~ /statusline-media\.sh/;
+    my $orig;
+    if (open my $bf, "<", $backup) {
+      my $b = eval { decode_json(<$bf>) }; close $bf;
+      $orig = $b->{statusLine} if ref $b eq "HASH";
+    }
+    if (defined $orig) { $s->{statusLine} = $orig } else { delete $s->{statusLine} }
+    my $tmp = "$real.tmp$$";
+    open my $out, ">", $tmp or die "cannot write $settings: $!\n";
+    print $out JSON::PP->new->utf8->canonical->pretty->space_before(0)
+      ->indent_length(2)->encode($s);
+    close $out;
+    my @st = stat($real); chmod $st[2] & 07777, $tmp if @st;
+    rename $tmp, $real or die "cannot save $settings: $!\n";
+  ' "$SETTINGS_FILE" "$WRAPPER_BACKUP_FILE"
+}
+
+# Wire the segment into settings.json (idempotent). Called by
+# `config display.statusline on` so enabling applies immediately, and
+# available directly as `media.sh statusline install`.
+statusline_install() {
+  local state orig_cmd
+  state="$(statusline_wiring_state)"
+  case "$state" in
+    managed)
+      # Re-wired on a newer plugin version: refresh the wrapper from the
+      # existing backup — never re-backup (settings point at the wrapper now).
+      statusline_wrapper_write "$(statusline_backup_cmd)" || return 1
+      echo "statusline: already wired into settings.json (wrapper refreshed)."
+      return 0
+      ;;
+    manual)
+      echo "statusline: settings.json already runs the media segment through your own setup — leaving it untouched (see docs/statusline.md)."
+      return 0
+      ;;
+  esac
+  if ! orig_cmd="$(statusline_backup_write)"; then
+    echo "media: statusline wiring refused — could not snapshot $SETTINGS_FILE." >&2
+    return 1
+  fi
+  statusline_wrapper_write "$orig_cmd" || return 1
+  if ! statusline_settings_wire; then
+    rm -f "$WRAPPER_FILE" "$WRAPPER_BACKUP_FILE"
+    echo "media: statusline wiring failed — $SETTINGS_FILE was left unchanged." >&2
+    return 1
+  fi
+  rm -f "$DATA_DIR/statusline.cache"
+  if [ -n "$orig_cmd" ]; then
+    echo "statusline: wired into settings.json — your previous statusline still runs first (backup: $WRAPPER_BACKUP_FILE; auto-restored if the plugin is uninstalled)."
+  else
+    echo "statusline: wired into settings.json (no previous statusline; the key is removed again if the plugin is uninstalled)."
+  fi
+}
+
+# Unwire without uninstalling the plugin: restore the previous statusLine,
+# remove the wrapper + backup, and turn the visibility toggle off so state
+# stays consistent (re-enabling re-wires).
+statusline_uninstall() {
+  local state
+  state="$(statusline_wiring_state)"
+  case "$state" in
+    manual)
+      echo "media: this statusline was wired by hand — restore your own \"statusLine\" in $SETTINGS_FILE and remove your wrapper yourself (docs/statusline.md)." >&2
+      return 1
+      ;;
+    none)
+      if [ -f "$WRAPPER_FILE" ] && /usr/bin/grep -q "$WRAPPER_MARKER" "$WRAPPER_FILE" 2>/dev/null; then
+        rm -f "$WRAPPER_FILE" "$WRAPPER_BACKUP_FILE"
+        echo "statusline: not wired in settings.json — removed the leftover managed wrapper."
+      else
+        echo "statusline: not wired — nothing to undo."
+      fi
+      return 0
+      ;;
+    managed)
+      if ! statusline_settings_restore; then
+        echo "media: restoring the previous statusLine in $SETTINGS_FILE failed — nothing was removed." >&2
+        return 1
+      fi
+      rm -f "$WRAPPER_FILE" "$WRAPPER_BACKUP_FILE"
+      config_write display.statusline off
+      rm -f "$DATA_DIR/statusline.cache"
+      echo "statusline: unwired — the previous \"statusLine\" is back in settings.json (display.statusline = off)."
+      ;;
+  esac
+}
+
+do_statusline_status() {
+  case "$(statusline_wiring_state)" in
+    managed)
+      echo "managed — settings.json statusLine runs $WRAPPER_FILE; the previous value is backed up and auto-restored when the plugin is uninstalled." ;;
+    manual)
+      echo "manual — settings.json statusLine runs the media segment through your own setup; the plugin never touches it (docs/statusline.md)." ;;
+    none)
+      echo "none — the segment is not wired into settings.json; /media:config display.statusline on wires it automatically." ;;
+  esac
+}
+
 # ---- config (§4.9: fail-closed enable) ---------------------------------------
 
 CONFIG_KEYS="display.progressbar display.statusline statusline.multiline statusline.color statusline.marquee history.record"
@@ -1269,6 +1626,12 @@ do_config() {
   case "$value" in
     on)
       config_preflight "$key" || exit 3
+      # Enabling the statusline wires the segment into ~/.claude/settings.json
+      # by itself (§4.9 fail-closed: refuse the enable when wiring fails, so
+      # "on" never silently shows nothing). A manual setup is left untouched.
+      if [ "$key" = "display.statusline" ]; then
+        statusline_install || exit 3
+      fi
       config_write "$key" on
       # Any key that changes what the segment renders drops the stale cache so
       # the change shows up on the next tick instead of after the TTL.
@@ -1380,10 +1743,11 @@ do_doctor() {
     fi
   fi
   echo "[7] Output dev  : $outdev"
-  echo "[8] Config      : progressbar=$(config_get display.progressbar) statusline=$(config_get display.statusline) color=$(config_get statusline.color) marquee=$(config_get statusline.marquee)"
+  echo "[8] Statusline  : $(do_statusline_status)"
+  echo "[9] Config      : progressbar=$(config_get display.progressbar) statusline=$(config_get display.statusline) color=$(config_get statusline.color) marquee=$(config_get statusline.marquee)"
   echo "                  statusline.fields=[$(config_get_statusline_fields)] history.record=$(config_get history.record) styles=$(style_resolve | /usr/bin/awk -F'\t' '$2 != $3 { n++ } END { print n + 0 }') customized"
   echo "                  ($CONFIG_FILE)"
-  echo "[9] Build log   : $DATA_DIR/build.log"
+  echo "[10] Build log  : $DATA_DIR/build.log"
   echo ""
   echo "verdict: $verdict"
 }
@@ -1413,6 +1777,12 @@ do_warmup() {
   trap 'exit 0' ERR
   set +e
   "$SCRIPT_DIR/build-native.sh" >/dev/null 2>&1
+  # Keep a managed statusline wrapper current with this plugin version (a
+  # plugin update leaves the old generated wrapper behind otherwise). Only
+  # ever refreshes existing managed wiring — never creates it.
+  if [ "$(statusline_wiring_state)" = "managed" ]; then
+    statusline_wrapper_write "$(statusline_backup_cmd)" >/dev/null 2>&1
+  fi
   exit 0
 }
 
@@ -1430,7 +1800,15 @@ case "$cmd" in
   volume)     do_volume "${2:-}" ;;
   output)     do_output "${2:-}" ;;
   history)    do_history "${2:-}" "${3:-}" ;;
-  statusline) do_statusline ;;
+  statusline)
+    case "${2:-}" in
+      "")        do_statusline ;;
+      install)   statusline_install ;;
+      uninstall) statusline_uninstall ;;
+      status)    do_statusline_status ;;
+      *)         usage ;;
+    esac
+    ;;
   test)
     ensure_native
     if [ -z "$LIB" ]; then

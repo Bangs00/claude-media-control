@@ -55,15 +55,21 @@ Natural language, slash commands, or an interactive menu — all work:
 | "turn off the history" | `/media:config` | quick settings — statusline, `/media:now` progress bar, and history on/off, plus a statusline reset |
 | — | `/media:doctor` | diagnose build / permissions / fallbacks |
 
-Optional: put now-playing in your statusline — a one-time setup described in
-[docs/statusline.md](docs/statusline.md):
+Optional: put now-playing in your statusline — fully automatic, one command:
 
 ```
 ▶︎ Karma Police — Radiohead (Spotify)  🔉 ▄ 45%
 ━━━━━━────  2:13/4:24  🎧 AirPods Pro
 ```
 
-- **Set it up** with `/media:statusline` — one hub for everything visual.
+- **Turn it on** with `/media:config display.statusline on` (arranging in
+  `/media:statusline` enables it too). Enabling wires the segment into
+  `settings.json` by itself — your existing statusline keeps running
+  untouched and now-playing is appended as its own line; the previous
+  `statusLine` value is backed up and **restored automatically if you
+  uninstall the plugin**. No restart, no manual steps (details and design
+  guarantees: [docs/statusline.md](docs/statusline.md)).
+- **Make it yours** with `/media:statusline` — one hub for everything visual.
   Toggle items, pick a layout or type a pattern like `123/456` (each digit
   is an item — track, app, volume, bar, time, output — and `/` starts a new
   line), and style every part: bold/italic/color, playing/paused accents,
@@ -156,19 +162,26 @@ Build logs live at `${CLAUDE_PLUGIN_DATA}/build.log`.
 This **fully reverts your machine to its pre-install state.** Everything the
 plugin creates lives in two Claude-managed directories
 (`~/.claude/plugins/cache/...` and `~/.claude/plugins/data/...`), both
-removed on uninstall. No LaunchAgents, no login items, no home-directory
-files, no `settings.json` edits, no system packages. The plugin never writes
-anywhere else; temporary artwork goes to `$TMPDIR`, which macOS clears on
-its own.
+cleaned up by Claude Code. No LaunchAgents, no login items, no system
+packages; temporary artwork goes to `$TMPDIR`, which macOS clears on its own.
+
+The one exception is deliberate and undoes itself: if you enabled the
+**statusline** segment, the plugin edited exactly one `settings.json` key
+(`statusLine`, after backing up its previous value). Claude Code has no
+uninstall hook, so the statusline wrapper is self-healing — on the first
+statusline tick after the uninstall it restores your previous `statusLine`
+and deletes itself and its backup. Your statusline is back to exactly what
+it was, within a second (see [docs/statusline.md](docs/statusline.md)).
 
 Two things are *not* plugin files and may remain (both harmless):
 
 - If you used the AppleScript fallback, macOS keeps its **Automation approval**
   ("terminal → Spotify/Music") in the system permission database. Clear it
   with `tccutil reset AppleEvents` if you like.
-- If you added the optional statusline wrapper, remove
-  `~/.claude/statusline-media.sh` and restore your previous `"statusLine"`
-  value in `settings.json`.
+- If you wired the statusline **manually** (the custom-setup recipe in
+  `docs/statusline.md`), those files are yours: the segment goes quiet on
+  its own, but remove your wrapper and restore your `"statusLine"` value
+  yourself.
 
 ## Roadmap
 

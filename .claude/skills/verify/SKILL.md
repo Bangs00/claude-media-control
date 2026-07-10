@@ -42,6 +42,14 @@ Two gotchas:
 - `media.sh statusline` after `config display.statusline on` — run twice with
   `sleep 2` between to see the marquee advance; `NO_COLOR=1` and
   `statusline.multiline on` are cheap probes
+- Statusline **wiring** (`statusline install/uninstall/status`, the
+  auto-wire in `config display.statusline on`, and the wrapper's uninstall
+  self-heal) writes to `$HOME/.claude/settings.json` — export a scratch
+  `HOME` too before driving it, or you will rewire the user's real
+  settings. Simulate "plugin uninstalled" for the self-heal by emptying
+  `$HOME/.claude/plugins/installed_plugins.json` (`{"plugins":{}}`) and
+  making the recorded dev root non-executable/absent; the wrapper must
+  restore `settings.json` and delete itself + the backup.
 - `media.sh output` / `output "<substring>"` / `output <n>` — switch to the
   CURRENT device for a safe no-op, or switch away and back; `output "LG"`
   style ambiguous names must exit 4 with candidates

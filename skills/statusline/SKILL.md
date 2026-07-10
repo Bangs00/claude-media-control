@@ -202,7 +202,9 @@ as tabs. Build the option labels from the current state shown above.
    so a leftover stacked flag cannot re-split it; with `/`, leave
    `statusline.multiline` alone. If `display.statusline` is `off`, enable it
    (`config display.statusline on`) — the arrangement is pointless without
-   the segment. If that is **refused (exit 3)**, relay the stderr reason,
+   the segment. Enabling also wires the segment into `~/.claude/settings.json`
+   automatically (wrapper + backup; the command's output says what it did —
+   relay it). If it is **refused (exit 3)**, relay the stderr reason,
    point to `/media:doctor`, keep the arrangement saved, and never bypass
    the refusal.
 4. **Style (Q3)**: run the chosen group's follow-up below. Skip when the
@@ -269,6 +271,7 @@ picks every change up within a second (each write drops the segment cache),
 so tell the user to glance at it. If a changed style is SGR-only while
 `statusline.color` is `off`, point that out (`config statusline.color on`).
 If `statusline` prints nothing, nothing is playing — the setup is saved and
-shows once something plays. Close with one reminder when relevant: the
-segment appears once the one-time wrapper from `docs/statusline.md` is
-installed; quick on/off toggles and the full reset live in `/media:config`.
+shows once something plays. Close with one reminder when relevant: enabling
+wired the segment into the statusline automatically (no restart needed;
+details in `docs/statusline.md`); quick on/off toggles and the full reset
+live in `/media:config`.

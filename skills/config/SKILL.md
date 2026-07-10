@@ -41,6 +41,19 @@ Rules you must follow:
 - Enabling runs a preflight. **Exit code 3** means the feature cannot work right now and the
   enable was **refused** (fail-closed by design). Explain the reason from stderr, point to
   `/media:doctor`, and do NOT retry or work around the refusal.
+- Enabling `display.statusline` also **wires the segment into
+  `~/.claude/settings.json` automatically** (wrapper + backup of the previous
+  `statusLine`; details in `docs/statusline.md`). Relay the wiring line the
+  command prints — it says whether it wired, refreshed, or found a manual
+  setup it left alone. The segment shows up on the next statusline tick, no
+  restart needed.
+- A wish to **unwire** the statusline (remove it from settings.json, "배선
+  해제", "settings에서 빼줘") maps to
+  `"${CLAUDE_PLUGIN_ROOT}/scripts/media.sh" statusline uninstall` — it
+  restores the backed-up `statusLine`, removes the wrapper + backup, and
+  turns `display.statusline` off. (Plain `display.statusline off` only hides
+  the segment and keeps the wiring for a fast re-enable. Uninstalling the
+  plugin reverts the wiring by itself.)
 - Disabling always succeeds.
 - Afterwards show the resulting state (re-run `config` with no key if helpful).
 
@@ -52,8 +65,8 @@ four options, with the CURRENT value from the settings table above baked into
 each label so the user sees the state before picking:
 
 1. `Statusline: <on|off>` — description: the now-playing segment rendered
-   into Claude Code's statusline (needs the one-time wrapper from
-   `docs/statusline.md`); selecting flips it.
+   into Claude Code's statusline (enabling wires it into `settings.json`
+   automatically and it appears on the next tick); selecting flips it.
 2. `/media:now progress bar: <on|off>` — description: the progress bar drawn
    under the `/media:now` reply; selecting flips it.
 3. `Playback history: <on|off>` — description: passively log played tracks
