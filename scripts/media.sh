@@ -115,17 +115,26 @@ json_field() {
 
 HISTORY_FILE_NAME="history.jsonl"
 HISTORY_MAX_ENTRIES=500
+# A track change flows through MediaRemote in stages — the title switches
+# first, the artist follows a beat later — so a read landing mid-transition
+# sees the new title with the STALE artist. The corrected snapshot (same
+# title, same app, real artist) arrives on the next read, normally 1-2
+# seconds later; within this window it replaces the transitional entry
+# instead of appending a phantom track.
+HISTORY_AMEND_SECONDS=10
 
 # Log a now-playing JSON snapshot into history.jsonl. Piggybacks on reads
 # that happen anyway (now / control re-reads / statusline ticks) — history
 # never polls on its own, so its cost is one short perl per read, and a
 # write only when the track actually changed. One perl handles everything:
-# the history.record gate, dedup against the last entry, append, and the
-# size cap (oldest entries dropped past HISTORY_MAX_ENTRIES).
+# the history.record gate, dedup against the last entry, the artist-lag
+# amend (see HISTORY_AMEND_SECONDS), append, and the size cap (oldest
+# entries dropped past HISTORY_MAX_ENTRIES). Snapshots without a title are
+# transitional noise (browsers publish them mid-navigation) and never land.
 history_record() {
   mkdir -p "$DATA_DIR" 2>/dev/null || true
   printf '%s' "$1" | /usr/bin/perl -MJSON::PP -e '
-    my ($config, $file, $max) = @ARGV;
+    my ($config, $file, $max, $amendwin) = @ARGV;
     if (-f $config) {
       local $/;
       if (open my $cf, "<", $config) {
@@ -139,26 +148,36 @@ history_record() {
     # history-file reads below.
     my $d;
     { local $/; $d = eval { decode_json(<STDIN>) }; }
-    exit 0 unless ref $d eq "HASH" && defined $d->{title};
+    exit 0 unless ref $d eq "HASH" && defined $d->{title} && length $d->{title};
     my $key = join "\x1f", map { $d->{$_} // "" }
       qw(title artist bundleIdentifier);
     my @lines;
     if (open my $fh, "<", $file) { chomp(@lines = <$fh>); close $fh; }
+    my $amend = 0;
     if (@lines) {
       my $last = eval { decode_json($lines[-1]) };
       if (ref $last eq "HASH") {
         my $lk = join "\x1f", map { $last->{$_} // "" }
           qw(title artist bundleIdentifier);
         exit 0 if $lk eq $key;
+        # Same title + same app but a different artist (the keys differ, so
+        # with title and app equal the artist must differ), seconds after
+        # the last append -> the last entry was a transitional mixed
+        # snapshot; the corrected read supersedes it in place.
+        $amend = 1 if defined $last->{ts}
+          && time() - $last->{ts} <= $amendwin
+          && ($last->{title} // "") eq $d->{title}
+          && ($last->{bundleIdentifier} // "") eq ($d->{bundleIdentifier} // "");
       }
     }
     my %e = (ts => time());
     for (qw(title artist album appName bundleIdentifier)) {
       $e{$_} = $d->{$_} if defined $d->{$_};
     }
-    push @lines, JSON::PP->new->canonical->encode(\%e);
-    if (@lines > $max) {
-      splice @lines, 0, @lines - $max;
+    if ($amend) { $lines[-1] = JSON::PP->new->canonical->encode(\%e) }
+    else        { push @lines, JSON::PP->new->canonical->encode(\%e) }
+    if ($amend || @lines > $max) {
+      splice @lines, 0, @lines - $max if @lines > $max;
       open my $fh, ">", "$file.tmp" or exit 0;
       print $fh "$_\n" for @lines;
       close $fh;
@@ -169,7 +188,7 @@ history_record() {
       close $fh;
     }
   ' "$CONFIG_FILE" "$DATA_DIR/$HISTORY_FILE_NAME" "$HISTORY_MAX_ENTRIES" \
-    2>/dev/null || true
+    "$HISTORY_AMEND_SECONDS" 2>/dev/null || true
 }
 
 # Print one now-playing JSON line, logging it into the history on the way out.

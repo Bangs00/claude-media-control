@@ -172,6 +172,47 @@ setup() {
   head -1 "$CLAUDE_PLUGIN_DATA/history.jsonl" | grep -q '"title":"Old 7"'
 }
 
+@test "history: artist correction seconds later amends the entry (no phantom track)" {
+  run "$MEDIA" now                                     # Stub Song — Stub Artist
+  # Track change: MediaRemote switches the title first, the artist lags one
+  # read behind — the transitional snapshot pairs the NEW title with the
+  # STALE artist.
+  STUB_TRACK_TITLE="Next Song" run "$MEDIA" now
+  [ "$(wc -l < "$CLAUDE_PLUGIN_DATA/history.jsonl")" -eq 2 ]
+  # The corrected read (same title/app, real artist) replaces it in place.
+  STUB_TRACK_TITLE="Next Song" STUB_TRACK_ARTIST="Real Artist" run "$MEDIA" now
+  [ "$(wc -l < "$CLAUDE_PLUGIN_DATA/history.jsonl")" -eq 2 ]
+  tail -1 "$CLAUDE_PLUGIN_DATA/history.jsonl" | grep -q '"artist":"Real Artist"'
+  [ "$(grep -c '"artist":"Stub Artist"' "$CLAUDE_PLUGIN_DATA/history.jsonl")" -eq 1 ]
+  # The amended entry deduplicates like any other.
+  STUB_TRACK_TITLE="Next Song" STUB_TRACK_ARTIST="Real Artist" run "$MEDIA" now
+  [ "$(wc -l < "$CLAUDE_PLUGIN_DATA/history.jsonl")" -eq 2 ]
+}
+
+@test "history: an aged same-title entry appends instead of amending" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  printf '{"artist":"Old Artist","bundleIdentifier":"com.stub.player","title":"Stub Song","ts":%s}\n' \
+    "$(( $(date +%s) - 60 ))" > "$CLAUDE_PLUGIN_DATA/history.jsonl"
+  run "$MEDIA" now                                     # same title, 60s later
+  [ "$(wc -l < "$CLAUDE_PLUGIN_DATA/history.jsonl")" -eq 2 ]
+  grep -q '"artist":"Old Artist"' "$CLAUDE_PLUGIN_DATA/history.jsonl"
+}
+
+@test "history: a same-title entry from another app appends (no cross-app amend)" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  printf '{"artist":"Other Artist","bundleIdentifier":"com.other.app","title":"Stub Song","ts":%s}\n' \
+    "$(date +%s)" > "$CLAUDE_PLUGIN_DATA/history.jsonl"
+  run "$MEDIA" now
+  [ "$(wc -l < "$CLAUDE_PLUGIN_DATA/history.jsonl")" -eq 2 ]
+  grep -q '"artist":"Other Artist"' "$CLAUDE_PLUGIN_DATA/history.jsonl"
+}
+
+@test "history: transitional empty-title snapshots are never logged" {
+  STUB_TRACK_TITLE="" run "$MEDIA" now
+  [ "$status" -eq 0 ]
+  [ ! -f "$CLAUDE_PLUGIN_DATA/history.jsonl" ]
+}
+
 # ---- control -------------------------------------------------------------------
 
 @test "toggle: primary send then state re-read" {
