@@ -6,7 +6,7 @@ Show the current track as an extra line in Claude Code's statusline:
 
 ```
 [your existing statusline, untouched]
-▶︎ Karma Police — Radiohead  ██████░░░░  2:13/4:24
+▶︎ Karma Police — Radiohead  ━━━━━━────  2:13/4:24
 ```
 
 The segment comes from `media.sh statusline`, which answers from a small TTL
@@ -40,39 +40,41 @@ run `/media:doctor`.)
 
 ### Arrange what the segment shows
 
-Run `/media:statusline` to arrange the segment — the picker shows the two
-presets (Standard / Stacked) as visual previews, and `Custom…` places any
-items on any lines, in any order, with a compact numeric pattern typed
-straight into the chat: `1` track, `2` app, `3` volume, `4` progress bar,
-`5` time, `6` output — `/` starts a new line, digit order is display order,
-and a digit you leave out hides that item. `123/456` puts the track, app and
-volume on line 1 and the bar, time and output device on line 2. A quick
-preset picker also opens inside `/media:config`:
+Run `/media:statusline` to arrange the segment. The picker shows the
+Standard / Stacked presets as visual previews. `Custom…` takes a numeric
+pattern typed straight into the chat, built from this legend:
 
-- **Items** (any combination, **in any order**): `track` (▶︎ title — artist),
-  `app` (the playing app, e.g. `(Spotify)`), `volume` (the system volume as
-  icon + level-height bar + percent, e.g. `🔉 ▄ 45%`; `🔇` when muted),
-  `progressbar` (`██████░░░░`), `time` (`2:13/4:24`), `output` (the current
-  audio output device, its icon following the device kind — `🎧` Bluetooth
-  and headphone jack, `📺` HDMI/DisplayPort, `📶` AirPlay, `🔊` speakers).
-  The default set is `track app progressbar time`.
-- **Order**: items render in exactly the order they are saved — ask for "time
-  first" or "output device in front", or set it directly:
+| # | item | looks like |
+| --- | --- | --- |
+| 1 | `track` | `▶︎ Karma Police — Radiohead` |
+| 2 | `app` | `(Spotify)` |
+| 3 | `volume` | `🔉 ▄ 45%` — icon + level bar + percent; `🔇` when muted |
+| 4 | `progressbar` | `━━━━━━────` |
+| 5 | `time` | `2:13/4:24` |
+| 6 | `output` | `🎧 AirPods Pro` — icon by device kind: `🎧` Bluetooth/headphones · `📺` HDMI/DisplayPort · `📶` AirPlay · `🔊` speakers |
+
+Digit order is display order. `/` starts a new line. A digit you leave out
+hides that item. So `123/456` puts track, app and volume on line 1 and the
+rest on line 2. The default set is `track app progressbar time`; a quick
+preset picker also opens inside `/media:config`.
+
+How the layout behaves:
+
+- **Order** — items render in exactly the order they are saved. Ask for
+  "time first", or set the list directly:
   `/media:config statusline.fields "time,progressbar,track,app"`.
-- **Lines**: a `/` in the field list starts a new line and switches to the
-  explicit per-line layout — every line shows exactly the items you put
-  there, in that order, and a line with nothing to show disappears (e.g.
-  `output` or `volume` without the native helper). Without `/`, the classic
-  grouped layout applies: one line, or each group on its own line
-  (`statusline.multiline on`) — `app` attaches to the track group;
-  `progressbar` and `time` share a group when they sit next to each other in
-  the order; `output` and `volume` join an adjacent track group, and an
-  adjacent `output`+`volume` share a group.
+- **Explicit lines** — a `/` in the field list starts a new line. Each line
+  then shows exactly the items you put there, in that order. A line with
+  nothing to show disappears (e.g. `output` without the native helper).
+- **Grouped layout** (no `/` in the list) — one line, or one line per group
+  with `statusline.multiline on`. The groups: `app` attaches to the track;
+  `progressbar` and `time` pair up when adjacent; `output` and `volume`
+  join an adjacent track group, and pair up with each other when adjacent.
 
 Standard — one line with all items (pattern `123456`):
 
 ```
-▶︎ Karma Police — Radiohead (Spotify)  🔉 ▄ 45%  ██████░░░░  2:13/4:24  🎧 AirPods Pro
+▶︎ Karma Police — Radiohead (Spotify)  🔉 ▄ 45%  ━━━━━━────  2:13/4:24  🎧 AirPods Pro
 ```
 
 Stacked — two explicit lines (pattern `123/456`, i.e.
@@ -80,21 +82,21 @@ Stacked — two explicit lines (pattern `123/456`, i.e.
 
 ```
 ▶︎ Karma Police — Radiohead (Spotify)  🔉 ▄ 45%
-██████░░░░  2:13/4:24  🎧 AirPods Pro
+━━━━━━────  2:13/4:24  🎧 AirPods Pro
 ```
 
 Output on the track's line, no volume (pattern `126/45`):
 
 ```
 ▶︎ Karma Police — Radiohead (Spotify)  🎧 AirPods Pro
-██████░░░░  2:13/4:24
+━━━━━━────  2:13/4:24
 ```
 
 Time first, one line (pattern `5412`, i.e.
 `statusline.fields "time,progressbar,track,app"`):
 
 ```
-2:13/4:24  ██████░░░░  ▶︎ Karma Police — Radiohead (Spotify)
+2:13/4:24  ━━━━━━────  ▶︎ Karma Police — Radiohead (Spotify)
 ```
 
 The `output` and `volume` items need the native helper (they ride the same
@@ -104,9 +106,9 @@ updates on the next tick.
 
 ### Long titles: marquee scrolling
 
-Titles wider than 30 terminal cells scroll through a fixed 30-cell window, one
-character per second (this pairs with the 1-second refresh below — the window
-advances on every redraw):
+Titles wider than 30 terminal cells scroll through a fixed 30-cell window,
+one character per second. (The window advances on every redraw — see the
+1-second refresh below.)
 
 ```
 ▶︎ ing Willow (10 Minute Version)  — Taylor Swift (Music)
@@ -137,9 +139,9 @@ honored too.
 
 Every part is also **individually styleable**. Run `/media:style` and say
 what you want ("title bold cyan", "bar style wave", "volume icon ♪"), or set
-the keys directly — each takes any of `bold dim italic underline`, at most
-one color (`black red green yellow blue magenta cyan white` or
-`bright-<color>`), or `none`:
+the keys directly. Each key takes any of `bold dim italic underline`, plus
+at most one color (`black red green yellow blue magenta cyan white` or
+`bright-<color>`) — or `none`:
 
 | key | part | default |
 | --- | --- | --- |
@@ -148,16 +150,17 @@ one color (`black red green yellow blue magenta cyan white` or
 | `style.time.elapsed` / `style.time.total` | `2:13` / `/4:24` | `bold` / `dim` |
 | `style.volume.icon` / `style.volume.bar` / `style.volume.percent` | volume icon / bar / percent | `auto` / `dim` / `dim` |
 | `style.progressbar.playing` / `style.progressbar.paused` | bar fill + ▶︎/⏸ accent | `green` / `yellow` |
-| `style.progressbar.style` | bar characters | `blocks` |
+| `style.progressbar.style` | bar characters | `line` |
 | `style.output` | output device | `dim` |
 
-The progress bar's characters come from `style.progressbar.style`: `blocks`
-`██████░░░░` · `wave` `~~~~~~----` · `line` `━━━━━━────` · `dots`
+The progress bar's characters come from `style.progressbar.style`: `line`
+`━━━━━━────` (default) · `blocks` `██████░░░░` · `wave` `~~~~~~----` · `dots`
 `●●●●●●○○○○`, or any two characters meaning "filled + empty" (`"#-"` →
-`######----`). The volume icon (`style.volume.icon`) is `auto` (🔈/🔉/🔊
-tiered by level), `none` (hidden), or any glyph like `♪` — muted always shows
-🔇. Character choices apply even with colors off; the other keys need
-`statusline.color` on.
+`######----`). The same characters draw the bar in the `/media:now` reply,
+so the two surfaces always match. The volume icon (`style.volume.icon`) is
+`auto` (🔈/🔉/🔊 tiered by level), `none` (hidden), or any glyph like `♪` —
+muted always shows 🔇. Character choices apply even with colors off; the
+other keys need `statusline.color` on.
 
 ```
 /media:config style.track.title "bold cyan"    # set one part

@@ -46,7 +46,7 @@ order is also the default item order:
 | 1 | `track` | `▶︎ Karma Police — Radiohead` |
 | 2 | `app` | `(Spotify)` |
 | 3 | `volume` | `🔉 ▄ 45%` (🔇 when muted) |
-| 4 | `progressbar` | `██████░░░░` |
+| 4 | `progressbar` | `━━━━━━────` |
 | 5 | `time` | `2:13/4:24` |
 | 6 | `output` | `🎧 AirPods Pro` (icon by device: 🔊 speakers · 🎧 Bluetooth/headphones · 📺 HDMI/DisplayPort · 📶 AirPlay) |
 
@@ -90,14 +90,14 @@ put the sample lines in the option descriptions instead.
 - `Standard` — everything on one line
 
   ```
-  ▶︎ Karma Police — Radiohead (Spotify)  🔉 ▄ 45%  ██████░░░░  2:13/4:24  🎧 AirPods Pro
+  ▶︎ Karma Police — Radiohead (Spotify)  🔉 ▄ 45%  ━━━━━━────  2:13/4:24  🎧 AirPods Pro
   ```
 
 - `Stacked` — two lines: track, app & volume / stats & output
 
   ```
   ▶︎ Karma Police — Radiohead (Spotify)  🔉 ▄ 45%
-  ██████░░░░  2:13/4:24  🎧 AirPods Pro
+  ━━━━━━────  2:13/4:24  🎧 AirPods Pro
   ```
 
 - `Custom…` — type which items go on which lines as a numeric pattern
@@ -127,7 +127,7 @@ conversation language, keep the table):
 > | 1 | track | ▶︎ Karma Police — Radiohead |
 > | 2 | app | (Spotify) |
 > | 3 | volume | 🔉 ▄ 45% |
-> | 4 | progress bar | ██████░░░░ |
+> | 4 | progress bar | ━━━━━━──── |
 > | 5 | time | 2:13/4:24 |
 > | 6 | output | 🎧 AirPods Pro |
 >

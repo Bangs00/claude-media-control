@@ -617,10 +617,10 @@ do_statusline() {
         # colors off.
         my %cs = (blocks => ["\x{2588}", "\x{2591}"], wave => ["~", "-"],
                   line => ["\x{2501}", "\x{2500}"], dots => ["\x{25CF}", "\x{25CB}"]);
-        my $csv = $sty{"progressbar.style"} // "blocks";
+        my $csv = $sty{"progressbar.style"} // "line";
         my ($fc, $ec) = $cs{$csv}           ? @{$cs{$csv}}
                       : length($csv) == 2   ? (substr($csv, 0, 1), substr($csv, 1, 1))
-                      :                       @{$cs{blocks}};
+                      :                       @{$cs{line}};
         $tok{progressbar} = $st->($accsgr, $fc x $filled)
                           . $st->(2, $ec x ($cells - $filled));
       }
@@ -855,7 +855,8 @@ config_set_statusline_fields() {
 # instead, so they apply even with colors off. Per key, the value "reset"
 # deletes it (back to the default); "config style" lists everything and
 # "config style reset" clears all customizations. The defaults reproduce the
-# classic rendering exactly.
+# classic rendering, except the bar charset default moved from blocks to
+# line in 0.12.0 (set "blocks" to restore the pre-0.12 bar).
 STYLE_KEYS="style.track.title style.track.artist style.app style.volume.icon style.volume.bar style.volume.percent style.progressbar.playing style.progressbar.paused style.progressbar.style style.time.elapsed style.time.total style.output"
 
 # Print "key<TAB>value<TAB>default" for every style key, resolved against the
@@ -874,7 +875,7 @@ style_resolve() {
       ["style.volume.percent",      "dim"],
       ["style.progressbar.playing", "green"],
       ["style.progressbar.paused",  "yellow"],
-      ["style.progressbar.style",   "blocks"],
+      ["style.progressbar.style",   "line"],
       ["style.time.elapsed",        "bold"],
       ["style.time.total",          "dim"],
       ["style.output",              "dim"],

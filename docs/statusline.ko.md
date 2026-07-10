@@ -6,7 +6,7 @@ Claude Code statusline에 현재 곡을 한 줄 추가해 보여줍니다:
 
 ```
 [기존 statusline은 그대로]
-▶︎ Karma Police — Radiohead  ██████░░░░  2:13/4:24
+▶︎ Karma Police — Radiohead  ━━━━━━────  2:13/4:24
 ```
 
 이 줄은 `media.sh statusline`이 만들어 냅니다. 작은 TTL 캐시(기본 1초)에서
@@ -40,38 +40,42 @@ Claude Code 안에서:
 
 ### 항목 배치하기
 
-`/media:statusline`을 실행하면 두 가지 프리셋(Standard / Stacked)을
-미리보기로 직접 보면서 고를 수 있고, `Custom…`을 고르면 숫자 패턴 하나를
-채팅 입력창에 바로 입력해 어떤 항목이든 원하는 줄에 원하는 순서로 놓을 수
-있습니다: `1` track, `2` app, `3` 볼륨, `4` 진행 바, `5` 시간, `6` 출력
-장치 — `/`가 새 줄을 시작하고, 숫자 순서가 곧 표시 순서이며, 뺀 숫자의
-항목은 표시되지 않습니다. `123/456`이라고 입력하면 1번째 줄에 track·app·
-볼륨, 2번째 줄에 진행 바·시간·출력 장치가 나옵니다. 간단한 프리셋 picker는
-`/media:config` 안에서도 열립니다:
+`/media:statusline`을 실행해 배치를 정합니다. 프리셋(Standard / Stacked)은
+미리보기로 직접 보면서 고릅니다. `Custom…`은 아래 범례로 만든 숫자 패턴
+하나를 채팅 입력창에 바로 입력합니다:
 
-- **항목** (원하는 대로 조합, **원하는 순서로**): `track`(▶︎ 제목 —
-  아티스트), `app`(재생 중인 앱, 예: `(Spotify)`), `volume`(시스템 볼륨을
-  아이콘 + 볼륨량 높이 바 + 퍼센트로, 예: `🔉 ▄ 45%`; 음소거면 `🔇`),
-  `progressbar`(`██████░░░░`), `time`(`2:13/4:24`), `output`(현재 오디오
-  출력 장치 — 아이콘이 장치 종류를 따라갑니다: Bluetooth·헤드폰 잭은 `🎧`,
-  HDMI/DisplayPort는 `📺`, AirPlay는 `📶`, 스피커는 `🔊`). 기본 구성은
-  `track app progressbar time`입니다.
-- **순서**: 항목은 저장한 순서 그대로 그려집니다. "시간을 맨 앞에",
-  "출력 장치를 앞으로"라고 말해도 되고, 직접 지정할 수도 있습니다:
+| # | 항목 | 표시 예 |
+| --- | --- | --- |
+| 1 | `track` | `▶︎ Karma Police — Radiohead` |
+| 2 | `app` | `(Spotify)` |
+| 3 | `volume` | `🔉 ▄ 45%` — 아이콘 + 볼륨량 높이 바 + 퍼센트, 음소거면 `🔇` |
+| 4 | `progressbar` | `━━━━━━────` |
+| 5 | `time` | `2:13/4:24` |
+| 6 | `output` | `🎧 AirPods Pro` — 아이콘은 장치 종류를 따름: `🎧` Bluetooth·헤드폰 잭 · `📺` HDMI/DisplayPort · `📶` AirPlay · `🔊` 스피커 |
+
+숫자 순서가 곧 표시 순서입니다. `/`는 새 줄을 시작합니다. 뺀 숫자의 항목은
+표시되지 않습니다. 예를 들어 `123/456`은 1번째 줄에 track·app·볼륨, 2번째
+줄에 나머지를 놓습니다. 기본 구성은 `track app progressbar time`이고,
+간단한 프리셋 picker는 `/media:config` 안에서도 열립니다.
+
+배치가 동작하는 방식:
+
+- **순서** — 항목은 저장한 순서 그대로 그려집니다. "시간을 맨 앞에"라고
+  말해도 되고, 목록을 직접 지정할 수도 있습니다:
   `/media:config statusline.fields "time,progressbar,track,app"`.
-- **줄 배치**: 항목 목록에 `/`를 넣으면 그 자리에서 줄이 바뀌고, 목록
-  전체가 줄 단위 명시 배치로 전환됩니다 — 각 줄에는 거기에 둔 항목만 그
-  순서대로 나오고, 보여줄 것이 없는 줄은 통째로 사라집니다(예: 네이티브
-  helper가 없을 때의 `output`·`volume`). `/`가 없으면 기존 그룹 배치가
-  그대로 적용됩니다: 한 줄로 붙이거나, 그룹마다 줄을 나누거나
-  (`statusline.multiline on`) — `app`은 track 그룹에 붙고, `progressbar`와
-  `time`은 순서상 이웃해 있을 때 한 그룹을 이루며, `output`과 `volume`은
-  이웃한 track 그룹에 합류하고 서로 이웃하면 둘이 한 그룹이 됩니다.
+- **줄 단위 명시 배치** — 항목 목록에 `/`를 넣으면 그 자리에서 줄이
+  바뀝니다. 각 줄에는 거기에 둔 항목만 그 순서대로 나옵니다. 보여줄 것이
+  없는 줄은 통째로 사라집니다(예: 네이티브 helper가 없을 때의 `output`).
+- **그룹 배치** (목록에 `/`가 없을 때) — 한 줄로 붙이거나,
+  `statusline.multiline on`이면 그룹마다 줄을 나눕니다. 그룹 규칙: `app`은
+  track에 붙습니다. `progressbar`와 `time`은 이웃할 때 한 그룹이 됩니다.
+  `output`과 `volume`은 이웃한 track 그룹에 합류하고, 서로 이웃하면 둘이
+  한 그룹이 됩니다.
 
 Standard — 모든 항목을 한 줄로(패턴 `123456`):
 
 ```
-▶︎ Karma Police — Radiohead (Spotify)  🔉 ▄ 45%  ██████░░░░  2:13/4:24  🎧 AirPods Pro
+▶︎ Karma Police — Radiohead (Spotify)  🔉 ▄ 45%  ━━━━━━────  2:13/4:24  🎧 AirPods Pro
 ```
 
 Stacked — 명시적 2줄 배치(패턴 `123/456`, 즉
@@ -79,21 +83,21 @@ Stacked — 명시적 2줄 배치(패턴 `123/456`, 즉
 
 ```
 ▶︎ Karma Police — Radiohead (Spotify)  🔉 ▄ 45%
-██████░░░░  2:13/4:24  🎧 AirPods Pro
+━━━━━━────  2:13/4:24  🎧 AirPods Pro
 ```
 
 출력 장치를 track 줄에, 볼륨은 빼고(패턴 `126/45`):
 
 ```
 ▶︎ Karma Police — Radiohead (Spotify)  🎧 AirPods Pro
-██████░░░░  2:13/4:24
+━━━━━━────  2:13/4:24
 ```
 
 시간을 앞으로, 한 줄(패턴 `5412`, 즉
 `statusline.fields "time,progressbar,track,app"`):
 
 ```
-2:13/4:24  ██████░░░░  ▶︎ Karma Police — Radiohead (Spotify)
+2:13/4:24  ━━━━━━────  ▶︎ Karma Police — Radiohead (Spotify)
 ```
 
 `output`과 `volume` 항목은 네이티브 helper가 필요합니다(세그먼트가 원래
@@ -104,8 +108,8 @@ Stacked — 명시적 2줄 배치(패턴 `123/456`, 즉
 ### 긴 제목: marquee 스크롤
 
 30칸(터미널 셀)보다 긴 제목은 고정된 30칸 창 안에서 1초에 한 글자씩
-흘러갑니다(아래의 1초 갱신 주기와 맞물려, 다시 그려질 때마다 한 칸씩
-전진합니다):
+흘러갑니다. (창은 다시 그려질 때마다 한 칸씩 전진합니다 — 아래의 1초
+갱신 주기 참고.)
 
 ```
 ▶︎ ing Willow (10 Minute Version)  — Taylor Swift (Music)
@@ -146,16 +150,17 @@ magenta cyan white` 또는 `bright-<색>`)를 더하거나, `none`(스타일 없
 | `style.time.elapsed` / `style.time.total` | `2:13` / `/4:24` | `bold` / `dim` |
 | `style.volume.icon` / `style.volume.bar` / `style.volume.percent` | 볼륨 아이콘 / 바 / 퍼센트 | `auto` / `dim` / `dim` |
 | `style.progressbar.playing` / `style.progressbar.paused` | 바 채움 + ▶︎/⏸ 강조색 | `green` / `yellow` |
-| `style.progressbar.style` | 진행 바 문자 | `blocks` |
+| `style.progressbar.style` | 진행 바 문자 | `line` |
 | `style.output` | 출력 장치 | `dim` |
 
-진행 바의 문자는 `style.progressbar.style`이 정합니다: `blocks`
-`██████░░░░` · `wave` `~~~~~~----` · `line` `━━━━━━────` · `dots`
+진행 바의 문자는 `style.progressbar.style`이 정합니다: `line`
+`━━━━━━────`(기본값) · `blocks` `██████░░░░` · `wave` `~~~~~~----` · `dots`
 `●●●●●●○○○○`, 또는 "채움 + 빈칸"을 뜻하는 아무 두 글자(`"#-"` →
-`######----`). 볼륨 아이콘(`style.volume.icon`)은 `auto`(레벨에 따라
-🔈/🔉/🔊), `none`(숨김), 또는 `♪` 같은 아무 글리프이며, 음소거 시에는 항상
-🔇가 나옵니다. 문자를 바꾸는 이 두 키는 색을 꺼도 적용되고, 나머지 키는
-`statusline.color`가 켜져 있어야 보입니다.
+`######----`). `/media:now` 응답의 진행 바도 같은 문자로 그려지기 때문에 두
+곳의 바가 항상 같은 모습입니다. 볼륨 아이콘(`style.volume.icon`)은
+`auto`(레벨에 따라 🔈/🔉/🔊), `none`(숨김), 또는 `♪` 같은 아무 글리프이며,
+음소거 시에는 항상 🔇가 나옵니다. 문자를 바꾸는 이 두 키는 색을 꺼도
+적용되고, 나머지 키는 `statusline.color`가 켜져 있어야 보입니다.
 
 ```
 /media:config style.track.title "bold cyan"    # 한 부분만 설정

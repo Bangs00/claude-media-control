@@ -20,9 +20,9 @@ integrations, and **nothing to install with Homebrew**.
 The existing Claude/Spotify/Apple-Music integrations each lock you into one
 app and an OAuth/AppleScript setup. This plugin talks to the **macOS
 system-wide now-playing service**, so it sees and controls the *currently
-active* player no matter which app it is — with **zero third-party
-dependencies**. The only requirement is the Xcode Command Line Tools, which
-you already have if you can `git clone` (see [Requirements](#requirements)).
+active* player no matter which app it is. **Zero third-party dependencies**:
+the only requirement is the Xcode Command Line Tools, which you already have
+if you can `git clone` (see [Requirements](#requirements)).
 
 ## Install
 
@@ -56,31 +56,31 @@ Natural language, slash commands, or an interactive menu — all work:
 | "configure the statusline" | `/media:config` | interactive settings — layout plus every display toggle (progress bar, history, colors, marquee) |
 | — | `/media:doctor` | diagnose build / permissions / fallbacks |
 
-Optional: put now-playing in your statusline — see
-[docs/statusline.md](docs/statusline.md). `/media:statusline` shows the
-layouts as **visual previews** and lets you arrange the items (track, app,
-volume, progress bar, time, output device) in any order, on any lines — pick
-the Standard or Stacked preset, or go `Custom…` and type a numeric pattern
-like `123/456` straight into the chat: digits name the items, `/` starts a
-new line, and digit order is display order. "time first" or "output device
-in front" works too, because items render in exactly the order you save
-them. The volume item shows icon + level bar + percent (`🔉 ▄ 45%`), the
-output item's icon follows the device kind (`🎧` Bluetooth, `📺` HDMI, `📶`
-AirPlay, `🔊` speakers), titles wider than 30 cells scroll marquee-style
-(`statusline.marquee`), and the segment comes ANSI-styled — state-colored
-icon and progress bar, bold title and elapsed time, italic artist —
-`/media:config statusline.color off` (or `NO_COLOR`) restores plain text.
-Every part restyles individually with `/media:style`: bold/italic/color for
-the title, artist, app, time, volume bar & percent, and output device;
-playing/paused colors plus the bar characters (`wave` `~~~~--`, `line`,
-`dots`, or any two glyphs) for the progress bar; and the volume icon (`♪`,
-hidden, or the level-tiered default). Each key resets to its default
-individually (`reset`), or all at once (`/media:config style reset`).
+Optional: put now-playing in your statusline — a one-time setup described in
+[docs/statusline.md](docs/statusline.md):
+
+```
+▶︎ Karma Police — Radiohead (Spotify)  🔉 ▄ 45%
+━━━━━━────  2:13/4:24  🎧 AirPods Pro
+```
+
+- **Arrange it** with `/media:statusline`. Pick a preset from visual
+  previews, or type a pattern like `123/456` — each digit is an item
+  (track, app, volume, bar, time, output) and `/` starts a new line.
+- **Style it** with `/media:style` — bold/italic/color per part,
+  playing/paused accent colors, the bar characters (`line` `━━──` by
+  default; `blocks` `██░░`, `wave` `~~--`, `dots` `●●○○`, or any two
+  glyphs), and the volume icon. Every key resets individually, or all at
+  once.
+- Long titles scroll marquee-style. The volume item shows icon + level bar
+  + percent; the output icon follows the device kind (`🎧` Bluetooth, `📺`
+  HDMI, `📶` AirPlay, `🔊` speakers). Colors are standard 16-color SGR —
+  `/media:config statusline.color off` (or `NO_COLOR`) restores plain text.
 
 ## How it works
 
-macOS has no public API to read another app's now-playing info; the private
-`MediaRemote` framework does, but since macOS 15.4 its daemon only answers
+macOS has no public API to read another app's now-playing info. The private
+`MediaRemote` framework can, but since macOS 15.4 its daemon only answers
 processes signed by Apple. This plugin uses the same technique as
 [ungive/mediaremote-adapter](https://github.com/ungive/mediaremote-adapter):
 a small Objective-C helper (`native/adapter.m`) is loaded by
@@ -105,7 +105,7 @@ you're in.
 **passively** while media reads happen anyway (statusline ticks, `/media:now`,
 playback commands) — no background polling, no daemon, no extra resource cost.
 The log keeps the latest 500 tracks in the plugin data directory and never
-leaves your machine; `/media:config history.record off` stops logging and
+leaves your machine. `/media:config history.record off` stops logging;
 `/media:history clear` wipes it.
 
 `/media:output` shows every audio output device and switches between them
@@ -154,10 +154,11 @@ Build logs live at `${CLAUDE_PLUGIN_DATA}/build.log`.
 
 This **fully reverts your machine to its pre-install state.** Everything the
 plugin creates lives in two Claude-managed directories
-(`~/.claude/plugins/cache/...` and `~/.claude/plugins/data/...`), both removed
-on uninstall — no LaunchAgents, no login items, no home-directory files, no
-`settings.json` edits, no system packages. The plugin never writes anywhere
-else; temporary artwork goes to `$TMPDIR`, which macOS clears on its own.
+(`~/.claude/plugins/cache/...` and `~/.claude/plugins/data/...`), both
+removed on uninstall. No LaunchAgents, no login items, no home-directory
+files, no `settings.json` edits, no system packages. The plugin never writes
+anywhere else; temporary artwork goes to `$TMPDIR`, which macOS clears on
+its own.
 
 Two things are *not* plugin files and may remain (both harmless):
 

@@ -5,6 +5,22 @@ All notable changes to this project are documented here. The format follows
 [SemVer](https://semver.org/spec/v2.0.0.html), tracked in
 `.claude-plugin/plugin.json`.
 
+## [0.12.0] — 2026-07-10
+
+### Changed
+
+- **The default progress-bar characters are now `line`** (`━━━━━━────`,
+  previously `blocks` `██████░░░░`). Anyone who already set
+  `style.progressbar.style` explicitly is unaffected; to keep the old look,
+  run `/media:config style.progressbar.style blocks`.
+- **The `/media:now` progress bar follows `style.progressbar.style`.** It
+  was fixed to `█`/`░` before, so a restyled statusline bar and the chat
+  reply could disagree; now both surfaces always draw with the same
+  characters.
+- Docs: the README statusline section is restructured into scannable
+  bullets with a sample segment, and the statusline guides are tightened —
+  in all four languages. Demo GIFs re-recorded with the new default bar.
+
 ## [0.11.0] — 2026-07-10
 
 ### Added

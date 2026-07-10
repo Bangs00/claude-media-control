@@ -31,7 +31,7 @@ Every visible part of the statusline segment has a `style.*` config key:
 | `style.volume.percent` | volume percent `45%` | `dim` |
 | `style.progressbar.playing` | bar fill + ▶︎ accent while playing | `green` |
 | `style.progressbar.paused` | bar fill + ⏸ accent while paused | `yellow` |
-| `style.progressbar.style` | progress bar characters | `blocks` |
+| `style.progressbar.style` | progress bar characters | `line` |
 | `style.time.elapsed` | elapsed time `2:13` | `bold` |
 | `style.time.total` | total-time tail `/4:24` | `dim` |
 | `style.output` | output device (icon + name) | `dim` |
@@ -41,9 +41,10 @@ Every visible part of the statusline segment has a `style.*` config key:
 magenta cyan white` or `bright-<color>` — or `none` (no styling, alone).
 Standard 16-color SGR only, so colors follow the user's terminal palette.
 
-**Bar characters** (`style.progressbar.style`): `blocks` `██████░░░░` ·
-`wave` `~~~~~~----` · `line` `━━━━━━────` · `dots` `●●●●●●○○○○` — or any two
-characters meaning "filled + empty", e.g. `"#-"` → `######----`.
+**Bar characters** (`style.progressbar.style`): `line` `━━━━━━────`
+(default) · `blocks` `██████░░░░` · `wave` `~~~~~~----` · `dots`
+`●●●●●●○○○○` — or any two characters meaning "filled + empty", e.g. `"#-"`
+→ `######----`.
 
 **Volume icon** (`style.volume.icon`): `auto` (🔈/🔉/🔊 tiered by level, 🔇
 at zero), `none` (hide the icon), or any short glyph (e.g. `"♪"`). Muted

@@ -843,7 +843,7 @@ setup() {
   [[ "$output" == *$'\e[1mStub Song\e[0m'* ]]            # bold title
   [[ "$output" == *$'\e[3mStub Artist\e[0m'* ]]          # italic artist
   [[ "$output" == *$'\e[2m(StubPlayer)\e[0m'* ]]         # dim app
-  [[ "$output" == *$'\e[32m████\e[0m\e[2m░░░░░░\e[0m'* ]] # green fill + dim rest
+  [[ "$output" == *$'\e[32m━━━━\e[0m\e[2m──────\e[0m'* ]] # green fill + dim rest
 }
 
 @test "statusline: style.track.title and style.track.artist restyle their parts" {
@@ -861,7 +861,7 @@ setup() {
   echo '{"display.statusline":true,"style.progressbar.playing":"red"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
   [ "$status" -eq 0 ]
-  [[ "$output" == *$'\e[31m████\e[0m'* ]]   # red fill
+  [[ "$output" == *$'\e[31m━━━━\e[0m'* ]]   # red fill
   [[ "$output" == *$'\e[1;31m'* ]]          # icon: bold + the same accent
 }
 

@@ -65,9 +65,9 @@ Send these four questions together in one AskUserQuestion call:
     line; otherwise `statusline.multiline` decides) using the same sample
     track as the other previews
   - `Standard` — everything on one line — preview:
-    `▶︎ Karma Police — Radiohead (Spotify)  🔉 ▄ 45%  ██████░░░░  2:13/4:24  🎧 AirPods Pro`
+    `▶︎ Karma Police — Radiohead (Spotify)  🔉 ▄ 45%  ━━━━━━────  2:13/4:24  🎧 AirPods Pro`
   - `Stacked` — two lines — preview:
-    `▶︎ Karma Police — Radiohead (Spotify)  🔉 ▄ 45%` ⏎ `██████░░░░  2:13/4:24  🎧 AirPods Pro`
+    `▶︎ Karma Police — Radiohead (Spotify)  🔉 ▄ 45%` ⏎ `━━━━━━────  2:13/4:24  🎧 AirPods Pro`
   - `Compact` — track and time only — preview:
     `▶︎ Karma Police — Radiohead  2:13/4:24`
 
