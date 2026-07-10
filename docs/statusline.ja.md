@@ -39,22 +39,29 @@ Claude Code の中で:
 （有効化の前に、再生情報を実際に読み取れるかを検証します。拒否された場合は
 `/media:doctor` を実行してみてください。）
 
-### 表示する項目を選ぶ
+### 項目を配置する
 
-`/media:config` を実行すると、どの項目をどう並べるかを選べます:
+`/media:statusline` を実行すると、レイアウト例（Standard / Stacked /
+Compact / Everything）をプレビューで見比べながら選べます。同じピッカーは
+`/media:config` の中からも開けます:
 
-- **項目**（自由に組み合わせ可能）: `track`（▶︎ 曲名 — アーティスト）、
-  `app`（再生中のアプリ、例: `(Spotify)`）、`progressbar`（`██████░░░░`）、
-  `time`（`2:13/4:24`）、`output`（🔊 現在のオーディオ出力デバイス）、
-  `spectrum`（リアルタイム周波数バー）。デフォルトの構成は
+- **項目**（自由な組み合わせで、**好きな順序に**）: `track`（▶︎ 曲名 —
+  アーティスト）、`app`（再生中のアプリ、例: `(Spotify)`）、
+  `progressbar`（`██████░░░░`）、`time`（`2:13/4:24`）、`output`（🔊 現在の
+  オーディオ出力デバイス）。デフォルトの構成は
   `track app progressbar time` です。
+- **順序**: 項目は保存した順序どおりに描画されます。「時間を先頭に」
+  「出力デバイスを前に」と頼んでもいいし、直接指定もできます:
+  `/media:config statusline.fields "time,progressbar,track,app"`。
 - **レイアウト**: 1 行にまとめるか、グループごとに行を分けるか
-  （`statusline.multiline`）。
+  （`statusline.multiline`）。`app` は track のグループに付き、
+  `progressbar` と `time` は順序上隣り合っているときに 1 つのグループ
+  （複数行レイアウトでは 1 行）になります。
 
 全項目を 1 行で:
 
 ```
-▶︎ Karma Police — Radiohead (Spotify)  ██████░░░░  2:13/4:24  🔊 AirPods Pro  ▂▄▆█▇▅▃▂
+▶︎ Karma Police — Radiohead (Spotify)  ██████░░░░  2:13/4:24  🔊 AirPods Pro
 ```
 
 複数行で（`statusline.multiline on`）:
@@ -63,17 +70,17 @@ Claude Code の中で:
 ▶︎ Karma Police — Radiohead (Spotify)
 ██████░░░░  2:13/4:24
 🔊 AirPods Pro
-▂▄▆█▇▅▃▂
+```
+
+時間を先頭に（`statusline.fields "time,progressbar,track,app"`）:
+
+```
+2:13/4:24  ██████░░░░  ▶︎ Karma Police — Radiohead (Spotify)
 ```
 
 `output` 項目にはネイティブヘルパーが必要です（セグメントが元々行う読み取り
 に相乗りするため、追加コストはありません）。デバイスの切り替えは
 `/media:output` で行え、セグメントには次の更新で反映されます。
-
-`spectrum` 項目はオプトインで、`display.spectrum on` とシステムオーディオ
-録音の権限が必要です（`/media:spectrum` を参照）。更新のたびに約 0.5 秒ずつ
-音をキャプチャするので、ほかの項目より負荷が大きめです。ステータスラインを
-できるだけ軽くしたいなら外しておきましょう。
 
 ### 長いタイトル: マーキースクロール
 
@@ -102,17 +109,6 @@ ANSI コードをレンダリングでき、下のラッパーはそれを手を
   変わります（再生中は green、一時停止中は yellow）
 - **太字**の曲名、*斜体*のアーティスト、薄い表示の時間・空きセル・アプリ名・
   出力デバイス
-- スペクトラムバーの色は `spectrum.style` に従います:
-  - `solid`（デフォルト）——すべてのバーを単色で。色は `spectrum.color` で
-    選びます（`red green yellow blue magenta cyan white`、デフォルトは
-    `cyan`）
-  - `rainbow`——バーの位置に応じて手前から奥へ色が循環します（音量とは
-    無関係）。1 秒に 1 ステップずつ流れ、`spectrum.color` は無視されます
-
-```
-/media:config spectrum.style rainbow
-/media:config spectrum.color magenta
-```
 
 使うのは標準の 16 色 SGR コードだけなので、実際の色味はターミナル自身の
 パレットに従います。プレーンテキストがよければ

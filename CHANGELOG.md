@@ -5,6 +5,53 @@ All notable changes to this project are documented here. The format follows
 [SemVer](https://semver.org/spec/v2.0.0.html), tracked in
 `.claude-plugin/plugin.json`.
 
+## [0.6.0] — 2026-07-10
+
+### Removed
+
+- **The audio spectrum, entirely** — `/media:spectrum`, the statusline
+  `spectrum` item, `native/spectrum.m`, and the `display.spectrum` /
+  `spectrum.style` / `spectrum.color` config keys.
+
+  **Why:** the spectrum captured the system output mix with a Core Audio
+  process tap, and every Claude Code session ran its own capture. With
+  sessions open in several terminal tabs — a completely normal way to use
+  Claude Code — the concurrent taps, each building its own aggregate device
+  over the same output, conflicted and broke the Mac's audio session. A
+  cosmetic visualization must never be able to disrupt the very audio it
+  visualizes, and independent sessions have no reliable way to coordinate
+  their captures, so the feature is removed rather than gated. This also
+  retires the only feature that ever asked for the system-audio-recording
+  permission — the plugin now requests no audio-capture permission at all
+  (a previously granted one can be revoked in System Settings > Privacy &
+  Security).
+
+  Pre-0.6.0 configs stay valid: the removed keys are ignored, and a stored
+  `spectrum` statusline item is filtered out on read.
+
+### Added
+
+- **`/media:statusline` — a statusline arrangement picker.** Pick a layout
+  from **visual previews** shown next to the options (Standard / Stacked /
+  Compact / Everything), or describe any arrangement ("time first", "output
+  device in front", "one item per line") and it is mapped onto an ordered
+  item list. The same preset picker (plus a "Keep current" option that
+  previews your present arrangement) opens inside `/media:config`.
+- **Statusline items now render in the order you save them.**
+  `statusline.fields` keeps the order it is given — `/media:config
+  statusline.fields "time,progressbar,track"` puts the time first. `app`
+  still attaches to the track group, and the progress bar + time share a
+  group (one line in the stacked layout) when adjacent.
+
+### Changed
+
+- The interactive `/media:config` flow was rebuilt around the layout picker:
+  a single layout question with previews replaces the item checkboxes, the
+  extras question (and its redundant `None` option — unchecking already means
+  "none") is gone, and the output-device item became a checkbox among the
+  statusline toggles. Feature toggles (statusline on/off, colors, marquee,
+  `/media:now` progress bar, history) are unchanged.
+
 ## [0.5.0] — 2026-07-10
 
 ### Changed

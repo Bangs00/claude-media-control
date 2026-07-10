@@ -47,21 +47,22 @@ Natural language, slash commands, or an interactive menu — all work:
 | "next track" | `/media:next` · `/media:prev` | skip / go back |
 | "jump to 1:30" | `/media:seek 1:30` | seek to an absolute position |
 | "show the album art" | `/media:artwork` | saves the cover and displays it |
-| "show an audio spectrum" | `/media:spectrum` | live frequency bars of what's playing (opt-in) |
 | "turn it down" | `/media:volume 30` | read / set system output volume (0–100) |
 | "what played earlier?" | `/media:history` | recently played tracks (passive local log) |
 | "switch to my AirPods" | `/media:output airpods` | show / switch the audio output device |
 | "give me a remote" | `/media:menu` | interactive controller (arrow-key menu) |
-| "configure the statusline" | `/media:config` | interactive settings — statusline items & layout, plus every display toggle (progress bar, spectrum, history, colors, marquee) |
+| "arrange my statusline" | `/media:statusline` | pick a statusline layout from visual previews |
+| "configure the statusline" | `/media:config` | interactive settings — layout plus every display toggle (progress bar, history, colors, marquee) |
 | — | `/media:doctor` | diagnose build / permissions / fallbacks |
 
 Optional: put now-playing in your statusline — see
-[docs/statusline.md](docs/statusline.md). Pick which items appear (track, app,
-progress bar, time, output device, spectrum) and whether they stack on
-separate lines with `/media:config`. Titles wider than 30 cells scroll
+[docs/statusline.md](docs/statusline.md). `/media:statusline` shows the
+layouts as **visual previews** and lets you arrange the items (track, app,
+progress bar, time, output device) in any order, on one line or stacked;
+"time first" or "output device in front" works too, because items render in
+exactly the order you save them. Titles wider than 30 cells scroll
 marquee-style (`statusline.marquee`), and the segment comes ANSI-styled —
-state-colored icon and progress bar, bold title, italic artist, tinted
-spectrum (solid color or a positional rainbow via `spectrum.style`) —
+state-colored icon and progress bar, bold title, italic artist —
 `/media:config statusline.color off` (or `NO_COLOR`) restores plain text.
 
 ## How it works
@@ -86,46 +87,6 @@ you're in.
 > to the fallback paths and `/media:doctor` reports it. No warranty — see
 > [LICENSE](LICENSE).
 
-## Audio spectrum (opt-in)
-
-`/media:spectrum` renders a live frequency-bar view of whatever is playing:
-
-```
-63Hz ▂▄▆█▇▅▃▂ ▃▂▁▁ ▁ 16kHz   (peak: 1.2kHz)
-```
-
-`--live <seconds>` streams several frames, and you can add a mini spectrum to
-your statusline with `/media:config`.
-
-The bars are tinted `spectrum.color` (default cyan) — or set
-`/media:config spectrum.style rainbow` for a front-to-back color cycle by bar
-position (deliberately not loudness-driven). The tint shows in the statusline
-and in direct terminal runs; chat replies keep plain glyphs.
-
-**How it captures audio.** A Core Audio *process tap*
-(`AudioHardwareCreateProcessTap`, a public API since macOS 14.4) reads the
-system output mix; a local Accelerate/vDSP FFT turns it into bands. **The audio
-never leaves your machine** — only the bar string is produced, nothing is
-recorded or transmitted.
-
-**Off by default.** A music-control plugin asking for audio recording deserves
-scrutiny, so the spectrum is opt-in:
-
-```
-/media:config display.spectrum on
-```
-
-**Permission.** The tap needs the *system audio recording* permission on your
-terminal app. macOS does **not** show an automatic prompt for command-line
-tools, so grant it manually: System Settings > Privacy & Security > Screen &
-System Audio Recording, enable your terminal (Terminal, iTerm, …) with audio
-playing. Enabling is fail-closed — if the capture is silent while audio plays it
-refuses and points you at the missing grant; if the grant is later revoked the
-feature disables itself. `/media:doctor` reports the permission state.
-
-Requires macOS 14.4+; on older systems the feature stays hidden and the helper
-is never compiled.
-
 ## Playback history & output devices
 
 `/media:history` lists what played recently, newest first. Tracks are logged
@@ -137,8 +98,8 @@ leaves your machine; `/media:config history.record off` stops logging and
 
 `/media:output` shows every audio output device and switches between them
 ("play it on my AirPods") through the public CoreAudio API — no extra
-permissions. The statusline can show the active device too: pick the `output`
-item in `/media:config`.
+permissions. The statusline can show the active device too: check "Output
+device item" in `/media:config`, or place it anywhere with `/media:statusline`.
 
 ## Requirements
 
@@ -169,7 +130,6 @@ the report names the fix (usually `xcode-select --install`, then
 | `PRIMARY READ LIKELY BLOCKED` after a macOS update | `/media:doctor --rebuild`; if it persists, please [open an issue](https://github.com/Bangs00/claude-media-control/issues) |
 | AppleScript control fails with **error -1743** | approve your terminal app under System Settings → Privacy & Security → Automation (fallback mode only) |
 | Nothing plays but `now` shows a track | the app reported stale state; try `/media:next` or restart the player |
-| Spectrum is silent, or `display.spectrum on` is refused | grant **system audio recording** to your terminal app under System Settings → Privacy & Security (with audio playing), then retry; `/media:doctor` shows the state |
 
 Build logs live at `${CLAUDE_PLUGIN_DATA}/build.log`.
 
@@ -198,7 +158,6 @@ Two things are *not* plugin files and may remain (both harmless):
 
 ## Roadmap
 
-- ~~**Audio spectrum** (`/media:spectrum`)~~ — shipped in v0.2.0 (see above).
 - **Linux** backend via `playerctl`/MPRIS — the dispatcher is already
   structured for per-OS backends; contributions welcome.
 - **Windows** backend via SMTC (`GlobalSystemMediaTransportControls`) —

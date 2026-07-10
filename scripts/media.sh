@@ -54,7 +54,6 @@ usage: media.sh <subcommand>
   now | play | pause | toggle | next | prev | seek <seconds>
   artwork [path-prefix] | volume [0-100] | output [device] | statusline
   history [count | clear | --json [count]]
-  spectrum [snapshot | --live <seconds>]
   test | config [key] [on|off] | doctor [--rebuild] | detect | warmup
 EOF
   exit 2
@@ -81,14 +80,6 @@ LIB=""
 # degraded mode. Build progress/errors go to stderr from build-native.sh.
 ensure_native() {
   LIB="$("$SCRIPT_DIR/build-native.sh" || true)"
-}
-
-# Resolve (building if necessary) the spectrum helper. Sets SPECTRUM_BIN;
-# empty means unavailable (macOS < 14.4, no CLT, or build failure). Opt-in and
-# independent of the adapter — never built by the SessionStart warmup.
-SPECTRUM_BIN=""
-ensure_spectrum() {
-  SPECTRUM_BIN="$("$SCRIPT_DIR/build-native.sh" --spectrum 2>/dev/null || true)"
 }
 
 primary_get() { /usr/bin/perl "$LOADER" "$LIB" adapter_get 2>/dev/null; }
@@ -445,34 +436,6 @@ do_output() {
   echo "$out"
 }
 
-# ---- spectrum coloring ------------------------------------------------------
-
-# Tint spectrum block glyphs (stdin line stream) per the spectrum.style /
-# spectrum.color config. solid wraps each glyph run in the one configured
-# color; rainbow assigns a fixed front-to-back color cycle by bar position —
-# never amplitude — whose phase advances each second so it marches across
-# refreshes. Non-glyph text (Hz labels, peak note) is left untouched.
-spectrum_colorize() {
-  /usr/bin/perl -CS -e '
-    $| = 1;
-    my ($style, $name) = @ARGV;
-    my %sgr = (red=>31, green=>32, yellow=>33, blue=>34,
-               magenta=>35, cyan=>36, white=>37);
-    my @cycle = (31, 33, 32, 36, 34, 35);
-    my $c = $sgr{$name} // 36;
-    while (my $line = <STDIN>) {
-      if ($style eq "rainbow") {
-        my $phase = time() % @cycle;
-        my $i = 0;
-        $line =~ s/([\x{2581}-\x{2588}])/"\e[" . $cycle[($phase + $i++) % @cycle] . "m$1\e[0m"/ge;
-      } else {
-        $line =~ s/([\x{2581}-\x{2588}]+)/\e[${c}m$1\e[0m/g;
-      }
-      print $line;
-    }
-  ' "$(config_get_str spectrum.style solid)" "$(config_get_str spectrum.color cyan)"
-}
-
 # ---- statusline -----------------------------------------------------------------
 
 # Short cache window: a now-read costs ~60ms, so a 1s TTL keeps high-frequency
@@ -500,7 +463,7 @@ do_statusline() {
       return 0
     fi
   fi
-  local fields json line="" multiline sep color marquee
+  local fields json line="" multiline color marquee
   fields="$(config_get_statusline_fields)"
   multiline="$(config_get statusline.multiline)"
   marquee="$(config_get statusline.marquee)"
@@ -508,22 +471,26 @@ do_statusline() {
   # a line rendered under the other setting for at most one TTL second.
   color="$(config_get statusline.color)"
   [ -n "${NO_COLOR:-}" ] && color=off
-  if [ "$multiline" = "on" ]; then sep=$'\n'; else sep="  "; fi
   json="$(do_now 2>/dev/null || echo null)"
   if [ -n "$json" ] && [ "$json" != "null" ]; then
-    # Render the chosen fields as groups (track+app / progress+time / output),
-    # joined by two spaces inline or a newline in multiline layout. Fields the
-    # user didn't pick are omitted; Claude Code renders multi-line statuslines
-    # as-is. Styling (statusline.color on): state-colored icon + filled bar
-    # (green playing / yellow paused), bold title, italic artist, dim chrome.
-    # Claude Code statuslines render ANSI SGR codes; every token resets with
-    # \e[0m so surrounding statusline content is never restyled.
-    # statusline.marquee scrolls titles wider than 30 display cells through a
-    # fixed window, one character per second (offset derives from the epoch, so
-    # each 1s cache refresh advances it — no state file needed).
+    # Render the chosen fields as groups in their stored order (arrange with
+    # /media:statusline), joined by two spaces inline or a newline in multiline
+    # layout. `app` folds into the track group when both are chosen; adjacent
+    # progressbar+time share one group (so they stay on one line in multiline
+    # layout). Fields the user didn't pick are omitted; Claude Code renders
+    # multi-line statuslines as-is. Styling (statusline.color on):
+    # state-colored icon + filled bar (green playing / yellow paused), bold
+    # title, italic artist, dim chrome. Claude Code statuslines render ANSI SGR
+    # codes; every token resets with \e[0m so surrounding statusline content is
+    # never restyled. statusline.marquee scrolls titles wider than 30 display
+    # cells through a fixed window, one character per second (offset derives
+    # from the epoch, so each 1s cache refresh advances it — no state file
+    # needed).
     line="$(printf '%s' "$json" | /usr/bin/perl -MJSON::PP -e '
       binmode STDOUT, ":utf8";
-      my %w = map { $_ => 1 } split /\s+/, ($ARGV[0] // "");
+      my (@order, %seen);
+      for (split /\s+/, ($ARGV[0] // "")) { push @order, $_ unless $seen{$_}++; }
+      my %w = map { $_ => 1 } @order;
       my $ml = ($ARGV[1] // "") eq "on";
       my $c  = ($ARGV[2] // "") eq "on";
       my $mq = ($ARGV[3] // "") eq "on";
@@ -559,7 +526,8 @@ do_statusline() {
       };
       my $accent = $d->{playing} ? 32 : 33;
       my $app = $d->{appName} // $d->{bundleIdentifier};
-      my @groups;
+      # One token per renderable field; the order pass below assembles them.
+      my %tok;
       if ($w{track}) {
         my $icon = $d->{playing} ? "\x{25B6}\x{FE0E}" : "\x{23F8}";
         my $title = $mq ? marquee($d->{title}) : $d->{title};
@@ -567,50 +535,43 @@ do_statusline() {
         $t .= " " . $st->(2, "\x{2014}") . " " . $st->(3, $d->{artist})
           if defined $d->{artist};
         $t .= " " . $st->(2, "($app)") if $w{app} && defined $app;
-        push @groups, $t;
+        $tok{track} = $t;
       } elsif ($w{app} && defined $app) {
-        push @groups, $st->(2, $app);
+        $tok{app} = $st->(2, $app);
       }
       my $pos = $d->{elapsedTimeNow} // $d->{elapsedTime};
       my $dur = $d->{duration};
-      my @prog;
       if ($w{progressbar} && defined $pos && defined $dur && $dur > 0) {
         my $cells = 10;
         my $r = $pos / $dur; $r = 0 if $r < 0; $r = 1 if $r > 1;
         my $filled = int($r * $cells + 0.5);
-        push @prog, $st->($accent, "\x{2588}" x $filled)
-                  . $st->(2, "\x{2591}" x ($cells - $filled));
+        $tok{progressbar} = $st->($accent, "\x{2588}" x $filled)
+                          . $st->(2, "\x{2591}" x ($cells - $filled));
       }
       if ($w{time} && defined $pos) {
-        push @prog, $st->(2, mss($pos) . "/" . (defined $dur ? mss($dur) : "LIVE"));
+        $tok{time} = $st->(2, mss($pos) . "/" . (defined $dur ? mss($dur) : "LIVE"));
       }
-      push @groups, join("  ", @prog) if @prog;
       if ($w{output} && defined $d->{outputDevice}) {
-        push @groups, $st->(2, "\x{1F50A} " . $d->{outputDevice});
+        $tok{output} = $st->(2, "\x{1F50A} " . $d->{outputDevice});
+      }
+      my @groups;
+      my $i = 0;
+      while ($i < @order) {
+        my $f = $order[$i];
+        if (exists $tok{$f}) {
+          my $n = ($i + 1 < @order) ? $order[$i + 1] : "";
+          if ((($f eq "progressbar" && $n eq "time")
+            || ($f eq "time" && $n eq "progressbar")) && exists $tok{$n}) {
+            push @groups, $tok{$f} . "  " . $tok{$n};
+            $i += 2;
+            next;
+          }
+          push @groups, $tok{$f};
+        }
+        $i++;
       }
       print join($ml ? "\n" : "  ", @groups);
     ' "$fields" "$multiline" "$color" "$marquee" 2>/dev/null || true)"
-
-    # spectrum field: a real capture (~0.5s), so it is gated on the field being
-    # chosen AND display.spectrum on AND the helper being available. It rides
-    # the same statusline cache, so the capture runs at most once per TTL.
-    case " $fields " in
-      *" spectrum "*)
-        if [ "$(config_get display.spectrum)" = "on" ]; then
-          ensure_spectrum
-          if [ -n "$SPECTRUM_BIN" ]; then
-            local bars
-            bars="$("$SPECTRUM_BIN" bars 10 2>/dev/null || true)"
-            if [ -n "$bars" ] && [ "$color" = "on" ]; then
-              bars="$(printf '%s' "$bars" | spectrum_colorize 2>/dev/null || printf '%s' "$bars")"
-            fi
-            if [ -n "$bars" ]; then
-              if [ -n "$line" ]; then line="$line$sep$bars"; else line="$bars"; fi
-            fi
-          fi
-        fi
-        ;;
-    esac
   fi
   mkdir -p "$DATA_DIR" 2>/dev/null || true
   printf '%s' "$line" > "$cache" 2>/dev/null || true
@@ -618,81 +579,20 @@ do_statusline() {
   return 0
 }
 
-# ---- spectrum (Phase 4, opt-in) ----------------------------------------------
-
-# Render the system output spectrum. Gated on display.spectrum, which required
-# the audio-recording permission at enable time. If a capture is silent while
-# audio is playing the grant was revoked at runtime, so we downgrade the
-# feature to off (§4.9 fail-closed) instead of printing an empty spectrum.
-do_spectrum() {
-  local a1="${1:-}" a2="${2:-}"
-  if [ "$(config_get display.spectrum)" != "on" ]; then
-    echo "media: the audio spectrum is off. Enable it with /media:config display.spectrum on (it needs the system-audio-recording permission)." >&2
-    exit 3
-  fi
-  ensure_spectrum
-  if [ -z "$SPECTRUM_BIN" ]; then
-    echo "media: the spectrum helper is unavailable (needs macOS 14.4+ and Xcode Command Line Tools). Run /media:doctor." >&2
-    exit 1
-  fi
-  # `|| rc=$?` keeps a non-zero exit (e.g. 3 = silence) from tripping set -e
-  # before the downgrade logic below can run. With pipefail, the helper's
-  # exit code survives the tint pipe (the perl filter itself exits 0).
-  #
-  # Direct terminal runs get the spectrum.style/spectrum.color tint; captured
-  # output (the skill's inline command, tests, scripts) stays plain so the
-  # conversation never sees raw escape codes.
-  local rc=0 tint="cat"
-  if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then tint="spectrum_colorize"; fi
-  case "$a1" in
-    '' | snapshot)
-      "$SPECTRUM_BIN" snapshot | $tint || rc=$?
-      ;;
-    --live | live)
-      local secs="${a2:-5}"
-      case "$secs" in '' | *[!0-9]*) secs=5 ;; esac
-      "$SPECTRUM_BIN" live "$secs" | $tint || rc=$?
-      ;;
-    *[!0-9]*)
-      echo "media: usage: media.sh spectrum [snapshot | --live <seconds>]" >&2
-      exit 2
-      ;;
-    *)
-      # bare number == live duration shorthand
-      "$SPECTRUM_BIN" live "$a1" | $tint || rc=$?
-      ;;
-  esac
-  if [ "$rc" = "3" ]; then
-    local playing
-    playing="$(do_now 2>/dev/null | json_field playing)"
-    if [ "$playing" = "true" ]; then
-      config_write display.spectrum off 2>/dev/null || true
-      rm -f "$DATA_DIR/statusline.cache"
-      echo "media: the spectrum captured only silence while audio is playing — the system-audio-recording permission was revoked. Turned display.spectrum off; re-grant it in System Settings > Privacy & Security, then run /media:config display.spectrum on." >&2
-    else
-      echo "media: nothing is playing to visualize." >&2
-    fi
-    exit 3
-  fi
-  return "$rc"
-}
-
 # ---- config (§4.9: fail-closed enable) ---------------------------------------
 
-CONFIG_KEYS="display.progressbar display.statusline display.spectrum statusline.multiline statusline.color statusline.marquee history.record"
+CONFIG_KEYS="display.progressbar display.statusline statusline.multiline statusline.color statusline.marquee history.record"
 
-# Which segments the statusline renders, in fixed display order. Chosen with
-# /media:config (AskUserQuestion). "spectrum" additionally requires
-# display.spectrum on + the audio-recording grant; "output" needs the native
-# helper (the JXA fallback carries no outputDevice field).
-VALID_STATUSLINE_FIELDS="track app progressbar time output spectrum"
+# Which segments the statusline renders, in the order they were stored
+# (arranged with /media:statusline or /media:config). "output" needs the
+# native helper (the JXA fallback carries no outputDevice field).
+VALID_STATUSLINE_FIELDS="track app progressbar time output"
 DEFAULT_STATUSLINE_FIELDS="track app progressbar time"
 
 config_default() {
   case "$1" in
     display.progressbar) echo on ;;
     display.statusline)  echo off ;;
-    display.spectrum)    echo off ;;
     statusline.multiline) echo off ;;
     statusline.color)    echo on ;;
     statusline.marquee)  echo on ;;
@@ -732,66 +632,39 @@ config_write() {
   ' "$CONFIG_FILE" "$1" "$2"
 }
 
-# String-valued keys (spectrum.style, spectrum.color) live beside the boolean
-# ones but never go through config_get, whose truthiness test would mangle
-# them. Values are validated in do_config before config_write_str runs.
-config_get_str() {
-  local key="$1" default="$2" v=""
-  if [ -f "$CONFIG_FILE" ]; then
-    v="$(/usr/bin/perl -MJSON::PP -e '
-      local $/; my $d = eval { decode_json(<STDIN>) };
-      exit 0 unless ref $d eq "HASH";
-      my $v = $d->{$ARGV[0]};
-      print $v if defined $v && !ref $v;
-    ' "$key" < "$CONFIG_FILE" 2>/dev/null)"
-  fi
-  if [ -n "$v" ]; then echo "$v"; else echo "$default"; fi
-}
-
-config_write_str() {
-  mkdir -p "$DATA_DIR"
-  /usr/bin/perl -MJSON::PP -e '
-    my ($file, $key, $val) = @ARGV;
-    my $d = {};
-    if (-f $file) {
-      local $/;
-      if (open my $fh, "<", $file) { $d = eval { decode_json(<$fh>) } || {}; close $fh; }
-      $d = {} unless ref $d eq "HASH";
-    }
-    $d->{$key} = $val;
-    open my $fh, ">", "$file.tmp" or die "cannot write config: $!\n";
-    print $fh JSON::PP->new->canonical->encode($d), "\n";
-    close $fh;
-    rename "$file.tmp", $file or die "cannot save config: $!\n";
-  ' "$CONFIG_FILE" "$1" "$2"
-}
-
-# Read statusline.fields (JSON array) as a space-separated list, falling back
-# to the default set when the key is absent, empty, or malformed.
+# Read statusline.fields (JSON array) as a space-separated list in stored
+# order, falling back to the default set when the key is absent, empty, or
+# malformed. Names that are no longer valid fields (e.g. "spectrum" from a
+# pre-0.6.0 config) are filtered out here so stale configs stay harmless.
 config_get_statusline_fields() {
   local v=""
   if [ -f "$CONFIG_FILE" ]; then
     v="$(/usr/bin/perl -MJSON::PP -e '
+      my %valid = map { $_ => 1 } split /\s+/, $ARGV[0];
       local $/; my $d = eval { decode_json(<STDIN>) };
       exit 0 unless ref $d eq "HASH";
       my $a = $d->{"statusline.fields"};
       exit 0 unless ref $a eq "ARRAY";
-      print join(" ", grep { defined && /^[a-z]+$/ } @$a);
-    ' < "$CONFIG_FILE" 2>/dev/null)"
+      print join(" ", grep { defined && !ref && $valid{$_} } @$a);
+    ' "$VALID_STATUSLINE_FIELDS" < "$CONFIG_FILE" 2>/dev/null)"
   fi
   if [ -n "$v" ]; then echo "$v"; else echo "$DEFAULT_STATUSLINE_FIELDS"; fi
 }
 
 # Store statusline.fields from a comma/space-separated list, keeping only known
-# fields in canonical display order (invalid names are dropped silently; an
-# empty result is stored as [] so the segment renders nothing).
+# fields in the order they were given — the segment renders in that order.
+# Duplicates collapse onto their first occurrence, invalid names are dropped
+# silently, and an empty result is stored as [] so the segment renders nothing.
 config_set_statusline_fields() {
   local input="$1" ordered="" f g
   input="$(printf '%s' "$input" | tr ',' ' ')"
-  for f in $VALID_STATUSLINE_FIELDS; do
-    for g in $input; do
+  for g in $input; do
+    for f in $VALID_STATUSLINE_FIELDS; do
       if [ "$f" = "$g" ]; then
-        ordered="$ordered $f"
+        case " $ordered " in
+          *" $g "*) ;;
+          *) ordered="$ordered $g" ;;
+        esac
         break
       fi
     done
@@ -830,27 +703,6 @@ config_preflight() {
       echo "media: cannot enable display.statusline — no working now-playing read path (native and fallback both failed). Run /media:doctor first." >&2
       return 3
       ;;
-    display.spectrum)
-      ensure_spectrum
-      if [ -z "$SPECTRUM_BIN" ]; then
-        echo "media: cannot enable display.spectrum — the spectrum helper is unavailable (needs macOS 14.4+ and Xcode Command Line Tools). Run /media:doctor." >&2
-        return 3
-      fi
-      if "$SPECTRUM_BIN" preflight >/dev/null 2>&1; then
-        return 0
-      fi
-      # Only silence was captured. There is no API to read the grant, so
-      # disambiguate via playback: audio playing + silence == permission
-      # missing; nothing playing == cannot verify (still fail-closed).
-      local playing
-      playing="$(do_now 2>/dev/null | json_field playing)"
-      if [ "$playing" = "true" ]; then
-        echo "media: cannot enable display.spectrum — audio is playing but the tap captured only silence, so the system-audio-recording permission is missing. Grant it to your terminal app in System Settings > Privacy & Security, then retry." >&2
-      else
-        echo "media: cannot enable display.spectrum yet — start playback so the capture can be verified (the permission cannot be queried directly), then retry. See /media:doctor." >&2
-      fi
-      return 3
-      ;;
   esac
 }
 
@@ -863,57 +715,17 @@ config_known() {
   return 2
 }
 
-SPECTRUM_COLORS="red green yellow blue magenta cyan white"
-
 do_config() {
   local key="${1:-}" value="${2:-}"
 
-  # statusline.fields is array-valued (chosen with /media:config); handle
-  # it before the boolean keys.
+  # statusline.fields is array-valued (arranged with /media:statusline or
+  # /media:config); handle it before the boolean keys.
   if [ "$key" = "statusline.fields" ]; then
     if [ -z "$value" ]; then
       config_get_statusline_fields
     else
       config_set_statusline_fields "$value"
     fi
-    return 0
-  fi
-
-  # String-valued spectrum appearance keys — no preflight (display-only), but
-  # values are validated and a change drops the statusline cache.
-  if [ "$key" = "spectrum.style" ]; then
-    if [ -z "$value" ]; then
-      config_get_str spectrum.style solid
-      return 0
-    fi
-    case "$value" in
-      solid | rainbow) ;;
-      *)
-        echo "media: spectrum.style must be 'solid' or 'rainbow' (got: $value)" >&2
-        exit 2
-        ;;
-    esac
-    config_write_str spectrum.style "$value"
-    rm -f "$DATA_DIR/statusline.cache"
-    echo "spectrum.style = $value"
-    return 0
-  fi
-  if [ "$key" = "spectrum.color" ]; then
-    if [ -z "$value" ]; then
-      config_get_str spectrum.color cyan
-      return 0
-    fi
-    local c ok=""
-    for c in $SPECTRUM_COLORS; do
-      [ "$c" = "$value" ] && ok=1
-    done
-    if [ -z "$ok" ]; then
-      echo "media: spectrum.color must be one of: $SPECTRUM_COLORS (got: $value)" >&2
-      exit 2
-    fi
-    config_write_str spectrum.color "$value"
-    rm -f "$DATA_DIR/statusline.cache"
-    echo "spectrum.color = $value"
     return 0
   fi
 
@@ -925,7 +737,6 @@ do_config() {
       case "$k" in
         display.progressbar) note="progress bar in /media:now and statusline output" ;;
         display.statusline)  note="statusline now-playing segment (recipe: docs/statusline.md)" ;;
-        display.spectrum)    note="audio spectrum (/media:spectrum + statusline field); needs audio-recording permission" ;;
         statusline.multiline) note="statusline layout: on = each item on its own line, off = one line" ;;
         statusline.color)    note="ANSI colors/bold/italic in the statusline segment (honors NO_COLOR)" ;;
         statusline.marquee)  note="scroll statusline titles wider than 30 cells (1 char/second)" ;;
@@ -934,11 +745,7 @@ do_config() {
       printf '%-21s %-6s %s\n' "$k" "$(config_get "$k")" "$note"
     done
     printf '%-21s %-6s %s\n' "statusline.fields" "-" \
-      "[$(config_get_statusline_fields)] — choose with /media:config"
-    printf '%-21s %-6s %s\n' "spectrum.style" "$(config_get_str spectrum.style solid)" \
-      "statusline spectrum coloring: solid (one color) or rainbow (front-to-back cycle)"
-    printf '%-21s %-6s %s\n' "spectrum.color" "$(config_get_str spectrum.color cyan)" \
-      "solid spectrum color: $SPECTRUM_COLORS (ignored when style is rainbow)"
+      "[$(config_get_statusline_fields)] — items in render order; arrange with /media:statusline"
     echo ""
     echo "usage: media.sh config <key> [on|off]   (config file: $CONFIG_FILE)"
     return 0
@@ -955,7 +762,7 @@ do_config() {
       # Any key that changes what the segment renders drops the stale cache so
       # the change shows up on the next tick instead of after the TTL.
       case "$key" in
-        display.statusline | display.progressbar | display.spectrum | statusline.multiline | statusline.color | statusline.marquee)
+        display.statusline | display.progressbar | statusline.multiline | statusline.color | statusline.marquee)
           rm -f "$DATA_DIR/statusline.cache" ;;
       esac
       echo "$key = on"
@@ -966,7 +773,7 @@ do_config() {
       # A stale segment cache must not outlive the toggle (§4.8.1: off leaves
       # no trace, not even a cached line; layout/field changes must re-render).
       case "$key" in
-        display.statusline | display.progressbar | display.spectrum | statusline.multiline | statusline.color | statusline.marquee)
+        display.statusline | display.progressbar | statusline.multiline | statusline.color | statusline.marquee)
           rm -f "$DATA_DIR/statusline.cache" ;;
       esac
       echo "$key = off"
@@ -1044,33 +851,6 @@ do_doctor() {
 
   echo "[6] Automation  : AppleScript fallback asks for permission on first use (System Settings > Privacy & Security > Automation)"
 
-  # Audio spectrum (opt-in Phase 4): report availability + the capture grant.
-  local spec
-  ensure_spectrum
-  if [ -z "$SPECTRUM_BIN" ]; then
-    spec="unavailable (needs macOS 14.4+ and Xcode CLT; opt-in feature)"
-  else
-    set +e
-    "$SPECTRUM_BIN" preflight >/dev/null 2>&1
-    local prc=$?
-    set -e
-    case "$prc" in
-      0) spec="ok — audio capture working (display.spectrum=$(config_get display.spectrum))" ;;
-      3)
-        local pl
-        pl="$(do_now 2>/dev/null | json_field playing)"
-        if [ "$pl" = "true" ]; then
-          spec="PERMISSION MISSING — audio is playing but the tap is silent. Grant \"system audio recording\" to your terminal app in System Settings > Privacy & Security."
-        else
-          spec="cannot verify now (nothing playing) — start playback and re-check"
-        fi
-        ;;
-      2) spec="capture API unavailable (macOS < 14.4?)" ;;
-      *) spec="capture error (exit $prc)" ;;
-    esac
-  fi
-  echo "[7] Spectrum    : $spec"
-
   # Output device (CoreAudio via the adapter; needs the native helper).
   local outdev="unavailable (needs the native helper — see [2]/[3])"
   if [ -n "$LIB" ]; then
@@ -1088,11 +868,11 @@ do_doctor() {
       outdev="FAILED — CoreAudio device read error"
     fi
   fi
-  echo "[8] Output dev  : $outdev"
-  echo "[9] Config      : progressbar=$(config_get display.progressbar) statusline=$(config_get display.statusline) spectrum=$(config_get display.spectrum) color=$(config_get statusline.color) marquee=$(config_get statusline.marquee)"
-  echo "                  statusline.fields=[$(config_get_statusline_fields)] spectrum.style=$(config_get_str spectrum.style solid) spectrum.color=$(config_get_str spectrum.color cyan) history.record=$(config_get history.record)"
+  echo "[7] Output dev  : $outdev"
+  echo "[8] Config      : progressbar=$(config_get display.progressbar) statusline=$(config_get display.statusline) color=$(config_get statusline.color) marquee=$(config_get statusline.marquee)"
+  echo "                  statusline.fields=[$(config_get_statusline_fields)] history.record=$(config_get history.record)"
   echo "                  ($CONFIG_FILE)"
-  echo "[10] Build log  : $DATA_DIR/build.log"
+  echo "[9] Build log   : $DATA_DIR/build.log"
   echo ""
   echo "verdict: $verdict"
 }
@@ -1140,7 +920,6 @@ case "$cmd" in
   output)     do_output "${2:-}" ;;
   history)    do_history "${2:-}" "${3:-}" ;;
   statusline) do_statusline ;;
-  spectrum)   do_spectrum "${2:-}" "${3:-}" ;;
   test)
     ensure_native
     if [ -z "$LIB" ]; then

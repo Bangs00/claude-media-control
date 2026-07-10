@@ -38,20 +38,27 @@ Claude Code 안에서:
 (켜기 전에 재생 정보를 실제로 읽을 수 있는지 먼저 검증합니다. 거부되면
 `/media:doctor`를 실행해 보세요.)
 
-### 보여줄 항목 고르기
+### 항목 배치하기
 
-`/media:config`를 실행하면 어떤 항목을 어떻게 배치할지 고를 수 있습니다:
+`/media:statusline`을 실행하면 배치 예시를 미리보기로 직접 보면서
+레이아웃(Standard / Stacked / Compact / Everything)을 고를 수 있습니다.
+같은 picker는 `/media:config` 안에서도 열립니다:
 
-- **항목** (원하는 대로 조합): `track`(▶︎ 제목 — 아티스트), `app`(재생 중인
-  앱, 예: `(Spotify)`), `progressbar`(`██████░░░░`), `time`(`2:13/4:24`),
-  `output`(🔊 현재 오디오 출력 장치), `spectrum`(실시간 주파수 막대).
-  기본 구성은 `track app progressbar time`입니다.
+- **항목** (원하는 대로 조합, **원하는 순서로**): `track`(▶︎ 제목 —
+  아티스트), `app`(재생 중인 앱, 예: `(Spotify)`),
+  `progressbar`(`██████░░░░`), `time`(`2:13/4:24`), `output`(🔊 현재 오디오
+  출력 장치). 기본 구성은 `track app progressbar time`입니다.
+- **순서**: 항목은 저장한 순서 그대로 그려집니다. "시간을 맨 앞에",
+  "출력 장치를 앞으로"라고 말해도 되고, 직접 지정할 수도 있습니다:
+  `/media:config statusline.fields "time,progressbar,track,app"`.
 - **배치**: 한 줄로 붙이거나, 그룹마다 줄을 나누거나(`statusline.multiline`).
+  `app`은 track 그룹에 붙고, `progressbar`와 `time`은 순서상 이웃해 있을 때
+  한 그룹(여러 줄 배치에서는 한 줄)을 이룹니다.
 
 모든 항목을 한 줄로:
 
 ```
-▶︎ Karma Police — Radiohead (Spotify)  ██████░░░░  2:13/4:24  🔊 AirPods Pro  ▂▄▆█▇▅▃▂
+▶︎ Karma Police — Radiohead (Spotify)  ██████░░░░  2:13/4:24  🔊 AirPods Pro
 ```
 
 여러 줄로(`statusline.multiline on`):
@@ -60,17 +67,17 @@ Claude Code 안에서:
 ▶︎ Karma Police — Radiohead (Spotify)
 ██████░░░░  2:13/4:24
 🔊 AirPods Pro
-▂▄▆█▇▅▃▂
+```
+
+시간을 앞으로(`statusline.fields "time,progressbar,track,app"`):
+
+```
+2:13/4:24  ██████░░░░  ▶︎ Karma Police — Radiohead (Spotify)
 ```
 
 `output` 항목은 네이티브 helper가 필요합니다(세그먼트가 원래 하던 조회에
 함께 실려 오기 때문에 추가 비용은 없습니다). 장치 전환은 `/media:output`으로
 하면 되고, 세그먼트는 다음 갱신 때 바로 반영됩니다.
-
-`spectrum` 항목은 선택 기능이라 `display.spectrum on`과 시스템 오디오 녹음
-권한이 필요합니다(`/media:spectrum` 참고). 갱신할 때마다 약 0.5초씩 소리를
-캡처하기 때문에 다른 항목보다 무겁습니다. statusline을 최대한 가볍게 쓰고
-싶다면 빼는 편이 낫습니다.
 
 ### 긴 제목: marquee 스크롤
 
@@ -98,16 +105,6 @@ Claude Code 안에서:
   (재생 중 green, 일시정지 yellow)
 - **굵은** 제목, *기울임꼴* 아티스트, 흐리게 표시되는 시간·빈 칸·앱
   이름·출력 장치
-- 스펙트럼 막대는 `spectrum.style` 설정대로 색이 입혀집니다:
-  - `solid` (기본) — 모든 막대를 한 가지 색으로. 색은 `spectrum.color`에서
-    고릅니다 (`red green yellow blue magenta cyan white`, 기본 `cyan`)
-  - `rainbow` — 막대 위치에 따라 앞에서 뒤로 색이 고정 순환합니다(음량과는
-    무관). 1초에 한 칸씩 흘러가고, `spectrum.color`는 무시됩니다
-
-```
-/media:config spectrum.style rainbow
-/media:config spectrum.color magenta
-```
 
 표준 16색 SGR 코드만 쓰기 때문에 실제 색은 터미널의 팔레트를 따릅니다.
 색 없이 쓰고 싶다면 `/media:config statusline.color off`를 실행하세요.

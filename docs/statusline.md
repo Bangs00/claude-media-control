@@ -38,39 +38,46 @@ Inside Claude Code:
 (Enabling verifies a working now-playing read path first; if it is refused,
 run `/media:doctor`.)
 
-### Choose what the segment shows
+### Arrange what the segment shows
 
-Run `/media:config` to pick which items appear and how they are laid out:
+Run `/media:statusline` to arrange the segment — it shows the layouts as
+visual previews right in the picker (Standard / Stacked / Compact /
+Everything), and the same picker opens inside `/media:config`:
 
-- **Items** (any combination): `track` (▶︎ title — artist), `app` (the playing
-  app, e.g. `(Spotify)`), `progressbar` (`██████░░░░`), `time` (`2:13/4:24`),
-  `output` (🔊 current audio output device), `spectrum` (live frequency bars).
-  The default set is `track app progressbar time`.
+- **Items** (any combination, **in any order**): `track` (▶︎ title — artist),
+  `app` (the playing app, e.g. `(Spotify)`), `progressbar` (`██████░░░░`),
+  `time` (`2:13/4:24`), `output` (🔊 current audio output device). The default
+  set is `track app progressbar time`.
+- **Order**: items render in exactly the order they are saved — ask for "time
+  first" or "output device in front", or set it directly:
+  `/media:config statusline.fields "time,progressbar,track,app"`.
 - **Layout**: one line, or each group on its own line (`statusline.multiline`).
+  `app` attaches to the track group; `progressbar` and `time` share a group
+  when they sit next to each other in the order.
 
-One-line with all items:
+One line with all items:
 
 ```
-▶︎ Karma Police — Radiohead (Spotify)  ██████░░░░  2:13/4:24  🔊 AirPods Pro  ▂▄▆█▇▅▃▂
+▶︎ Karma Police — Radiohead (Spotify)  ██████░░░░  2:13/4:24  🔊 AirPods Pro
 ```
 
-Multi-line (`statusline.multiline on`):
+Stacked (`statusline.multiline on`):
 
 ```
 ▶︎ Karma Police — Radiohead (Spotify)
 ██████░░░░  2:13/4:24
 🔊 AirPods Pro
-▂▄▆█▇▅▃▂
+```
+
+Time first (`statusline.fields "time,progressbar,track,app"`):
+
+```
+2:13/4:24  ██████░░░░  ▶︎ Karma Police — Radiohead (Spotify)
 ```
 
 The `output` item needs the native helper (it rides the same read as the rest
 of the segment, so it adds no extra cost). Switch devices with
 `/media:output`; the segment updates on the next tick.
-
-The `spectrum` item is opt-in and needs `display.spectrum on` plus the
-system-audio-recording permission (see `/media:spectrum`). It captures ~0.5s of
-audio per refresh, so it is heavier than the other items — leave it out if you
-want the lightest possible statusline.
 
 ### Long titles: marquee scrolling
 
@@ -99,16 +106,6 @@ codes, and the wrapper below passes them through untouched:
   (green playing, yellow paused)
 - **bold** title, *italic* artist, dimmed time, empty bar cells, app name,
   and output device
-- spectrum bars are tinted per `spectrum.style`:
-  - `solid` (default) — every bar in one color, chosen with `spectrum.color`
-    (`red green yellow blue magenta cyan white`, default `cyan`)
-  - `rainbow` — a fixed front-to-back color cycle by bar position (never by
-    loudness), marching one step per second; `spectrum.color` is ignored
-
-```
-/media:config spectrum.style rainbow
-/media:config spectrum.color magenta
-```
 
 Only standard 16-color SGR codes are used, so everything follows your
 terminal's own palette. Prefer plain text? Run

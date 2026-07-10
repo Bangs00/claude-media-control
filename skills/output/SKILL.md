@@ -41,5 +41,5 @@ Error handling:
 - A device that is not connected (e.g. AirPods in the case) does not appear
   in the list — switching cannot connect it; the user must connect it first.
 
-Tip: the statusline can show the current output device — the `output` item in
-`/media:config`.
+Tip: the statusline can show the current output device — check "Output device
+item" in `/media:config`, or place it anywhere with `/media:statusline`.

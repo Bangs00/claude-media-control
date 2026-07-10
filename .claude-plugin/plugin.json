@@ -20,7 +20,7 @@
     "spotify",
     "apple-music",
     "playback",
-    "spectrum",
+    "statusline",
     "zero-dependency"
   ]
 }

@@ -395,11 +395,49 @@ setup() {
 
 # ---- statusline fields + layout -----------------------------------------------------
 
-@test "statusline.fields: set, canonicalize order, drop unknown names" {
-  run "$MEDIA" config statusline.fields "time,bogus,track"
+@test "statusline.fields: keeps the given order, drops unknown names and dupes" {
+  run "$MEDIA" config statusline.fields "time,bogus,track,time"
   [ "$status" -eq 0 ]
   run "$MEDIA" config statusline.fields
-  [ "$output" = "track time" ]   # canonical order, bogus dropped
+  [ "$output" = "time track" ]   # given order kept, bogus + duplicate dropped
+}
+
+@test "statusline: fields render in their stored order (time first)" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.statusline":true,"statusline.fields":["time","progressbar","track"],"statusline.color":false}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$status" -eq 0 ]
+  [[ "$output" == "1:15/3:20  "* ]]        # time leads...
+  [[ "$output" == *"Stub Song"* ]]         # ...track follows
+}
+
+@test "statusline: legacy spectrum field in a stored config is ignored" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.statusline":true,"statusline.fields":["track","spectrum","time"]}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" config statusline.fields
+  [ "$output" = "track time" ]             # filtered on read
+  run "$MEDIA" statusline
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Stub Song"* ]]
+  [[ "$output" == *"1:15/3:20"* ]]
+}
+
+@test "statusline: multiline keeps adjacent progressbar+time on one line" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.statusline":true,"statusline.multiline":true,"statusline.color":false,"statusline.fields":["track","progressbar","time"]}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$status" -eq 0 ]
+  [ "${#lines[@]}" -eq 2 ]                 # track / bar+time
+  [[ "${lines[1]}" == *"1:15/3:20"* ]]
+}
+
+@test "statusline: multiline splits progressbar and time when not adjacent" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.statusline":true,"statusline.multiline":true,"statusline.color":false,"statusline.fields":["progressbar","track","time"]}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$status" -eq 0 ]
+  [ "${#lines[@]}" -eq 3 ]                 # bar / track / time
+  [[ "${lines[2]}" == "1:15/3:20" ]]
 }
 
 @test "statusline: only chosen fields render (track only)" {
@@ -509,55 +547,6 @@ setup() {
   [ "$output" = "on" ]
 }
 
-@test "statusline: spectrum bars default to a solid cyan tint" {
-  mkdir -p "$CLAUDE_PLUGIN_DATA"
-  echo '{"display.statusline":true,"display.spectrum":true,"statusline.fields":["spectrum"]}' > "$CLAUDE_PLUGIN_DATA/config.json"
-  STUB_SPECTRUM=signal run "$MEDIA" statusline
-  [ "$status" -eq 0 ]
-  [[ "$output" == *$'\e[36m'* ]]      # solid cyan (the default spectrum.color)
-  [[ "$output" != *$'\e[31m'* ]]      # not amplitude/rainbow tinted
-}
-
-@test "statusline: spectrum.color picks the solid tint" {
-  mkdir -p "$CLAUDE_PLUGIN_DATA"
-  echo '{"display.statusline":true,"display.spectrum":true,"statusline.fields":["spectrum"],"spectrum.color":"magenta"}' > "$CLAUDE_PLUGIN_DATA/config.json"
-  STUB_SPECTRUM=signal run "$MEDIA" statusline
-  [ "$status" -eq 0 ]
-  [[ "$output" == *$'\e[35m'* ]]
-  [[ "$output" != *$'\e[36m'* ]]
-}
-
-@test "statusline: rainbow spectrum cycles colors by band position" {
-  mkdir -p "$CLAUDE_PLUGIN_DATA"
-  echo '{"display.statusline":true,"display.spectrum":true,"statusline.fields":["spectrum"],"spectrum.style":"rainbow","spectrum.color":"magenta"}' > "$CLAUDE_PLUGIN_DATA/config.json"
-  STUB_SPECTRUM=signal run "$MEDIA" statusline
-  [ "$status" -eq 0 ]
-  # 10 bands cover the whole 6-color cycle whatever the phase; the configured
-  # solid color is ignored (it appears only as one cycle member among six).
-  [[ "$output" == *$'\e[31m'* ]]
-  [[ "$output" == *$'\e[34m'* ]]
-  [[ "$output" == *$'\e[36m'* ]]
-}
-
-@test "config: spectrum.style/color defaults, persistence, validation" {
-  run "$MEDIA" config spectrum.style
-  [ "$output" = "solid" ]
-  run "$MEDIA" config spectrum.color
-  [ "$output" = "cyan" ]
-  run "$MEDIA" config spectrum.style rainbow
-  [ "$status" -eq 0 ]
-  run "$MEDIA" config spectrum.style
-  [ "$output" = "rainbow" ]
-  run "$MEDIA" config spectrum.color blue
-  [ "$status" -eq 0 ]
-  run "$MEDIA" config spectrum.color
-  [ "$output" = "blue" ]
-  run "$MEDIA" config spectrum.style diagonal
-  [ "$status" -eq 2 ]
-  run "$MEDIA" config spectrum.color chartreuse
-  [ "$status" -eq 2 ]
-}
-
 @test "config: statusline.color defaults to on and toggles off" {
   run "$MEDIA" config statusline.color
   [ "$output" = "on" ]
@@ -567,68 +556,18 @@ setup() {
   [ "$output" = "off" ]
 }
 
-# ---- spectrum -----------------------------------------------------------------------
+# ---- removed features ------------------------------------------------------------
 
-@test "spectrum: refused when display.spectrum is off (opt-in)" {
+@test "spectrum: subcommand no longer exists (removed in 0.6.0)" {
   run "$MEDIA" spectrum
-  [ "$status" -eq 3 ]
-  [[ "$output" == *"spectrum is off"* ]]
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"usage: media.sh"* ]]
 }
 
-@test "spectrum: snapshot prints a spectrum line when enabled + signal" {
-  mkdir -p "$CLAUDE_PLUGIN_DATA"
-  echo '{"display.spectrum":true}' > "$CLAUDE_PLUGIN_DATA/config.json"
-  STUB_SPECTRUM=signal run "$MEDIA" spectrum
-  [ "$status" -eq 0 ]
-  [[ "$output" == *"16kHz"* ]]
-}
-
-@test "spectrum: enable preflight passes when capture has signal" {
-  STUB_SPECTRUM=signal run "$MEDIA" config display.spectrum on
-  [ "$status" -eq 0 ]
-  run "$MEDIA" config display.spectrum
-  [ "$output" = "on" ]
-}
-
-@test "spectrum: enable refused (fail-closed) when capture is silent but audio plays" {
-  # STUB_PRIMARY defaults to a playing track; a silent capture => missing grant.
-  STUB_SPECTRUM=silence run "$MEDIA" config display.spectrum on
-  [ "$status" -eq 3 ]
-  [[ "$output" == *"permission"* ]]
-}
-
-@test "spectrum: enable refused when the helper is unavailable" {
-  STUB_SPECTRUM=unavailable run "$MEDIA" config display.spectrum on
-  [ "$status" -eq 3 ]
-  [[ "$output" == *"unavailable"* ]]
-}
-
-@test "spectrum: runtime silence while playing auto-disables the feature" {
-  mkdir -p "$CLAUDE_PLUGIN_DATA"
-  echo '{"display.spectrum":true}' > "$CLAUDE_PLUGIN_DATA/config.json"
-  STUB_SPECTRUM=silence run "$MEDIA" spectrum
-  [ "$status" -eq 3 ]
-  [[ "$output" == *"revoked"* ]]
-  run "$MEDIA" config display.spectrum
-  [ "$output" = "off" ]              # downgraded to off
-}
-
-@test "statusline: spectrum field appends bars when enabled" {
-  mkdir -p "$CLAUDE_PLUGIN_DATA"
-  echo '{"display.statusline":true,"display.spectrum":true,"statusline.fields":["track","spectrum"]}' > "$CLAUDE_PLUGIN_DATA/config.json"
-  STUB_SPECTRUM=signal run "$MEDIA" statusline
-  [ "$status" -eq 0 ]
-  [[ "$output" == *"Stub Song"* ]]
-  [[ "$output" == *"▄"* ]]           # spectrum bars present
-}
-
-@test "statusline: spectrum field silently omitted when display.spectrum off" {
-  mkdir -p "$CLAUDE_PLUGIN_DATA"
-  echo '{"display.statusline":true,"display.spectrum":false,"statusline.fields":["track","spectrum"]}' > "$CLAUDE_PLUGIN_DATA/config.json"
-  STUB_SPECTRUM=signal run "$MEDIA" statusline
-  [ "$status" -eq 0 ]
-  [[ "$output" == *"Stub Song"* ]]
-  [[ "$output" != *"▄"* ]]           # no bars: feature is off
+@test "config: display.spectrum is no longer a key" {
+  run "$MEDIA" config display.spectrum on
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"unknown config key"* ]]
 }
 
 # ---- detect / warmup ----------------------------------------------------------------

@@ -53,71 +53,8 @@ plugin_version() {
 CACHE_KEY="$(plugin_version)-$(/usr/bin/sw_vers -buildVersion)-$(/usr/bin/uname -m)"
 CACHE_DIR="$BUILD_ROOT/$CACHE_KEY"
 DYLIB="$CACHE_DIR/libadapter.dylib"
-SPECTRUM_BIN="$CACHE_DIR/spectrum"
 
 mode="${1:-}"
-
-# ---- spectrum helper (opt-in, macOS 14.4+) --------------------------------
-# Kept separate from the adapter contract above: the spectrum executable is
-# built only on demand (never by the SessionStart warmup), so a machine that
-# never uses /media:spectrum never compiles it. On Apple Silicon clang applies
-# an ad-hoc signature automatically, which is enough for the process tap once
-# the terminal app holds the audio-recording grant.
-
-macos_ge_14_4() {
-  /usr/bin/perl -e '
-    my ($v) = @ARGV; my @p = split /\./, $v;
-    exit(($p[0] > 14 || ($p[0] == 14 && (($p[1] // 0) >= 4))) ? 0 : 1);
-  ' "$(/usr/bin/sw_vers -productVersion)"
-}
-
-build_spectrum() {
-  local sub="${1:-}"
-  if [ "$sub" = "--check-only" ]; then
-    [ -f "$SPECTRUM_BIN" ] && { echo "$SPECTRUM_BIN"; exit 0; }
-    exit 1
-  fi
-  if [ "$sub" = "--rebuild" ]; then
-    rm -f "$SPECTRUM_BIN"
-  fi
-  if [ -f "$SPECTRUM_BIN" ]; then
-    echo "$SPECTRUM_BIN"
-    exit 0
-  fi
-  if ! macos_ge_14_4; then
-    echo "media: the audio spectrum needs macOS 14.4+ (Core Audio process tap)." >&2
-    exit 2
-  fi
-  if ! /usr/bin/xcode-select -p >/dev/null 2>&1; then
-    echo "media: Xcode Command Line Tools not found — cannot build the spectrum helper." >&2
-    exit 2
-  fi
-  if ! mkdir -p "$CACHE_DIR" 2>/dev/null; then
-    echo "media: cannot create build cache at $CACHE_DIR." >&2
-    exit 1
-  fi
-  echo "First run: building audio spectrum helper (~2s)..." >&2
-  local tmp="$CACHE_DIR/.spectrum.$$.tmp"
-  trap 'rm -f "$tmp"' EXIT
-  {
-    echo "== $(date '+%Y-%m-%dT%H:%M:%S%z') spectrum $CACHE_KEY =="
-  } >> "$LOG_FILE" 2>&1 || true
-  if ! /usr/bin/clang -fobjc-arc -fvisibility=default -Wall \
-      -framework Foundation -framework CoreAudio -framework Accelerate \
-      "$PLUGIN_ROOT/native/spectrum.m" -o "$tmp" >> "$LOG_FILE" 2>&1; then
-    echo "media: spectrum build failed — see $LOG_FILE. Run /media:doctor." >&2
-    exit 1
-  fi
-  mv -f "$tmp" "$SPECTRUM_BIN"
-  trap - EXIT
-  echo "== spectrum build ok: $SPECTRUM_BIN ==" >> "$LOG_FILE" 2>&1 || true
-  echo "$SPECTRUM_BIN"
-  exit 0
-}
-
-if [ "$mode" = "--spectrum" ]; then
-  build_spectrum "${2:-}"
-fi
 
 if [ "$mode" = "--check-only" ]; then
   if [ -f "$DYLIB" ]; then
