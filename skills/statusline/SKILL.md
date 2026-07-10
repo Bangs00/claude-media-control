@@ -1,6 +1,6 @@
 ---
 name: statusline
-description: Arrange the now-playing statusline — pick a layout preset from visual previews, or set exactly which items appear and in what order (track, app, progress bar, time, output device) and whether they stack on separate lines. Use when the user wants to lay out, arrange, reorder, or redesign the statusline items, or asks what statusline layouts look like.
+description: Arrange the now-playing statusline — pick a layout preset from visual previews, or build a custom arrangement interactively: choose exactly which items appear (track, app, progress bar, time, output device), which item leads, and whether groups stack on separate lines. Use when the user wants to lay out, arrange, reorder, or redesign the statusline items, or asks what statusline layouts look like.
 argument-hint: [preset | ordered item list]
 allowed-tools: Bash, AskUserQuestion
 ---
@@ -25,7 +25,7 @@ track group when both are chosen (`▶︎ Title — Artist (App)`), and `progres
 + `time` share one group when adjacent (they stay on one line in the stacked
 layout). `statusline.multiline on` puts each group on its own line.
 
-The presets:
+The presets (named arrangements, usable as `$ARGUMENTS`):
 
 | Preset | `statusline.fields` | `statusline.multiline` |
 | --- | --- | --- |
@@ -43,42 +43,110 @@ e.g. "time first" → `time,progressbar,track,app`; "output device in front" →
 `output,track,app,progressbar,time`; "one item per line" → keep the current
 fields, `statusline.multiline on`.
 
-## Mode B — no arguments → show the layouts
+## Mode B — no arguments → interactive arrangement
 
-Ask ONE **AskUserQuestion** (single-select, header "Layout"): "How should the
-now-playing statusline be arranged?" — with one option per preset, each
-carrying a `preview` so the user can see the arrangement before choosing.
-Mark the option matching the current state "(current)". Use exactly these
-previews (they match the real renderer):
+### Call 1 — layout and lines
 
-- `Standard` — one line: track, app, progress bar, time
+Ask ONE **AskUserQuestion** call with exactly TWO questions. Mark the option
+matching the current state "(current)" in its label — for Q1 compare the
+current item list/order, for Q2 the `statusline.multiline` value. Use exactly
+these previews (they match the real renderer); if your AskUserQuestion does
+not support option previews, put each sample line in the option's description
+instead.
 
-  ```
-  ▶︎ Karma Police — Radiohead (Spotify)  ██████░░░░  2:13/4:24
-  ```
+- **Q1** (single-select, header "Items"): "What should the statusline show?"
 
-- `Stacked` — same items, one group per line
+  - `Standard` — track, app, progress bar, time
 
-  ```
-  ▶︎ Karma Police — Radiohead (Spotify)
-  ██████░░░░  2:13/4:24
-  ```
+    ```
+    ▶︎ Karma Police — Radiohead (Spotify)  ██████░░░░  2:13/4:24
+    ```
 
-- `Compact` — just the track and time
+  - `Everything` — Standard plus the audio output device
 
-  ```
-  ▶︎ Karma Police — Radiohead  2:13/4:24
-  ```
+    ```
+    ▶︎ Karma Police — Radiohead (Spotify)  ██████░░░░  2:13/4:24  🔊 AirPods Pro
+    ```
 
-- `Everything` — Standard plus the audio output device
+  - `Compact` — just the track and time
 
-  ```
-  ▶︎ Karma Police — Radiohead (Spotify)  ██████░░░░  2:13/4:24  🔊 AirPods Pro
-  ```
+    ```
+    ▶︎ Karma Police — Radiohead  2:13/4:24
+    ```
 
-If the user picks "Other" and types a wish, treat it as Mode A input. If your
-AskUserQuestion does not support option previews, put each sample line in the
-option's description instead.
+  - `Custom…` — pick the items AND their order yourself (next step)
+
+    ```
+    e.g. time in front:
+    2:13/4:24  ██████░░░░  ▶︎ Karma Police — Radiohead (Spotify)
+    ```
+
+- **Q2** (single-select, header "Lines"): "One line, or stacked?"
+
+  - `One line` — groups side by side (`statusline.multiline off`)
+
+    ```
+    ▶︎ Karma Police — Radiohead (Spotify)  ██████░░░░  2:13/4:24
+    ```
+
+  - `Stacked` — each group on its own line (`statusline.multiline on`)
+
+    ```
+    ▶︎ Karma Police — Radiohead (Spotify)
+    ██████░░░░  2:13/4:24
+    ```
+
+(The classic "Stacked" preset = `Standard` + `Stacked` lines. Q2 applies to
+whatever items Q1 produces — any arrangement can stack.)
+
+### Call 2 — ONLY when Q1 = `Custom…`
+
+Ask a SECOND AskUserQuestion call with exactly TWO questions:
+
+- **Q3** (`multiSelect: true`, header "Items"): "Which items besides the
+  track? (the track — ▶︎ Title — Artist — is always included; to drop it,
+  answer via Other)" — pre-check the items in the current list:
+
+  - `App` — the playing app, attaches to the track: `(Spotify)`
+  - `Progress bar` — `██████░░░░`
+  - `Time` — elapsed/total: `2:13/4:24`
+  - `Output device` — `🔊 AirPods Pro` (needs the native helper)
+
+- **Q4** (single-select, header "Order"): "Which item leads?" — previews show
+  ALL items; items not chosen in Q3 simply drop out of the final list:
+
+  - `Track first` — the standard order → template `track,app,progressbar,time,output`
+
+    ```
+    ▶︎ Karma Police — Radiohead (Spotify)  ██████░░░░  2:13/4:24  🔊 AirPods Pro
+    ```
+
+  - `Time first` → template `time,progressbar,track,app,output`
+
+    ```
+    2:13/4:24  ██████░░░░  ▶︎ Karma Police — Radiohead (Spotify)  🔊 AirPods Pro
+    ```
+
+  - `Progress bar first` → template `progressbar,time,track,app,output`
+
+    ```
+    ██████░░░░  2:13/4:24  ▶︎ Karma Police — Radiohead (Spotify)  🔊 AirPods Pro
+    ```
+
+  - `Output first` → template `output,track,app,progressbar,time`
+
+    ```
+    🔊 AirPods Pro  ▶︎ Karma Police — Radiohead (Spotify)  ██████░░░░  2:13/4:24
+    ```
+
+Build the final field list: take the Q4 template and delete the items the
+user did not choose in Q3 (keep `track` unless they excluded it via Other).
+The templates keep `progressbar` and `time` adjacent on purpose — they render
+as one group; only a hand-typed order via Other separates them.
+
+In ANY question, "Other" free text is a Mode A request: map an exact list or
+a described arrangement ("artist… I mean app at the very end") onto an
+ordered field list, then continue with Step 2.
 
 ## Step 2 — save
 

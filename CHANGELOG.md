@@ -5,6 +5,38 @@ All notable changes to this project are documented here. The format follows
 [SemVer](https://semver.org/spec/v2.0.0.html), tracked in
 `.claude-plugin/plugin.json`.
 
+## [0.7.0] — 2026-07-10
+
+### Added
+
+- **Custom arrangements inside the `/media:statusline` picker.** The
+  no-argument picker is no longer preset-only: next to the preset previews
+  (Standard / Everything / Compact) sits `Custom…`, which walks you through
+  building your own arrangement — check exactly which items appear (app,
+  progress bar, time, output device; the track is always in), then pick
+  which item leads (track / time / progress bar / output first). A separate
+  "One line or stacked?" question applies to any arrangement, so every
+  combination can stack — stacking is no longer tied to the Stacked preset.
+  Typed orders and natural-language requests ("time first") keep working
+  exactly as before.
+
+### Fixed
+
+- **The statusline elapsed time was rendered dim and easy to miss.** The
+  whole `2:13/4:24` token used the faint SGR style, which many terminal
+  themes render barely readable — and `/media:now` bolds the elapsed time,
+  so the two surfaces looked inconsistent. The elapsed part (the part that
+  moves) is now bold like the track title; only the `/4:24` tail stays dim.
+  With colors off (or `NO_COLOR`) the output is byte-identical to before.
+- **`/media:now` and `/media:menu` could show a stale position.** Their
+  reply templates never said which JSON field the elapsed `m:ss` comes
+  from, so the rendering model could pick `elapsedTime` — the app's last
+  snapshot, which for web players can lag minutes behind the real position
+  (measured: a track playing 41 s reported `elapsedTime` 1:15 vs the true
+  1:56) — while the statusline extrapolates via `elapsedTimeNow`. Both
+  skills now name `elapsedTimeNow` explicitly, matching the statusline and
+  `/media:seek`.
+
 ## [0.6.0] — 2026-07-10
 
 ### Removed

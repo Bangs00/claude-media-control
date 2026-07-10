@@ -480,7 +480,9 @@ do_statusline() {
     # layout). Fields the user didn't pick are omitted; Claude Code renders
     # multi-line statuslines as-is. Styling (statusline.color on):
     # state-colored icon + filled bar (green playing / yellow paused), bold
-    # title, italic artist, dim chrome. Claude Code statuslines render ANSI SGR
+    # title and elapsed time (the moving part must stay readable, so only
+    # the "/duration" tail is dim), italic artist, dim chrome. Claude Code
+    # statuslines render ANSI SGR
     # codes; every token resets with \e[0m so surrounding statusline content is
     # never restyled. statusline.marquee scrolls titles wider than 30 display
     # cells through a fixed window, one character per second (offset derives
@@ -549,7 +551,8 @@ do_statusline() {
                           . $st->(2, "\x{2591}" x ($cells - $filled));
       }
       if ($w{time} && defined $pos) {
-        $tok{time} = $st->(2, mss($pos) . "/" . (defined $dur ? mss($dur) : "LIVE"));
+        $tok{time} = $st->(1, mss($pos))
+                   . $st->(2, "/" . (defined $dur ? mss($dur) : "LIVE"));
       }
       if ($w{output} && defined $d->{outputDevice}) {
         $tok{output} = $st->(2, "\x{1F50A} " . $d->{outputDevice});

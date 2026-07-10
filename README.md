@@ -51,19 +51,21 @@ Natural language, slash commands, or an interactive menu — all work:
 | "what played earlier?" | `/media:history` | recently played tracks (passive local log) |
 | "switch to my AirPods" | `/media:output airpods` | show / switch the audio output device |
 | "give me a remote" | `/media:menu` | interactive controller (arrow-key menu) |
-| "arrange my statusline" | `/media:statusline` | pick a statusline layout from visual previews |
+| "arrange my statusline" | `/media:statusline` | pick a layout from visual previews, or build a custom item order |
 | "configure the statusline" | `/media:config` | interactive settings — layout plus every display toggle (progress bar, history, colors, marquee) |
 | — | `/media:doctor` | diagnose build / permissions / fallbacks |
 
 Optional: put now-playing in your statusline — see
 [docs/statusline.md](docs/statusline.md). `/media:statusline` shows the
 layouts as **visual previews** and lets you arrange the items (track, app,
-progress bar, time, output device) in any order, on one line or stacked;
-"time first" or "output device in front" works too, because items render in
-exactly the order you save them. Titles wider than 30 cells scroll
-marquee-style (`statusline.marquee`), and the segment comes ANSI-styled —
-state-colored icon and progress bar, bold title, italic artist —
-`/media:config statusline.color off` (or `NO_COLOR`) restores plain text.
+progress bar, time, output device) in any order, on one line or stacked —
+pick a preset, or go `Custom…` and choose exactly which items appear and
+which one leads. "time first" or "output device in front" works too, because
+items render in exactly the order you save them. Titles wider than 30 cells
+scroll marquee-style (`statusline.marquee`), and the segment comes
+ANSI-styled — state-colored icon and progress bar, bold title and elapsed
+time, italic artist — `/media:config statusline.color off` (or `NO_COLOR`)
+restores plain text.
 
 ## How it works
 

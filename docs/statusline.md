@@ -40,9 +40,11 @@ run `/media:doctor`.)
 
 ### Arrange what the segment shows
 
-Run `/media:statusline` to arrange the segment — it shows the layouts as
-visual previews right in the picker (Standard / Stacked / Compact /
-Everything), and the same picker opens inside `/media:config`:
+Run `/media:statusline` to arrange the segment — the picker shows preset
+layouts (Standard / Everything / Compact) as visual previews, asks whether
+groups share one line or stack, and `Custom…` walks you through building
+your own arrangement: pick exactly which items appear, then which item
+leads. A quick preset picker also opens inside `/media:config`:
 
 - **Items** (any combination, **in any order**): `track` (▶︎ title — artist),
   `app` (the playing app, e.g. `(Spotify)`), `progressbar` (`██████░░░░`),
@@ -104,8 +106,8 @@ codes, and the wrapper below passes them through untouched:
 
 - icon and the filled part of the progress bar follow the playback state
   (green playing, yellow paused)
-- **bold** title, *italic* artist, dimmed time, empty bar cells, app name,
-  and output device
+- **bold** title and elapsed time (the moving part stays readable), *italic*
+  artist, dimmed total time, empty bar cells, app name, and output device
 
 Only standard 16-color SGR codes are used, so everything follows your
 terminal's own palette. Prefer plain text? Run

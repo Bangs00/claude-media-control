@@ -12,7 +12,7 @@ You are an interactive media remote. Follow this loop strictly:
 
 1. Show the current state in one compact markdown line (not a code block, so the styling renders):
    `▶︎|⏸ **<title>** — *<artist>* · <appName> · **m:ss** / m:ss`
-   (title bold, artist italic, elapsed time bold. If the JSON is `null`, say nothing is playing — the menu can still send Play.)
+   (title bold, artist italic, elapsed time bold. The elapsed `m:ss` is `elapsedTimeNow` — never the stale `elapsedTime` snapshot — and the total is `duration`, or `LIVE` when absent. If the JSON is `null`, say nothing is playing — the menu can still send Play.)
 2. Call AskUserQuestion with exactly ONE question ("What next?", header "Remote") and exactly these 4 options:
    - `⏯ Toggle` — play/pause the current media
    - `⏭ Next` — skip to the next track

@@ -316,7 +316,8 @@ setup() {
   [ "$status" -eq 0 ]
   [[ "$output" == *"Stub Song"* ]]
   [[ "$output" == *"Stub Artist"* ]]
-  [[ "$output" == *"1:15/3:20"* ]]
+  [[ "$output" == *"1:15"* ]]      # elapsed and total are styled separately,
+  [[ "$output" == *"/3:20"* ]]     # so SGR codes may sit between them
   [ -f "$CLAUDE_PLUGIN_DATA/statusline.cache" ]
 }
 
@@ -419,7 +420,8 @@ setup() {
   run "$MEDIA" statusline
   [ "$status" -eq 0 ]
   [[ "$output" == *"Stub Song"* ]]
-  [[ "$output" == *"1:15/3:20"* ]]
+  [[ "$output" == *"1:15"* ]]
+  [[ "$output" == *"/3:20"* ]]
 }
 
 @test "statusline: multiline keeps adjacent progressbar+time on one line" {
@@ -493,6 +495,15 @@ setup() {
   [ "$status" -eq 0 ]
   [[ "$output" != *$'\e['* ]]
   [[ "$output" == *"Stub Song"* ]]
+}
+
+@test "statusline: time token bolds the elapsed part, dims the total" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.statusline":true}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$status" -eq 0 ]
+  # elapsed (the moving part) is bold, only the "/duration" tail is dim
+  [[ "$output" == *$'\e[1m1:15\e[0m\e[2m/3:20\e[0m'* ]]
 }
 
 @test "statusline: playing app shows by default" {
