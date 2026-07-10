@@ -5,6 +5,22 @@ All notable changes to this project are documented here. The format follows
 [SemVer](https://semver.org/spec/v2.0.0.html), tracked in
 `.claude-plugin/plugin.json`.
 
+## [0.18.0] — 2026-07-11
+
+### Changed
+
+- **Clicking the track lands on the media, not just the app.** The
+  statusline's title/artist ⌘+click now resolves the owning app, brings it
+  forward, and then — where the app allows it — moves its UI to the media
+  itself: the browser window+tab whose title matches the track is selected
+  (Safari and the AppleScript-capable Chromium family: Chrome, Edge,
+  Brave, Vivaldi, Opera), and Music reveals the current track. Apps
+  without a scripting interface (e.g. ChatGPT Atlas, Spotify) keep plain
+  activation. Only known-scriptable bundles are ever scripted, so no
+  Automation consent is triggered for apps that could not honor it; the
+  first tab-jump asks a one-time consent for `ClaudeMediaClick.app`, and a
+  denial (or any script error) silently keeps activation-only behavior.
+
 ## [0.17.0] — 2026-07-11
 
 ### Added

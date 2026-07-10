@@ -379,6 +379,8 @@ do_seek() {
 # app whose bundle id is a dotted prefix of the reported one (or vice versa),
 # else 3. `open -b` as a last resort. NSRunningApplication activation is
 # public AppKit — no Automation (AppleEvents) permission involved.
+# On success the OWNING app's bundle id is printed (the resolved regular app,
+# which may differ from the reported helper id) — focus_media keys off it.
 activate_app() {
   local pid="${1:-}" bundle="${2:-}" got=""
   got="$(/usr/bin/osascript -l JavaScript -e '
@@ -398,19 +400,87 @@ activate_app() {
             (want.indexOf(bid + ".") == 0 || bid.indexOf(want + ".") == 0)) prefix = a;
       }
       var target = byPid || exact || prefix;
-      if (!target) return "none";
+      if (!target) return "";
       target.activateWithOptions($.NSApplicationActivateAllWindows);
-      return "ok";
+      return ObjC.unwrap(target.bundleIdentifier) || "activated";
     }
   ' "$pid" "$bundle" 2>/dev/null || true)"
-  if [ "$got" = "ok" ]; then
+  if [ -n "$got" ]; then
+    echo "$got"
     return 0
   fi
   if [ -n "$bundle" ] && /usr/bin/open -b "$bundle" 2>/dev/null; then
+    echo "$bundle"
     return 0
   fi
   echo "media: could not bring the now-playing app to the front (${bundle:-unknown app})." >&2
   return 1
+}
+
+# Move the app's UI to the playing media itself, best effort — called with
+# the OWNING app id activate_app resolved: browsers with AppleScript tab
+# control select the window+tab whose name contains the track title (the
+# Safari dialect / the Chromium suite — only known-scriptable bundles, so no
+# consent prompt is ever triggered for an app that could not honor it
+# anyway), and Music reveals the current track. Everything else (e.g.
+# ChatGPT Atlas — no scripting interface) keeps plain activation. The first
+# use shows a one-time Automation consent attributed to the click-handler
+# app; a denial or any script error just leaves activation-only behavior.
+# The title travels via the environment (system attribute), so no user data
+# is ever spliced into the script source.
+focus_media() {
+  local bundle="$1" title="$2"
+  [ -n "$title" ] || return 0
+  case "$bundle" in
+    com.apple.Safari)
+      MEDIA_FOCUS_TITLE="$title" /usr/bin/osascript -e '
+        set t to system attribute "MEDIA_FOCUS_TITLE"
+        with timeout of 3 seconds
+          tell application "Safari"
+            repeat with w in windows
+              set i to 0
+              repeat with tb in tabs of w
+                set i to i + 1
+                if name of tb contains t then
+                  set current tab of w to tab i of w
+                  set index of w to 1
+                  return
+                end if
+              end repeat
+            end repeat
+          end tell
+        end timeout' >/dev/null 2>&1 || true
+      ;;
+    com.google.Chrome | com.google.Chrome.canary | com.google.Chrome.beta | \
+    com.microsoft.edgemac | com.brave.Browser | com.vivaldi.Vivaldi | \
+    com.operasoftware.Opera)
+      MEDIA_FOCUS_TITLE="$title" MEDIA_FOCUS_BUNDLE="$bundle" /usr/bin/osascript -e '
+        set t to system attribute "MEDIA_FOCUS_TITLE"
+        set b to system attribute "MEDIA_FOCUS_BUNDLE"
+        with timeout of 3 seconds
+          tell application id b
+            repeat with w in windows
+              set i to 0
+              repeat with tb in tabs of w
+                set i to i + 1
+                if title of tb contains t then
+                  set active tab index of w to i
+                  set index of w to 1
+                  return
+                end if
+              end repeat
+            end repeat
+          end tell
+        end timeout' >/dev/null 2>&1 || true
+      ;;
+    com.apple.Music)
+      /usr/bin/osascript -e '
+        with timeout of 3 seconds
+          tell application "Music" to reveal current track
+        end timeout' >/dev/null 2>&1 || true
+      ;;
+  esac
+  return 0
 }
 
 # Dispatch one clicked claude-media:// URL from the statusline. The applet
@@ -436,7 +506,11 @@ do_open_url() {
         echo "media: the current read does not name the playing app — cannot activate it." >&2
         exit 1
       fi
-      activate_app "$pid" "$bundle"
+      # Land on the media, not just the app: bring the owning app forward,
+      # then select the playing tab / reveal the track (best effort).
+      local owner
+      owner="$(activate_app "$pid" "$bundle")" || exit 1
+      focus_media "$owner" "$(printf '%s' "$json" | json_field title)"
       ;;
     claude-media://seek/*)
       pct="${url#claude-media://seek/}"
@@ -1861,7 +1935,7 @@ do_config() {
         statusline.multiline) note="statusline layout: on = each group on its own line, off = one line (unused when statusline.fields has / breaks)" ;;
         statusline.color)    note="ANSI colors/bold/italic in the statusline segment (honors NO_COLOR)" ;;
         statusline.marquee)  note="scroll statusline titles wider than 30 cells (1 char/second)" ;;
-        statusline.links)    note="cmd+click actions in the statusline: icon toggles, track opens the app, bar seeks (OSC 8 + claude-media:// handler)" ;;
+        statusline.links)    note="cmd+click actions in the statusline: icon toggles, track jumps to the playing media (tab/track), bar seeks (OSC 8 + claude-media:// handler)" ;;
         history.record)      note="log played tracks to history.jsonl (view with /media:history)" ;;
       esac
       printf '%-21s %-6s %s\n' "$k" "$(config_get "$k")" "$note"

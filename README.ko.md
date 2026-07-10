@@ -73,12 +73,13 @@ Claude Code에서 두 줄이면 끝납니다. Homebrew 단계는 없습니다:
   [docs/statusline.ko.md](docs/statusline.ko.md)).
 - **클릭해서 조작합니다** — 하이퍼링크를 지원하는 터미널(iTerm2, Ghostty,
   WezTerm, Kitty, VS Code 등)에서는 세그먼트가 **⌘+클릭**에 반응합니다:
-  ▶︎/⏸ 아이콘은 재생/일시정지, 제목—가수는 재생 중인 앱으로 이동, 진행
-  바는 셀 단위로 그 위치로 seek. OSC 8 링크와 로컬 `claude-media://`
-  핸들러 앱으로 동작하며 — macOS 기본 도구로만 생성, 자동 등록, 플러그인
-  삭제 시 함께 제거 — 미지원 터미널에서는 그냥 일반 세그먼트로 보입니다.
-  끄기는 `/media:config statusline.links off`(자세히:
-  [docs/statusline.ko.md](docs/statusline.ko.md)).
+  ▶︎/⏸ 아이콘은 재생/일시정지, 제목—가수는 재생 중인 미디어로
+  이동(재생 중인 브라우저 탭, Music의 현재 트랙 — 스크립팅이 안 되는
+  앱은 앱 활성화까지), 진행 바는 셀 단위로 그 위치로 seek. OSC 8 링크와
+  로컬 `claude-media://` 핸들러 앱으로 동작하며 — macOS 기본 도구로만
+  생성, 자동 등록, 플러그인 삭제 시 함께 제거 — 미지원 터미널에서는 그냥
+  일반 세그먼트로 보입니다. 끄기는 `/media:config statusline.links
+  off`(자세히: [docs/statusline.ko.md](docs/statusline.ko.md)).
 - **꾸미기는 `/media:statusline` 하나로** — 항목을 켜고 끄고, 레이아웃을
   고르거나 `123/456` 같은 숫자 패턴으로 정하고(숫자가 항목 — 곡 정보, 앱,
   볼륨, 진행 바, 시간, 출력 장치 — 이고 `/`가 줄바꿈), 부분별 스타일까지

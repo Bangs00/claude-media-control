@@ -49,7 +49,7 @@ In terminals with hyperlink support the segment is **cmd+clickable**:
 | target | ⌘+click does |
 | --- | --- |
 | `▶︎` / `⏸` icon | toggle play/pause |
-| title — artist (and `(App)`) | bring the playing app to the front |
+| title — artist (and `(App)`) | jump to the playing media — the app comes forward on its playing browser tab (Safari and AppleScript-capable Chromium browsers) or with the current track revealed (Music); other apps just come to the front |
 | progress bar | seek — each of the 10 cells jumps to its position (5%, 15%, … 95%) |
 
 How it works: those parts are wrapped in OSC 8 hyperlinks pointing at a
@@ -60,7 +60,13 @@ registers it with LaunchServices. A click runs `media.sh open-url`, whose
 whole surface is exactly three benign actions — toggle, activate, seek by
 percent — anything else is rejected. For browser players the activation
 resolves the web-content helper to its owning app (e.g.
-`com.openai.atlas.web` → ChatGPT Atlas).
+`com.openai.atlas.web` → ChatGPT Atlas), and then lands on the media
+itself where the app allows it: the window+tab whose title matches the
+track is selected (Safari, Chrome, Edge, Brave, Vivaldi, Opera), or the
+current track is revealed (Music). Apps without a scripting interface
+(e.g. ChatGPT Atlas, Spotify) stop at coming to the front. The first
+tab-jump shows a one-time Automation consent for `ClaudeMediaClick.app` —
+denying it keeps plain activation, silently.
 
 Notes:
 

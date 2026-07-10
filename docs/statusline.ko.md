@@ -50,7 +50,7 @@ Claude Code에 스스로 배선합니다:
 | 대상 | ⌘+클릭 동작 |
 | --- | --- |
 | `▶︎` / `⏸` 아이콘 | 재생/일시정지 토글 |
-| 제목 — 가수 (그리고 `(앱)`) | 재생 중인 앱을 앞으로 가져오기 |
+| 제목 — 가수 (그리고 `(앱)`) | 재생 중인 미디어로 이동 — 재생 중인 브라우저 탭이 선택된 채로(Safari·AppleScript 지원 Chromium 계열), 또는 현재 트랙이 표시된 채로(Music) 앱이 앞으로 나옵니다; 그 외 앱은 앱만 앞으로 |
 | 진행 바 | seek — 10개 셀 각각이 그 위치로 점프 (5%, 15%, … 95%) |
 
 동작 원리: 각 부분이 로컬 `claude-media://` URL 스킴을 가리키는 OSC 8
@@ -60,7 +60,13 @@ Claude Code에 스스로 배선합니다:
 등록됩니다. 클릭하면 `media.sh open-url`이 실행되는데, 받아 주는 동작은
 정확히 세 가지 — toggle, activate, 퍼센트 seek — 뿐이고 그 외는 전부
 거부합니다. 브라우저 재생은 웹 콘텐츠 헬퍼를 소유 앱으로 해석해
-활성화합니다(예: `com.openai.atlas.web` → ChatGPT Atlas).
+활성화하고(예: `com.openai.atlas.web` → ChatGPT Atlas), 앱이 허용하는
+한 미디어 자체에 내려앉습니다: 트랙 제목과 일치하는 창+탭을
+선택(Safari, Chrome, Edge, Brave, Vivaldi, Opera)하거나 현재 트랙을
+표시(Music)합니다. 스크립팅 인터페이스가 없는 앱(예: ChatGPT Atlas,
+Spotify)은 앞으로 나오는 데서 멈춥니다. 첫 탭 이동 시
+`ClaudeMediaClick.app`에 대한 자동화 허용을 한 번 묻습니다 — 거부해도
+조용히 앱 활성화까지만 동작합니다.
 
 참고:
 

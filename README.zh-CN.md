@@ -70,10 +70,11 @@ Tools——只要你的机器能跑 `git clone`，它们就已经装好了（见
   [docs/statusline.zh-CN.md](docs/statusline.zh-CN.md)）。
 - **点击即可操控**——在支持超链接的终端（iTerm2、Ghostty、WezTerm、Kitty、
   VS Code 等）里，这个组件支持 **⌘+点击**：▶︎/⏸ 图标切换播放/暂停，
-  标题—歌手跳转到正在播放的应用，进度条按格 seek 到对应位置。它靠 OSC 8
-  链接和一个本地 `claude-media://` 处理器小应用实现——仅用 macOS 自带
-  工具生成、自动注册、卸载时一并移除。不支持的终端只会看到普通组件。
-  关闭：`/media:config statusline.links off`（详见
+  标题—歌手跳到正在播放的媒体（正在播放的浏览器标签页、Music 的当前
+  曲目——不支持脚本的应用则只激活应用），进度条按格 seek 到对应位置。
+  它靠 OSC 8 链接和一个本地 `claude-media://` 处理器小应用实现——仅用
+  macOS 自带工具生成、自动注册、卸载时一并移除。不支持的终端只会看到
+  普通组件。关闭：`/media:config statusline.links off`（详见
   [docs/statusline.zh-CN.md](docs/statusline.zh-CN.md)）。
 - **定制全在 `/media:statusline`**——外观的一切都在这一个中枢里。开关条目，
   挑布局或直接敲一串 `123/456` 这样的数字模式（数字代表条目——曲目、
