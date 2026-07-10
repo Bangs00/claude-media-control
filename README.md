@@ -69,6 +69,14 @@ Optional: put now-playing in your statusline — fully automatic, one command:
   `statusLine` value is backed up and **restored automatically if you
   uninstall the plugin**. No restart, no manual steps (details and design
   guarantees: [docs/statusline.md](docs/statusline.md)).
+- **Click it** — in terminals with hyperlink support (iTerm2, Ghostty,
+  WezTerm, Kitty, VS Code, …) the segment is **cmd+clickable**: the ▶︎/⏸
+  icon toggles playback, the title/artist jumps to the playing app, and
+  every progress-bar cell seeks to its position. Powered by OSC 8 links and
+  a tiny local `claude-media://` handler app — built with macOS's bundled
+  tools, registered automatically, removed on uninstall. Other terminals
+  just show the plain segment; `/media:config statusline.links off` turns
+  the links off (details: [docs/statusline.md](docs/statusline.md)).
 - **Make it yours** with `/media:statusline` — one hub for everything visual.
   Toggle items, pick a layout or type a pattern like `123/456` (each digit
   is an item — track, app, volume, bar, time, output — and `/` starts a new
@@ -172,8 +180,10 @@ The one exception is deliberate and undoes itself: if you enabled the
 (`statusLine`, after backing up its previous value). Claude Code has no
 uninstall hook, so the statusline wrapper is self-healing — on the first
 statusline tick after the uninstall it restores your previous `statusLine`
-and deletes itself and its backup. Your statusline is back to exactly what
-it was, within a second (see [docs/statusline.md](docs/statusline.md)).
+and deletes itself and its backup, and unregisters + removes the
+`claude-media://` click-handler app along the way. Your statusline is back
+to exactly what it was, within a second (see
+[docs/statusline.md](docs/statusline.md)).
 
 Two things are *not* plugin files and may remain (both harmless):
 

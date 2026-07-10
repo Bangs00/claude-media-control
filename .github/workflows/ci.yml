@@ -17,7 +17,10 @@ jobs:
           brew list shellcheck >/dev/null 2>&1 || brew install shellcheck
 
       - name: shellcheck
-        run: shellcheck scripts/media.sh scripts/build-native.sh tests/stubs/build-native.sh
+        run: |
+          shellcheck scripts/media.sh scripts/build-native.sh \
+            scripts/build-click-handler.sh tests/stubs/build-native.sh \
+            tests/stubs/build-click-handler.sh
 
       - name: perl syntax check
         run: |

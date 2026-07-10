@@ -54,7 +54,19 @@ Two gotchas:
   CURRENT device for a safe no-op, or switch away and back; `output "LG"`
   style ambiguous names must exit 4 with candidates
 - `media.sh history` / `history --json` — entries appear only on track
-  change (dedup across statusline ticks)
+  change (dedup across statusline ticks); drive an artist-lag amend by
+  changing the published title first, then the artist one read later —
+  the transitional entry must be replaced, not kept
+- **cmd+click round-trip** — `build-click-handler.sh` in the scratch data
+  dir, then `open "claude-media://seek/50"` etc. and assert on the fake
+  publisher's command log. Two gotchas: LaunchServices launches the applet
+  WITHOUT `CLAUDE_PLUGIN_DATA`, so rewrite the scratch `click-handler.sh`
+  to export it (and to exec THIS checkout's `media.sh` — the resolution
+  block prefers the marketplace cache, which may hold an older version
+  without `open-url`). Always `build-click-handler.sh --remove` afterwards
+  to unregister the scheme, and delete any npub entries that the user's
+  REAL statusline (ticking every second against the real data dir) logged
+  while the fake publisher held now-playing
 - `media.sh doctor` — check the `Output dev` line and `verdict:`
 
 `cat` may be aliased to `bat` in the user's shell — use `/bin/cat -v` to show

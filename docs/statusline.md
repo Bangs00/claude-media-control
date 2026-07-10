@@ -42,6 +42,48 @@ The segment shows up on the next statusline tick — no restart, no manual
 steps. Arranging the segment in `/media:statusline` enables (and wires) it
 the same way.
 
+## Click to control
+
+In terminals with hyperlink support the segment is **cmd+clickable**:
+
+| target | ⌘+click does |
+| --- | --- |
+| `▶︎` / `⏸` icon | toggle play/pause |
+| title — artist (and `(App)`) | bring the playing app to the front |
+| progress bar | seek — each of the 10 cells jumps to its position (5%, 15%, … 95%) |
+
+How it works: those parts are wrapped in OSC 8 hyperlinks pointing at a
+local `claude-media://` URL scheme. Enabling the statusline also builds a
+tiny handler app (`ClaudeMediaClick.app`, generated into the plugin data
+directory with macOS's bundled `osacompile` — no third-party code) and
+registers it with LaunchServices. A click runs `media.sh open-url`, whose
+whole surface is exactly three benign actions — toggle, activate, seek by
+percent — anything else is rejected. For browser players the activation
+resolves the web-content helper to its owning app (e.g.
+`com.openai.atlas.web` → ChatGPT Atlas).
+
+Notes:
+
+- **Terminal support**: iTerm2, Ghostty, WezTerm, Kitty, VS Code, and
+  Alacritty ≥ 0.11 make OSC 8 links clickable (usually ⌘+click; some ask
+  once before opening a custom URL scheme). Terminals without hyperlink
+  support (e.g. Terminal.app) simply show the plain segment — the link
+  bytes are invisible either way. tmux ≥ 3.4 passes hyperlinks through.
+- After a click the segment reflects the change on the next tick (≤ 1s):
+  the icon flips, the bar jumps.
+- `statusline.links` (default `on`) is the switch:
+  `/media:config statusline.links off` renders the segment plain and
+  clickless; turning it back on (re)builds and registers the handler app,
+  and is **refused (exit 3)** when that build fails. Links render only
+  while the handler app actually exists — a link nothing answers is worse
+  than no link. `/media:doctor` reports the handler state (`Click links`).
+- A URL scheme is system-wide by nature — any app could open a
+  `claude-media://` URL. The handler's entire reachable surface is
+  play/pause, bringing the player forward, and seeking: nuisance-level at
+  worst, the same class as your keyboard's media keys.
+- Uninstalling the plugin (or `media.sh statusline uninstall`) unregisters
+  and deletes the handler app together with the rest of the wiring.
+
 ## Design guarantees (why this is safe)
 
 1. Your existing statusline command is **not replaced** — the wrapper runs it
@@ -59,8 +101,10 @@ the same way.
    no uninstall hook a plugin could run, so the wrapper is self-healing: on
    every tick it checks the installed-plugins registry, and once the plugin
    is gone it restores your backed-up `statusLine` into `settings.json` and
-   deletes itself and the backup. No leftovers — your statusline is back to
-   exactly what it was, within a second of the uninstall.
+   deletes itself and the backup — and unregisters + removes the
+   `claude-media://` click-handler app the same way. No leftovers — your
+   statusline is back to exactly what it was, within a second of the
+   uninstall.
 5. While the plugin is merely **disabled**, the wrapper adds nothing and
    waits — your previous statusline runs as usual and the wiring stays for
    re-enabling.

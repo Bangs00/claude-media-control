@@ -68,6 +68,13 @@ Tools——只要你的机器能跑 `git clone`，它们就已经装好了（见
   之前的 `statusLine` 值会先备份，**卸载插件时会自动恢复**。不用重启，
   也没有手动步骤（细节与设计上的保证：
   [docs/statusline.zh-CN.md](docs/statusline.zh-CN.md)）。
+- **点击即可操控**——在支持超链接的终端（iTerm2、Ghostty、WezTerm、Kitty、
+  VS Code 等）里，这个组件支持 **⌘+点击**：▶︎/⏸ 图标切换播放/暂停，
+  标题—歌手跳转到正在播放的应用，进度条按格 seek 到对应位置。它靠 OSC 8
+  链接和一个本地 `claude-media://` 处理器小应用实现——仅用 macOS 自带
+  工具生成、自动注册、卸载时一并移除。不支持的终端只会看到普通组件。
+  关闭：`/media:config statusline.links off`（详见
+  [docs/statusline.zh-CN.md](docs/statusline.zh-CN.md)）。
 - **定制全在 `/media:statusline`**——外观的一切都在这一个中枢里。开关条目，
   挑布局或直接敲一串 `123/456` 这样的数字模式（数字代表条目——曲目、
   应用、音量、进度条、时间、输出设备——`/` 表示换行），还能逐项定制
@@ -166,7 +173,8 @@ macOS 会自己清理。
 插件正好改过 `settings.json` 的一个键（`statusLine`，改之前先备份了
 原值）。Claude Code 没有 uninstall 钩子，所以状态栏 wrapper 做成了
 自愈式——卸载后的第一次状态栏刷新，它就会恢复你之前的 `statusLine`，
-并删掉自己和备份文件。一秒之内，你的状态栏就恢复成原来的模样（见
+删掉自己和备份文件，并顺带注销、移除 `claude-media://` 点击处理器
+小应用。一秒之内，你的状态栏就恢复成原来的模样（见
 [docs/statusline.zh-CN.md](docs/statusline.zh-CN.md)）。
 
 有两样东西不是插件的文件，可能会留下来（都无害）：

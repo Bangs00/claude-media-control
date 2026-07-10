@@ -5,6 +5,48 @@ All notable changes to this project are documented here. The format follows
 [SemVer](https://semver.org/spec/v2.0.0.html), tracked in
 `.claude-plugin/plugin.json`.
 
+## [0.17.0] — 2026-07-11
+
+### Added
+
+- **The statusline is cmd+clickable.** In hyperlink-capable terminals
+  (iTerm2, Ghostty, WezTerm, Kitty, VS Code, Alacritty ≥ 0.11) the
+  segment's parts are OSC 8 links: the **▶︎/⏸ icon toggles playback**, the
+  **title/artist (and app name) bring the playing app to the front** —
+  browser helpers resolve to their owning app (`com.openai.atlas.web` →
+  ChatGPT Atlas) — and **every progress-bar cell seeks to its position**
+  (10 cells → 5%, 15%, … 95%). Clicks land in a tiny local
+  `claude-media://` handler app (`ClaudeMediaClick.app`, generated into the
+  plugin data dir with macOS's bundled `osacompile`, no Dock icon, ad-hoc
+  signed, registered via `lsregister` — zero third-party code) that
+  dispatches to the new `media.sh open-url`, whose whole surface is three
+  benign actions: `toggle`, `activate`, `seek/<percent>`. The handler is
+  built when the statusline is wired (and on session start for installs
+  wired before 0.17.0), refreshed on plugin updates, and unregistered +
+  removed by `statusline uninstall` and the plugin-uninstall self-heal.
+  New config key **`statusline.links`** (default `on`): `off` renders the
+  segment plain; enabling rebuilds the handler and is refused (exit 3,
+  fail-closed) when the build fails. Links render only while the handler
+  app exists, are independent of `statusline.color`/`NO_COLOR`, and
+  unsupported terminals simply ignore them. `/media:doctor` gained a
+  `Click links` line.
+- Playback commands and seeks now drop the statusline cache, so the
+  segment shows the new state on the next tick (≤ 1s) instead of after the
+  TTL — clicked or typed alike.
+
+### Fixed
+
+- **History no longer logs a phantom track when the artist lags a title
+  change.** MediaRemote publishes a track change in stages — the title
+  switches first, the artist follows a beat later — so a read landing
+  mid-transition logged "next title — previous artist" as its own track.
+  The corrected snapshot (same title, same app, different artist, within
+  10 seconds) now **replaces** the transitional entry in place instead of
+  appending. Same-title plays further apart, or from a different app,
+  still append as before.
+- Transitional snapshots with an **empty title** (browsers publish them
+  mid-navigation) are no longer logged into the history.
+
 ## [0.16.0] — 2026-07-11
 
 ### Added

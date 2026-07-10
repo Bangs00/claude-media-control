@@ -71,6 +71,14 @@ Claude Code에서 두 줄이면 끝납니다. Homebrew 단계는 없습니다:
   백업해 두었다가 **플러그인을 삭제하면 자동으로 복원됩니다**. 재시작도,
   수동 단계도 없습니다(자세한 동작과 설계 보장:
   [docs/statusline.ko.md](docs/statusline.ko.md)).
+- **클릭해서 조작합니다** — 하이퍼링크를 지원하는 터미널(iTerm2, Ghostty,
+  WezTerm, Kitty, VS Code 등)에서는 세그먼트가 **⌘+클릭**에 반응합니다:
+  ▶︎/⏸ 아이콘은 재생/일시정지, 제목—가수는 재생 중인 앱으로 이동, 진행
+  바는 셀 단위로 그 위치로 seek. OSC 8 링크와 로컬 `claude-media://`
+  핸들러 앱으로 동작하며 — macOS 기본 도구로만 생성, 자동 등록, 플러그인
+  삭제 시 함께 제거 — 미지원 터미널에서는 그냥 일반 세그먼트로 보입니다.
+  끄기는 `/media:config statusline.links off`(자세히:
+  [docs/statusline.ko.md](docs/statusline.ko.md)).
 - **꾸미기는 `/media:statusline` 하나로** — 항목을 켜고 끄고, 레이아웃을
   고르거나 `123/456` 같은 숫자 패턴으로 정하고(숫자가 항목 — 곡 정보, 앱,
   볼륨, 진행 바, 시간, 출력 장치 — 이고 `/`가 줄바꿈), 부분별 스타일까지
@@ -175,7 +183,8 @@ LaunchAgent도, 로그인 항목도, 시스템 패키지도 없습니다. 임시
 상태인데, 수정 전 값을 반드시 백업해 둡니다. Claude Code에는 uninstall
 훅이 없기 때문에 statusline wrapper가 스스로 치유하도록 만들었습니다 —
 제거 후 첫 statusline 틱에 이전 `statusLine`을 복원하고 자기 자신과 백업
-파일을 삭제합니다. 제거하고 1초 안에 statusline이 원래 모습 그대로
+파일을 삭제하며, `claude-media://` 클릭 핸들러 앱도 그때 등록 해제하고
+지웁니다. 제거하고 1초 안에 statusline이 원래 모습 그대로
 돌아옵니다([docs/statusline.ko.md](docs/statusline.ko.md) 참고).
 
 플러그인 파일이 아니라서 남을 수 있는 것이 두 가지 있는데, 둘 다

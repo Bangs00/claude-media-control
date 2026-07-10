@@ -103,6 +103,9 @@ Notes you must apply when relevant:
   `style.progressbar.playing` / `.paused`.
 - Hiding a *part* (`off`) is not removing an *item*: dropping the whole
   volume/time/output item is an arrangement change (Items tab or pattern).
+- cmd+click actions (the ▶︎/⏸ icon toggles, title/artist jump to the app,
+  bar cells seek) are not a style key — a wish to turn clicks/links on or
+  off ("클릭/링크 꺼줘") maps to `/media:config statusline.links on|off`.
 - `config style.<key> reset` restores one default; `config style reset` all
   styles; `config statusline reset` additionally restores the arrangement,
   lines, colors, and marquee (the full stock look).

@@ -18,6 +18,8 @@
 #   doctor [--rebuild]           full diagnosis (+ optional cache rebuild)
 #   detect                       SessionStart hook probe: silent when healthy
 #   warmup                       SessionStart async hook: pre-build the dylib
+#   open-url <url>               claude-media:// click-action dispatch (used
+#                                by the statusline's cmd+click handler app)
 #
 # Backend order: perl+dylib primary -> JXA read fallback -> per-app
 # AppleScript control fallback (Spotify / Apple Music only). All errors point
@@ -59,6 +61,7 @@ usage: media.sh <subcommand>
   statusline [install | uninstall | status]
   history [count | clear | --json [count]]
   test | config [key] [on|off|value] | doctor [--rebuild] | detect | warmup
+  open-url <claude-media://toggle|activate|seek/<pct>>   (statusline clicks)
 EOF
   exit 2
 }
@@ -323,6 +326,9 @@ control_applescript() {
 # resulting now-playing state.
 do_control() {
   local action="$1" id="$2"
+  # The cached statusline segment predates the state change — drop it so the
+  # next tick re-renders (same rule as volume/output set).
+  rm -f "$DATA_DIR/statusline.cache"
   ensure_native
   if [ -n "$LIB" ] && primary_send "$id"; then
     sleep 0.5
@@ -347,6 +353,7 @@ do_seek() {
       exit 2
       ;;
   esac
+  rm -f "$DATA_DIR/statusline.cache"
   ensure_native
   if [ -n "$LIB" ] && primary_seek "$seconds"; then
     sleep 0.5
@@ -361,6 +368,104 @@ do_seek() {
   control_applescript "$bundle" seek "$seconds"
   sleep 0.5
   do_now
+}
+
+# ---- open-url (statusline cmd+click actions) ----------------------------------
+
+# Bring the now-playing app to the front. The now-playing process may be a
+# helper (e.g. a browser's web-content process, whose bundle id is a suffixed
+# variant of the browser's — com.openai.atlas.web vs com.openai.atlas), so:
+# 1. the process itself when it is a regular app, else 2. a running regular
+# app whose bundle id is a dotted prefix of the reported one (or vice versa),
+# else 3. `open -b` as a last resort. NSRunningApplication activation is
+# public AppKit — no Automation (AppleEvents) permission involved.
+activate_app() {
+  local pid="${1:-}" bundle="${2:-}" got=""
+  got="$(/usr/bin/osascript -l JavaScript -e '
+    ObjC.import("AppKit");
+    function run(argv) {
+      var pid = parseInt(argv[0] || "0", 10);
+      var want = (argv[1] || "").toLowerCase();
+      var apps = $.NSWorkspace.sharedWorkspace.runningApplications;
+      var byPid = null, exact = null, prefix = null;
+      for (var i = 0; i < apps.count; i++) {
+        var a = apps.objectAtIndex(i);
+        if (a.activationPolicy != $.NSApplicationActivationPolicyRegular) continue;
+        var bid = a.bundleIdentifier.js ? ObjC.unwrap(a.bundleIdentifier).toLowerCase() : "";
+        if (pid && a.processIdentifier == pid) byPid = a;
+        if (want && bid && bid == want) exact = a;
+        if (want && bid && !prefix &&
+            (want.indexOf(bid + ".") == 0 || bid.indexOf(want + ".") == 0)) prefix = a;
+      }
+      var target = byPid || exact || prefix;
+      if (!target) return "none";
+      target.activateWithOptions($.NSApplicationActivateAllWindows);
+      return "ok";
+    }
+  ' "$pid" "$bundle" 2>/dev/null || true)"
+  if [ "$got" = "ok" ]; then
+    return 0
+  fi
+  if [ -n "$bundle" ] && /usr/bin/open -b "$bundle" 2>/dev/null; then
+    return 0
+  fi
+  echo "media: could not bring the now-playing app to the front (${bundle:-unknown app})." >&2
+  return 1
+}
+
+# Dispatch one clicked claude-media:// URL from the statusline. The applet
+# accepts URLs from anywhere (any app can open a URL scheme), so the surface
+# stays deliberately tiny and benign: toggle, activate, and seek by percent —
+# nothing else, no free-form parameters.
+do_open_url() {
+  local url="${1:-}" pct=""
+  case "$url" in
+    claude-media://toggle | claude-media://toggle/)
+      do_control toggle 2
+      ;;
+    claude-media://activate | claude-media://activate/)
+      local json bundle pid
+      json="$(do_now 2>/dev/null || echo null)"
+      if [ -z "$json" ] || [ "$json" = "null" ]; then
+        echo "media: nothing is playing — no app to activate." >&2
+        exit 1
+      fi
+      bundle="$(printf '%s' "$json" | json_field bundleIdentifier)"
+      pid="$(printf '%s' "$json" | json_field processIdentifier)"
+      if [ -z "$bundle" ] && [ -z "$pid" ]; then
+        echo "media: the current read does not name the playing app — cannot activate it." >&2
+        exit 1
+      fi
+      activate_app "$pid" "$bundle"
+      ;;
+    claude-media://seek/*)
+      pct="${url#claude-media://seek/}"
+      pct="${pct%/}"
+      case "$pct" in
+        '' | *[!0-9]*)
+          echo "media: open-url: seek wants an integer percent 0-100 (got: $url)." >&2
+          exit 2
+          ;;
+      esac
+      if [ "$pct" -gt 100 ]; then
+        echo "media: open-url: seek wants an integer percent 0-100 (got: $url)." >&2
+        exit 2
+      fi
+      local json dur secs
+      json="$(do_now 2>/dev/null || echo null)"
+      dur="$(printf '%s' "$json" | json_field duration)"
+      if [ -z "$dur" ]; then
+        echo "media: no track with a known duration is playing — cannot seek by percent." >&2
+        exit 1
+      fi
+      secs="$(/usr/bin/perl -e 'printf "%.1f", $ARGV[0] * $ARGV[1] / 100' "$dur" "$pct")"
+      do_seek "$secs"
+      ;;
+    *)
+      echo "media: open-url: unsupported URL: ${url:-<empty>} (expected claude-media://toggle | activate | seek/<0-100>)." >&2
+      exit 2
+      ;;
+  esac
 }
 
 # ---- artwork ------------------------------------------------------------------
@@ -488,7 +593,7 @@ do_statusline() {
       return 0
     fi
   fi
-  local fields json line="" multiline color marquee styles
+  local fields json line="" multiline color marquee styles links
   fields="$(config_get_statusline_fields)"
   multiline="$(config_get statusline.multiline)"
   marquee="$(config_get statusline.marquee)"
@@ -497,6 +602,10 @@ do_statusline() {
   # a line rendered under the other setting for at most one TTL second.
   color="$(config_get statusline.color)"
   [ -n "${NO_COLOR:-}" ] && color=off
+  # cmd+click links render only while the claude-media:// handler app exists
+  # — a link nothing answers is worse than no link. Independent of colors.
+  links="$(config_get statusline.links)"
+  [ -d "$DATA_DIR/ClaudeMediaClick.app" ] || links=off
   json="$(do_now 2>/dev/null || echo null)"
   if [ -n "$json" ] && [ "$json" != "null" ]; then
     # Render the chosen fields as groups in their stored order (arrange with
@@ -542,7 +651,10 @@ do_statusline() {
     # never restyled. statusline.marquee scrolls titles wider than 30 display
     # cells through a fixed window, one character per second (offset derives
     # from the epoch, so each 1s cache refresh advances it — no state file
-    # needed).
+    # needed). With statusline.links on and the claude-media:// handler app
+    # present, the segment is cmd+clickable via OSC 8 hyperlinks: the ▶︎/⏸
+    # icon toggles playback, title/artist/app activate the playing app, and
+    # each progress-bar cell seeks to its position (see do_open_url).
     line="$(printf '%s' "$json" | /usr/bin/perl -CA -MJSON::PP -e '
       binmode STDOUT, ":utf8";
       my (@order, %seen);
@@ -555,6 +667,7 @@ do_statusline() {
       my $ml = ($ARGV[1] // "") eq "on";
       my $c  = ($ARGV[2] // "") eq "on";
       my $mq = ($ARGV[3] // "") eq "on";
+      my $lk = ($ARGV[5] // "") eq "on";
       # Per-part styles from style_resolve ("key<TAB>value<TAB>default" lines).
       my %sty;
       for my $sl (split /\n/, ($ARGV[4] // "")) {
@@ -612,6 +725,15 @@ do_statusline() {
         my ($codes, $t) = @_;
         ($c && length($codes // "") && length $t) ? "\e[${codes}m$t\e[0m" : $t;
       };
+      # OSC 8 hyperlink wrapper (BEL-terminated — the form Claude Code
+      # itself emits). The statusline renderer passes these through to the
+      # terminal: capable ones (iTerm2, Ghostty, WezTerm, Kitty, VS Code)
+      # make the text cmd+clickable, others ignore the sequence. Clicked
+      # URLs land in ClaudeMediaClick.app -> click-handler.sh -> open-url.
+      my $href = sub {
+        my ($u, $t) = @_;
+        ($lk && length $t) ? "\e]8;;$u\a$t\e]8;;\a" : $t;
+      };
       # A text part whose style spec is "off" is hidden entirely (the setter
       # only allows it on text parts; lc keeps hand-edited configs lenient).
       my $hid = sub { lc($sty{$_[0]} // "") eq "off" };
@@ -627,24 +749,28 @@ do_statusline() {
       my %tok;
       if ($w{track}) {
         my $icon = $d->{playing} ? "\x{25B6}\x{FE0E}" : "\x{23F8}";
-        my $t = $st->($iconsgr, $icon);
+        # cmd+click targets: the icon toggles play/pause; the title/artist
+        # (and the app name below) bring the playing app to the front.
+        my $t = $href->("claude-media://toggle", $st->($iconsgr, $icon));
+        my $body = "";
         unless ($hid->("track.title")) {
           my $title = $mq ? marquee($d->{title}) : $d->{title};
-          $t .= " " . $st->(sgr($sty{"track.title"}), $title);
+          $body .= $st->(sgr($sty{"track.title"}), $title);
         }
         # The "—" separator belongs to the title/artist pair: a hidden title
         # leaves just "icon artist".
-        $t .= ($hid->("track.title") ? " " : " " . $st->(2, "\x{2014}") . " ")
+        $body .= ($hid->("track.title") ? "" : " " . $st->(2, "\x{2014}") . " ")
             . $st->(sgr($sty{"track.artist"}), $d->{artist})
           if defined $d->{artist} && !$hid->("track.artist");
-        $t .= " " . $st->($appsgr, "($app)")
+        $t .= " " . $href->("claude-media://activate", $body) if length $body;
+        $t .= " " . $href->("claude-media://activate", $st->($appsgr, "($app)"))
           if !$explicit && $w{app} && defined $app && !$hid->("app");
         $tok{track} = $t;
       }
       # Standalone app token: always in the explicit layout (folding happens
       # per line during assembly), only without a track in the grouped one.
       if ($w{app} && defined $app && !$hid->("app") && ($explicit || !$w{track})) {
-        $tok{app} = $st->($appsgr, $app);
+        $tok{app} = $href->("claude-media://activate", $st->($appsgr, $app));
       }
       my $pos = $d->{elapsedTimeNow} // $d->{elapsedTime};
       my $dur = $d->{duration};
@@ -684,22 +810,55 @@ do_statusline() {
           . (defined $hc ? $hc : "");
       };
       my $bar = sub {
-        my ($cells, $r) = @_;
+        my ($cells, $r, $seek) = @_;
         $r = 0 if $r < 0; $r = 1 if $r > 1;
+        # A seekable bar (the progressbar token only — never the volume
+        # mini bar) wraps every cell in its own cmd+click link: cell i
+        # jumps to its center percent, (i+0.5)/cells. Without links the
+        # fill stays one SGR run — byte-identical to the unlinked render.
+        my $link = $seek && $lk;
+        my $cell = sub {
+          my ($i, $t) = @_;
+          $href->("claude-media://seek/" . int((($i + 0.5) * 100) / $cells), $t);
+        };
         if ($csv eq "smooth") {
           # Fill measured in eighths of a cell; the remainder becomes one
           # partial block on the boundary cell (chr: 0x2590 - e = ▏..▉).
           my $te = int($r * $cells * 8 + 0.5);
           my ($nf, $e) = (int($te / 8), $te % 8);
-          return $st->($accsgr, ($fc x $nf) . ($e ? chr(0x2590 - $e) : ""))
-               . $st->(2, $ec x ($cells - $nf - ($e ? 1 : 0)));
+          unless ($link) {
+            return $st->($accsgr, ($fc x $nf) . ($e ? chr(0x2590 - $e) : ""))
+                 . $st->(2, $ec x ($cells - $nf - ($e ? 1 : 0)));
+          }
+          my $out = "";
+          for my $i (0 .. $cells - 1) {
+            $out .= $i < $nf          ? $cell->($i, $st->($accsgr, $fc))
+                  : ($i == $nf && $e) ? $cell->($i, $st->($accsgr, chr(0x2590 - $e)))
+                  :                     $cell->($i, $st->(2, $ec));
+          }
+          return $out;
         }
         my $filled = int($r * $cells + 0.5);
-        return $st->($accsgr, $fill->($filled))
-             . $st->(2, $ec x ($cells - $filled));
+        unless ($link) {
+          return $st->($accsgr, $fill->($filled))
+               . $st->(2, $ec x ($cells - $filled));
+        }
+        my $out = "";
+        for my $i (0 .. $cells - 1) {
+          if ($i < $filled) {
+            # Same glyph the one-run $fill would pick: phase-mapped charset
+            # cells, the knob head capping the last filled cell.
+            my $g = (defined $hc && $i == $filled - 1)
+                  ? $hc : $fp[($i - $ph) % @fp];
+            $out .= $cell->($i, $st->($accsgr, $g));
+          } else {
+            $out .= $cell->($i, $st->(2, $ec));
+          }
+        }
+        return $out;
       };
       if ($w{progressbar} && defined $pos && defined $dur && $dur > 0) {
-        $tok{progressbar} = $bar->(10, $pos / $dur);
+        $tok{progressbar} = $bar->(10, $pos / $dur, 1);
       }
       if ($w{time} && defined $pos) {
         my $t = "";
@@ -794,7 +953,8 @@ do_statusline() {
           my @parts;
           for my $k (0 .. $#fs) {
             if ($fs[$k] eq "app" && $k > 0 && $fs[$k - 1] eq "track") {
-              $parts[-1] .= " " . $st->($appsgr, "($app)");
+              $parts[-1] .= " " . $href->("claude-media://activate",
+                                          $st->($appsgr, "($app)"));
               next;
             }
             push @parts, $tok{$fs[$k]};
@@ -822,7 +982,7 @@ do_statusline() {
         $i++;
       }
       print join($ml ? "\n" : "  ", @groups);
-    ' "$fields" "$multiline" "$color" "$marquee" "$styles" 2>/dev/null || true)"
+    ' "$fields" "$multiline" "$color" "$marquee" "$styles" "$links" 2>/dev/null || true)"
   fi
   mkdir -p "$DATA_DIR" 2>/dev/null || true
   printf '%s' "$line" > "$cache" 2>/dev/null || true
@@ -1001,6 +1161,16 @@ if [ -z "$installed" ]; then
     rename $tmp, $real;
   ' "$HOME/.claude/settings.json" "$HOME/.claude/statusline-media.backup.json" 2>/dev/null
   rm -f "$HOME/.claude/statusline-media.sh" "$HOME/.claude/statusline-media.backup.json"
+  # The cmd+click handler dies with the plugin too (Claude Code usually
+  # sweeps the data dir on uninstall; this covers dev checkouts, where it
+  # stays). A stale LaunchServices entry for a deleted bundle is inert.
+  LSREG="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
+  for d in "$HOME"/.claude/plugins/data/media-* "$HOME/.cache/claude-media-control"; do
+    [ -d "$d/ClaudeMediaClick.app" ] || { rm -f "$d/click-handler.sh"; continue; }
+    [ -x "$LSREG" ] && "$LSREG" -u "$d/ClaudeMediaClick.app" >/dev/null 2>&1
+    rm -rf "$d/ClaudeMediaClick.app"
+    rm -f "$d/click-handler.sh"
+  done
   exit 0
 fi
 
@@ -1113,6 +1283,9 @@ statusline_install() {
       # Re-wired on a newer plugin version: refresh the wrapper from the
       # existing backup — never re-backup (settings point at the wrapper now).
       statusline_wrapper_write "$(statusline_backup_cmd)" || return 1
+      if [ "$(config_get statusline.links)" = "on" ]; then
+        "$SCRIPT_DIR/build-click-handler.sh" >/dev/null 2>&1 || true
+      fi
       echo "statusline: already wired into settings.json (wrapper refreshed)."
       return 0
       ;;
@@ -1137,6 +1310,20 @@ statusline_install() {
   else
     echo "statusline: wired into settings.json (no previous statusline; the key is removed again if the plugin is uninstalled)."
   fi
+  statusline_click_handler_setup
+}
+
+# Best-effort cmd+click support next to the wiring: build + register the
+# claude-media:// handler app while statusline.links is on. A failed build
+# never blocks the statusline itself — the segment just renders without
+# links (the renderer gates on the app's presence).
+statusline_click_handler_setup() {
+  [ "$(config_get statusline.links)" = "on" ] || return 0
+  if "$SCRIPT_DIR/build-click-handler.sh" >/dev/null; then
+    echo "statusline: cmd+click enabled — the claude-media:// handler app is registered (disable with /media:config statusline.links off)."
+  else
+    echo "statusline: click-handler build failed — the segment stays plain (no cmd+click). Retry with /media:config statusline.links on." >&2
+  fi
 }
 
 # Unwire without uninstalling the plugin: restore the previous statusLine,
@@ -1153,6 +1340,7 @@ statusline_uninstall() {
     none)
       if [ -f "$WRAPPER_FILE" ] && /usr/bin/grep -q "$WRAPPER_MARKER" "$WRAPPER_FILE" 2>/dev/null; then
         rm -f "$WRAPPER_FILE" "$WRAPPER_BACKUP_FILE"
+        "$SCRIPT_DIR/build-click-handler.sh" --remove >/dev/null 2>&1 || true
         echo "statusline: not wired in settings.json — removed the leftover managed wrapper."
       else
         echo "statusline: not wired — nothing to undo."
@@ -1165,6 +1353,7 @@ statusline_uninstall() {
         return 1
       fi
       rm -f "$WRAPPER_FILE" "$WRAPPER_BACKUP_FILE"
+      "$SCRIPT_DIR/build-click-handler.sh" --remove >/dev/null 2>&1 || true
       config_write display.statusline off
       rm -f "$DATA_DIR/statusline.cache"
       echo "statusline: unwired — the previous \"statusLine\" is back in settings.json (display.statusline = off)."
@@ -1185,7 +1374,7 @@ do_statusline_status() {
 
 # ---- config (§4.9: fail-closed enable) ---------------------------------------
 
-CONFIG_KEYS="display.progressbar display.statusline statusline.multiline statusline.color statusline.marquee history.record"
+CONFIG_KEYS="display.progressbar display.statusline statusline.multiline statusline.color statusline.marquee statusline.links history.record"
 
 # Which segments the statusline renders, in the order they were stored
 # (arranged with /media:statusline or /media:config). "output" and "volume"
@@ -1203,6 +1392,7 @@ config_default() {
     statusline.multiline) echo off ;;
     statusline.color)    echo on ;;
     statusline.marquee)  echo on ;;
+    statusline.links)    echo on ;;
     history.record)      echo on ;;
     *) return 1 ;;
   esac
@@ -1565,6 +1755,15 @@ config_preflight() {
       echo "media: cannot enable display.statusline — no working now-playing read path (native and fallback both failed). Run /media:doctor first." >&2
       return 3
       ;;
+    statusline.links)
+      # Links are useless without the claude-media:// handler app — build
+      # (or refresh) it now and refuse the enable when that fails.
+      if "$SCRIPT_DIR/build-click-handler.sh" >/dev/null; then
+        return 0
+      fi
+      echo "media: cannot enable statusline.links — building the claude-media:// click-handler app failed. Run /media:doctor." >&2
+      return 3
+      ;;
   esac
 }
 
@@ -1662,6 +1861,7 @@ do_config() {
         statusline.multiline) note="statusline layout: on = each group on its own line, off = one line (unused when statusline.fields has / breaks)" ;;
         statusline.color)    note="ANSI colors/bold/italic in the statusline segment (honors NO_COLOR)" ;;
         statusline.marquee)  note="scroll statusline titles wider than 30 cells (1 char/second)" ;;
+        statusline.links)    note="cmd+click actions in the statusline: icon toggles, track opens the app, bar seeks (OSC 8 + claude-media:// handler)" ;;
         history.record)      note="log played tracks to history.jsonl (view with /media:history)" ;;
       esac
       printf '%-21s %-6s %s\n' "$k" "$(config_get "$k")" "$note"
@@ -1692,7 +1892,7 @@ do_config() {
       # Any key that changes what the segment renders drops the stale cache so
       # the change shows up on the next tick instead of after the TTL.
       case "$key" in
-        display.statusline | display.progressbar | statusline.multiline | statusline.color | statusline.marquee)
+        display.statusline | display.progressbar | statusline.multiline | statusline.color | statusline.marquee | statusline.links)
           rm -f "$DATA_DIR/statusline.cache" ;;
       esac
       echo "$key = on"
@@ -1703,7 +1903,7 @@ do_config() {
       # A stale segment cache must not outlive the toggle (§4.8.1: off leaves
       # no trace, not even a cached line; layout/field changes must re-render).
       case "$key" in
-        display.statusline | display.progressbar | statusline.multiline | statusline.color | statusline.marquee)
+        display.statusline | display.progressbar | statusline.multiline | statusline.color | statusline.marquee | statusline.links)
           rm -f "$DATA_DIR/statusline.cache" ;;
       esac
       echo "$key = off"
@@ -1800,10 +2000,22 @@ do_doctor() {
   fi
   echo "[7] Output dev  : $outdev"
   echo "[8] Statusline  : $(do_statusline_status)"
-  echo "[9] Config      : progressbar=$(config_get display.progressbar) statusline=$(config_get display.statusline) color=$(config_get statusline.color) marquee=$(config_get statusline.marquee)"
+
+  # cmd+click actions: the claude-media:// handler app must exist for the
+  # segment to render OSC 8 links at all.
+  local clicks clickapp
+  if [ "$(config_get statusline.links)" != "on" ]; then
+    clicks="off (statusline.links) — the segment renders without cmd+click links"
+  elif clickapp="$("$SCRIPT_DIR/build-click-handler.sh" --check-only 2>/dev/null)"; then
+    clicks="on — handler app registered ($clickapp)"
+  else
+    clicks="on but the handler app is MISSING — links render plain; rebuild with /media:config statusline.links on"
+  fi
+  echo "[9] Click links : $clicks"
+  echo "[10] Config     : progressbar=$(config_get display.progressbar) statusline=$(config_get display.statusline) color=$(config_get statusline.color) marquee=$(config_get statusline.marquee)"
   echo "                  statusline.fields=[$(config_get_statusline_fields)] history.record=$(config_get history.record) styles=$(style_resolve | /usr/bin/awk -F'\t' '$2 != $3 { n++ } END { print n + 0 }') customized"
   echo "                  ($CONFIG_FILE)"
-  echo "[10] Build log  : $DATA_DIR/build.log"
+  echo "[11] Build log  : $DATA_DIR/build.log"
   echo ""
   echo "verdict: $verdict"
 }
@@ -1838,6 +2050,15 @@ do_warmup() {
   # ever refreshes existing managed wiring — never creates it.
   if [ "$(statusline_wiring_state)" = "managed" ]; then
     statusline_wrapper_write "$(statusline_backup_cmd)" >/dev/null 2>&1
+    # Managed wiring + links on -> the handler pair must exist; this is what
+    # brings cmd+click to installs wired before 0.17.0 on their next session.
+    if [ "$(config_get statusline.links)" = "on" ]; then
+      "$SCRIPT_DIR/build-click-handler.sh" >/dev/null 2>&1
+    fi
+  elif [ -d "$DATA_DIR/ClaudeMediaClick.app" ]; then
+    # Manual setups: never create, only refresh what already exists (the
+    # generated click-handler.sh may have changed with this version).
+    "$SCRIPT_DIR/build-click-handler.sh" >/dev/null 2>&1
   fi
   exit 0
 }
@@ -1877,5 +2098,6 @@ case "$cmd" in
   doctor) do_doctor "${2:-}" ;;
   detect) do_detect ;;
   warmup) do_warmup ;;
+  open-url) do_open_url "${2:-}" ;;
   *) usage ;;
 esac

@@ -17,9 +17,11 @@ setup() {
   mkdir -p "$PLUGIN/scripts" "$PLUGIN/native"
   cp "$PROJECT_ROOT/scripts/media.sh" "$PLUGIN/scripts/media.sh"
   cp "$PROJECT_ROOT/tests/stubs/build-native.sh" "$PLUGIN/scripts/build-native.sh"
+  cp "$PROJECT_ROOT/tests/stubs/build-click-handler.sh" "$PLUGIN/scripts/build-click-handler.sh"
   cp "$PROJECT_ROOT/tests/stubs/read-jxa.js" "$PLUGIN/scripts/read-jxa.js"
   cp "$PROJECT_ROOT/tests/stubs/loader.pl" "$PLUGIN/native/loader.pl"
-  chmod +x "$PLUGIN/scripts/media.sh" "$PLUGIN/scripts/build-native.sh"
+  chmod +x "$PLUGIN/scripts/media.sh" "$PLUGIN/scripts/build-native.sh" \
+           "$PLUGIN/scripts/build-click-handler.sh"
   export CLAUDE_PLUGIN_DATA="$BATS_TEST_TMPDIR/data"
   # Statusline wiring writes to $HOME/.claude (settings.json + wrapper), and
   # enabling display.statusline wires automatically — isolate every test from
@@ -1412,6 +1414,161 @@ setup() {
   [[ "$output" == *"usage: media.sh"* ]]
 }
 
+# ---- statusline cmd+click links (OSC 8 + claude-media:// handler) --------------
+
+@test "config: statusline.links defaults on and round-trips; enable builds the handler" {
+  run "$MEDIA" config statusline.links
+  [ "$output" = "on" ]
+  run "$MEDIA" config statusline.links off
+  [ "$status" -eq 0 ]
+  run "$MEDIA" config statusline.links
+  [ "$output" = "off" ]
+  run "$MEDIA" config statusline.links on
+  [ "$status" -eq 0 ]
+  [ -d "$CLAUDE_PLUGIN_DATA/ClaudeMediaClick.app" ]    # preflight built + registered
+}
+
+@test "config statusline.links on: refused (exit 3) when the handler build fails" {
+  STUB_CLICK=fail run "$MEDIA" config statusline.links on
+  [ "$status" -eq 3 ]
+  [[ "$output" == *"click-handler"* ]]
+}
+
+@test "statusline: cmd+click links render when the handler app is present" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA/ClaudeMediaClick.app"
+  echo '{"display.statusline":true}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$status" -eq 0 ]
+  [[ "$output" == *$'\e]8;;claude-media://toggle\a'* ]]      # ▶︎/⏸ icon
+  [[ "$output" == *$'\e]8;;claude-media://activate\a'* ]]    # title — artist (+ app)
+  [[ "$output" == *"claude-media://seek/5"* ]]               # first bar cell
+  [[ "$output" == *"claude-media://seek/95"* ]]              # last bar cell
+  [[ "$output" == *"Stub Song"* ]]
+}
+
+@test "statusline: every bar cell is its own seek link, glyphs unchanged" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA/ClaudeMediaClick.app"
+  echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["progressbar"]}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$status" -eq 0 ]
+  for pct in 5 15 25 35 45 55 65 75 85 95; do
+    [[ "$output" == *"claude-media://seek/$pct"* ]]
+  done
+  # 10 cells x (open + close) = 20 OSC 8 sequences, nothing more.
+  [ "$(printf '%s' "$output" | /usr/bin/grep -o ']8;;' | wc -l | tr -d ' ')" -eq 20 ]
+  # Stripping the links leaves exactly the unlinked bar (75.4/200 -> 4 cells).
+  plain="$(printf '%s' "$output" | /usr/bin/perl -pe 's/\e\]8;;[^\a]*\a//g')"
+  [ "$plain" = "━━━━──────" ]
+}
+
+@test "statusline: no links without the handler app, with links off, and in the volume bar" {
+  # Handler missing: statusline.links defaults on but nothing would answer.
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.statusline":true}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$status" -eq 0 ]
+  [[ "$output" != *']8;;'* ]]
+  # Handler present but the key off.
+  mkdir -p "$CLAUDE_PLUGIN_DATA/ClaudeMediaClick.app"
+  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  echo '{"display.statusline":true,"statusline.links":false}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$status" -eq 0 ]
+  [[ "$output" != *']8;;'* ]]
+  # The volume mini bar (progress shape) never seeks.
+  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["volume"],"style.volume.style":"progress"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$status" -eq 0 ]
+  [[ "$output" != *"seek/"* ]]
+}
+
+@test "statusline: NO_COLOR strips styling but keeps the links" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA/ClaudeMediaClick.app"
+  echo '{"display.statusline":true}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  NO_COLOR=1 run "$MEDIA" statusline
+  [ "$status" -eq 0 ]
+  [[ "$output" != *$'\e['* ]]                                # no SGR
+  [[ "$output" == *$'\e]8;;claude-media://toggle\a'* ]]      # links intact
+}
+
+@test "statusline install: builds the click handler; uninstall removes it" {
+  run "$MEDIA" statusline install
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"cmd+click enabled"* ]]
+  [ -d "$CLAUDE_PLUGIN_DATA/ClaudeMediaClick.app" ]
+  [ -x "$CLAUDE_PLUGIN_DATA/click-handler.sh" ]
+  run "$MEDIA" statusline uninstall
+  [ "$status" -eq 0 ]
+  [ ! -d "$CLAUDE_PLUGIN_DATA/ClaudeMediaClick.app" ]
+  [ ! -f "$CLAUDE_PLUGIN_DATA/click-handler.sh" ]
+}
+
+@test "statusline install: a failed click-handler build never blocks the wiring" {
+  STUB_CLICK=fail run "$MEDIA" statusline install
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"wired into settings.json"* ]]
+  [[ "$output" == *"click-handler build failed"* ]]
+  [ ! -d "$CLAUDE_PLUGIN_DATA/ClaudeMediaClick.app" ]
+}
+
+# ---- open-url (click-action dispatch) -------------------------------------------
+
+@test "open-url: toggle sends the command and prints the re-read state" {
+  run "$MEDIA" open-url claude-media://toggle
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'"title":"Stub Song"'* ]]
+}
+
+@test "open-url: seek/<pct> converts the percent to seconds via the duration" {
+  run "$MEDIA" open-url claude-media://seek/50
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'"title":"Stub Song"'* ]]
+  [ "$(/bin/cat "$CLAUDE_PLUGIN_DATA/stub-last-seek")" = "100.0" ]   # 50% of 200s
+}
+
+@test "open-url: seek without a known duration fails cleanly" {
+  STUB_PRIMARY=null STUB_JXA_JSON='{"degraded":true,"title":"X","playing":true}' \
+    run "$MEDIA" open-url claude-media://seek/50
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"duration"* ]]
+}
+
+@test "open-url: activate without an identified app fails cleanly" {
+  STUB_PRIMARY=null STUB_JXA_JSON='{"degraded":true,"title":"X"}' \
+    run "$MEDIA" open-url claude-media://activate
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"cannot activate"* ]]
+}
+
+@test "open-url: activate reports when no matching app can be brought forward" {
+  # The stub app (com.stub.player, pid 1) is neither a running regular app
+  # nor an installed bundle — the chain must fail with a clear message, not
+  # hang or launch anything.
+  run "$MEDIA" open-url claude-media://activate
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"could not bring"* ]]
+}
+
+@test "open-url: anything but the three actions is rejected, exit 2" {
+  for bad in "claude-media://volume/50" "claude-media://seek/" \
+             "claude-media://seek/101" "claude-media://seek/1x" \
+             "claude-media://seek/5%20" "http://example.com" "" \
+             "claude-media://toggle/../seek/5"; do
+    run "$MEDIA" open-url "$bad"
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"open-url"* ]]
+  done
+}
+
+@test "open-url: control clicks drop the statusline cache" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  printf 'stale' > "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  run "$MEDIA" open-url claude-media://toggle
+  [ "$status" -eq 0 ]
+  [ ! -f "$CLAUDE_PLUGIN_DATA/statusline.cache" ]
+}
+
 # ---- removed features ------------------------------------------------------------
 
 @test "spectrum: subcommand no longer exists (removed in 0.6.0)" {
@@ -1452,4 +1609,19 @@ setup() {
   STUB_BUILD=fail run "$MEDIA" warmup
   [ "$status" -eq 0 ]
   [ -z "$output" ]
+}
+
+@test "warmup: managed wiring with links on (re)creates the click handler" {
+  run "$MEDIA" statusline install
+  rm -rf "$CLAUDE_PLUGIN_DATA/ClaudeMediaClick.app"    # e.g. wired before 0.17.0
+  run "$MEDIA" warmup
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+  [ -d "$CLAUDE_PLUGIN_DATA/ClaudeMediaClick.app" ]
+}
+
+@test "warmup: no wiring -> never creates the click handler" {
+  run "$MEDIA" warmup
+  [ "$status" -eq 0 ]
+  [ ! -d "$CLAUDE_PLUGIN_DATA/ClaudeMediaClick.app" ]
 }

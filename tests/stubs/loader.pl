@@ -59,6 +59,13 @@ if ($symbol eq "adapter_send") {
 }
 if ($symbol eq "adapter_seek") {
   die "missing MEDIA_SEEK_SECONDS\n" unless defined $ENV{MEDIA_SEEK_SECONDS};
+  # Record the requested position so tests can assert percent->seconds math.
+  if (my $dir = $ENV{CLAUDE_PLUGIN_DATA}) {
+    if (open my $fh, ">", "$dir/stub-last-seek") {
+      print $fh $ENV{MEDIA_SEEK_SECONDS};
+      close $fh;
+    }
+  }
   exit 0;
 }
 if ($symbol eq "adapter_test") {
