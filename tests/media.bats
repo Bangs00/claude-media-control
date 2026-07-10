@@ -737,6 +737,194 @@ setup() {
   [[ "${lines[0]}" == *"Jxa Song"* ]]
 }
 
+# ---- per-item statusline styles (style.* keys) ----------------------------------
+
+@test "config style.*: defaults resolve without a config file" {
+  run "$MEDIA" config style.track.title
+  [ "$output" = "bold" ]
+  run "$MEDIA" config style.progressbar.playing
+  [ "$output" = "green" ]
+  run "$MEDIA" config style.volume.icon
+  [ "$output" = "auto" ]
+}
+
+@test "config style.*: set persists and canonicalizes token order" {
+  run "$MEDIA" config style.track.title "cyan bold"
+  [ "$status" -eq 0 ]
+  [ "$output" = "style.track.title = bold cyan" ]   # attrs first, color last
+  run "$MEDIA" config style.track.title
+  [ "$output" = "bold cyan" ]
+  grep -q '"style.track.title"' "$CLAUDE_PLUGIN_DATA/config.json"
+}
+
+@test "config style.*: multi-word values work unquoted" {
+  run "$MEDIA" config style.track.artist bold bright-magenta
+  [ "$status" -eq 0 ]
+  run "$MEDIA" config style.track.artist
+  [ "$output" = "bold bright-magenta" ]
+}
+
+@test "config style.*: invalid specs rejected, exit 2" {
+  run "$MEDIA" config style.track.title sparkly
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"invalid style token"* ]]
+  run "$MEDIA" config style.track.title "red blue"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"one color"* ]]
+  run "$MEDIA" config style.track.title "none bold"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"none cannot be combined"* ]]
+}
+
+@test "config style.*: unknown style key rejected, exit 2" {
+  run "$MEDIA" config style.bogus.part red
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"unknown style key"* ]]
+}
+
+@test "config style.progressbar.style: presets or exactly two glyphs" {
+  run "$MEDIA" config style.progressbar.style wave
+  [ "$status" -eq 0 ]
+  run "$MEDIA" config style.progressbar.style "#."
+  [ "$status" -eq 0 ]
+  run "$MEDIA" config style.progressbar.style "~~~"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"blocks|wave|line|dots"* ]]
+}
+
+@test "config style.volume.icon: auto, none, or a whitespace-free glyph" {
+  run "$MEDIA" config style.volume.icon "♪"
+  [ "$status" -eq 0 ]
+  run "$MEDIA" config style.volume.icon none
+  [ "$status" -eq 0 ]
+  run "$MEDIA" config style.volume.icon "a b"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"volume icon"* ]]
+}
+
+@test "config style.*: reset restores the default and removes the key" {
+  run "$MEDIA" config style.time.total "bold red"
+  run "$MEDIA" config style.time.total reset
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"style.time.total = dim (default)"* ]]
+  run "$MEDIA" config style.time.total
+  [ "$output" = "dim" ]
+  ! grep -q '"style.time.total"' "$CLAUDE_PLUGIN_DATA/config.json"
+}
+
+@test "config style: lists every key; config style reset clears them all" {
+  run "$MEDIA" config style
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"style.track.title"* ]]
+  [[ "$output" == *"style.output"* ]]
+  run "$MEDIA" config style.app "bold"
+  run "$MEDIA" config style.output "cyan"
+  run "$MEDIA" config style reset
+  [ "$status" -eq 0 ]
+  ! grep -q '"style\.' "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" config style.app
+  [ "$output" = "dim" ]
+}
+
+@test "config style.*: set drops the statusline cache" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  printf 'stale' > "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  run "$MEDIA" config style.app "bold"
+  [ "$status" -eq 0 ]
+  [ ! -f "$CLAUDE_PLUGIN_DATA/statusline.cache" ]
+}
+
+@test "statusline: default styling is unchanged with no style keys set" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.statusline":true}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$status" -eq 0 ]
+  [[ "$output" == *$'\e[1;32m'* ]]                       # bold green icon
+  [[ "$output" == *$'\e[1mStub Song\e[0m'* ]]            # bold title
+  [[ "$output" == *$'\e[3mStub Artist\e[0m'* ]]          # italic artist
+  [[ "$output" == *$'\e[2m(StubPlayer)\e[0m'* ]]         # dim app
+  [[ "$output" == *$'\e[32m████\e[0m\e[2m░░░░░░\e[0m'* ]] # green fill + dim rest
+}
+
+@test "statusline: style.track.title and style.track.artist restyle their parts" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.statusline":true,"style.track.title":"bold cyan","style.track.artist":"none"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$status" -eq 0 ]
+  [[ "$output" == *$'\e[1;36mStub Song\e[0m'* ]]   # bold cyan title
+  [[ "$output" == *"Stub Artist"* ]]
+  [[ "$output" != *$'\e[3m'* ]]                    # none: no italic wrap left
+}
+
+@test "statusline: progressbar playing color drives the bar fill and the icon accent" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.statusline":true,"style.progressbar.playing":"red"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$status" -eq 0 ]
+  [[ "$output" == *$'\e[31m████\e[0m'* ]]   # red fill
+  [[ "$output" == *$'\e[1;31m'* ]]          # icon: bold + the same accent
+}
+
+@test "statusline: progressbar charsets — wave preset and a custom pair" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["progressbar"],"style.progressbar.style":"wave"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$output" = "~~~~------" ]              # charset applies even with color off
+  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["progressbar"],"style.progressbar.style":"#."}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$output" = "####......" ]
+}
+
+@test "statusline: volume icon override, none, and muted" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["volume"],"style.volume.icon":"♪"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$output" = "♪ ▄ 45%" ]
+  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["volume"],"style.volume.icon":"none"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$output" = "▄ 45%" ]
+  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["volume"],"style.volume.icon":"♪"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  STUB_MUTED=true run "$MEDIA" statusline
+  [ "$output" = "🔇" ]                      # muted always shows the mute glyph
+}
+
+@test "statusline: volume bar and percent are styled separately (color on)" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.statusline":true,"statusline.fields":["volume"]}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$output" = $'🔉 \e[2m▄\e[0m \e[2m45%\e[0m' ]   # plain icon, dim bar + percent
+  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  echo '{"display.statusline":true,"statusline.fields":["volume"],"style.volume.percent":"bold red"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$output" = $'🔉 \e[2m▄\e[0m \e[1;31m45%\e[0m' ]
+}
+
+@test "statusline: time and output styles apply" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.statusline":true,"style.time.total":"italic"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [[ "$output" == *$'\e[1m1:15\e[0m\e[3m/3:20\e[0m'* ]]
+  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  echo '{"display.statusline":true,"statusline.fields":["output"],"style.output":"bold cyan"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$output" = $'\e[1;36m🔊 Stub Speakers\e[0m' ]
+}
+
+@test "statusline: custom styles are inert with color off and under NO_COLOR" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.statusline":true,"statusline.color":false,"style.track.title":"bold cyan"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [[ "$output" != *$'\e['* ]]
+  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  echo '{"display.statusline":true,"style.track.title":"bold cyan"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  NO_COLOR=1 run "$MEDIA" statusline
+  [[ "$output" != *$'\e['* ]]
+  [[ "$output" == *"Stub Song"* ]]
+}
+
 @test "statusline: marquee windows titles wider than 30 cells (default on)" {
   mkdir -p "$CLAUDE_PLUGIN_DATA"
   echo '{"display.statusline":true}' > "$CLAUDE_PLUGIN_DATA/config.json"

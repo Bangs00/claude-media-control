@@ -5,6 +5,49 @@ All notable changes to this project are documented here. The format follows
 [SemVer](https://semver.org/spec/v2.0.0.html), tracked in
 `.claude-plugin/plugin.json`.
 
+## [0.11.0] — 2026-07-10
+
+### Added
+
+- **Per-item statusline styles.** Every visible part of the segment now has
+  a string-valued `style.*` config key: `style.track.title` (`bold`) and
+  `style.track.artist` (`italic`), `style.app` (`dim`), `style.time.elapsed`
+  (`bold`) and `style.time.total` (`dim`), `style.volume.bar` /
+  `style.volume.percent` (`dim`), and `style.output` (`dim`). A value is any
+  of `bold dim italic underline` plus at most one color (`black red green
+  yellow blue magenta cyan white` or `bright-<color>`) — or `none` for no
+  styling. Specs render only while `statusline.color` is on; `NO_COLOR`
+  still wins. The defaults reproduce the previous rendering exactly.
+- **Progress-bar colors and characters.** `style.progressbar.playing` /
+  `style.progressbar.paused` (defaults `green` / `yellow`) color the bar
+  fill *and* the ▶︎/⏸ accent in front of the title — one accent, consistent
+  across the segment. `style.progressbar.style` picks the bar characters:
+  `blocks` `██████░░░░` (default), `wave` `~~~~~~----`, `line` `━━━━━━────`,
+  `dots` `●●●●●●○○○○`, or any two characters meaning "filled + empty"
+  (`"#-"` → `######----`). Character choices apply even with colors off.
+- **Volume icon override.** `style.volume.icon` is `auto` (the level-tiered
+  🔈/🔉/🔊, default), `none` (hidden), or any glyph (e.g. `♪`); muted always
+  shows 🔇.
+- **A `/media:style` skill.** Say what you want ("title bold cyan", "bar
+  style wave", "볼륨 아이콘 ♪") and it maps the wish onto the keys; with no
+  arguments it lists the current styles and takes the wish from the chat.
+  Direct access: `media.sh config style` lists every key with its default,
+  `config style.<part> "<spec>"` sets one, the value `reset` restores one
+  key's default, and `config style reset` restores them all. Every style
+  write drops the segment cache, so changes show on the next tick.
+
+### Changed
+
+- **The volume token styles its bar and percent separately** (previously one
+  dim wrap around the whole token). With colors on, the SGR structure
+  changes from `\e[2m🔉 ▄ 45%\e[0m` to `🔉 \e[2m▄\e[0m \e[2m45%\e[0m` —
+  visually identical, and plain-text output is unchanged; the muted glyph
+  now renders unstyled. All other tokens are byte-identical to 0.10.0 when
+  no style key is set.
+- `media.sh config` (no arguments) appends the style-key table to its
+  listing, `config <key> <value…>` accepts unquoted multi-word values, and
+  `doctor` reports how many style keys are customized.
+
 ## [0.10.0] — 2026-07-10
 
 ### Added

@@ -11,7 +11,7 @@
 #   history [n|clear|--json]     recently played tracks (passive local log)
 #   statusline                   one-line segment for a statusline (TTL cache)
 #   test                         primary-path self-check (exit code only)
-#   config [key] [on|off]        display-feature toggles (fail-closed enable)
+#   config [key] [value]         display toggles + per-item statusline styles
 #   doctor [--rebuild]           full diagnosis (+ optional cache rebuild)
 #   detect                       SessionStart hook probe: silent when healthy
 #   warmup                       SessionStart async hook: pre-build the dylib
@@ -54,7 +54,7 @@ usage: media.sh <subcommand>
   now | play | pause | toggle | next | prev | seek <seconds>
   artwork [path-prefix] | volume [0-100] | output [device] | statusline
   history [count | clear | --json [count]]
-  test | config [key] [on|off] | doctor [--rebuild] | detect | warmup
+  test | config [key] [on|off|value] | doctor [--rebuild] | detect | warmup
 EOF
   exit 2
 }
@@ -465,10 +465,11 @@ do_statusline() {
       return 0
     fi
   fi
-  local fields json line="" multiline color marquee
+  local fields json line="" multiline color marquee styles
   fields="$(config_get_statusline_fields)"
   multiline="$(config_get statusline.multiline)"
   marquee="$(config_get statusline.marquee)"
+  styles="$(style_resolve)"
   # NO_COLOR (https://no-color.org) beats the config key. The cache may serve
   # a line rendered under the other setting for at most one TTL second.
   color="$(config_get statusline.color)"
@@ -491,12 +492,16 @@ do_statusline() {
     # plain app name. A line whose items all rendered nothing (e.g. `output`
     # without the native helper) disappears entirely — no blank lines.
     # Fields the user didn't pick are omitted; Claude Code renders
-    # multi-line statuslines as-is. Styling (statusline.color on):
-    # state-colored icon + filled bar (green playing / yellow paused), bold
-    # title and elapsed time (the moving part must stay readable, so only
-    # the "/duration" tail is dim), italic artist, dim chrome. The `volume`
-    # field renders icon + level bar + percent (`🔉 ▄ 45%`): a speaker glyph
-    # tiered by level (🔈/🔉/🔊, 🔇 at 0), an eighth-block bar whose height
+    # multi-line statuslines as-is. Styling (statusline.color on) follows the
+    # per-part style.* keys (see style_resolve for the set and defaults):
+    # state-colored icon + filled bar (style.progressbar.playing/.paused,
+    # green/yellow by default; the icon keeps its bold), bold title and
+    # elapsed time (the moving part must stay readable, so only the
+    # "/duration" tail is dim), italic artist, dim chrome. The bar characters
+    # come from style.progressbar.style (a named charset or two glyphs) and
+    # apply even with colors off. The `volume` field renders icon + level bar
+    # + percent (`🔉 ▄ 45%`): a speaker glyph tiered by level (🔈/🔉/🔊, 🔇 at
+    # 0; overridable via style.volume.icon), an eighth-block bar whose height
     # tracks the level (50% = half block), and the percent. Muted shows 🔇
     # alone — the underlying level is not what plays. Claude Code
     # statuslines render ANSI SGR
@@ -505,7 +510,7 @@ do_statusline() {
     # cells through a fixed window, one character per second (offset derives
     # from the epoch, so each 1s cache refresh advances it — no state file
     # needed).
-    line="$(printf '%s' "$json" | /usr/bin/perl -MJSON::PP -e '
+    line="$(printf '%s' "$json" | /usr/bin/perl -CA -MJSON::PP -e '
       binmode STDOUT, ":utf8";
       my (@order, %seen);
       for (split /\s+/, ($ARGV[0] // "")) {
@@ -517,6 +522,33 @@ do_statusline() {
       my $ml = ($ARGV[1] // "") eq "on";
       my $c  = ($ARGV[2] // "") eq "on";
       my $mq = ($ARGV[3] // "") eq "on";
+      # Per-part styles from style_resolve ("key<TAB>value<TAB>default" lines).
+      my %sty;
+      for my $sl (split /\n/, ($ARGV[4] // "")) {
+        my ($k, $v) = (split /\t/, $sl)[0, 1];
+        next unless defined $v;
+        $k =~ s/^style\.//;
+        $sty{$k} = $v;
+      }
+      # Style spec -> SGR codes ("bold cyan" -> "1;36"). The setter validates;
+      # this stays lenient for hand-edited configs (unknown tokens drop out,
+      # "none" means no styling at all).
+      my %ATTR = (bold => 1, dim => 2, italic => 3, underline => 4);
+      my %COL  = (black => 30, red => 31, green => 32, yellow => 33,
+                  blue => 34, magenta => 35, cyan => 36, white => 37);
+      sub sgr {
+        my (@a, $col);
+        for my $t (split /[\s,]+/, lc($_[0] // "")) {
+          next unless length $t;
+          return "" if $t eq "none" || $t eq "plain";
+          if (exists $ATTR{$t}) { push @a, $ATTR{$t}; next; }
+          my $b = ($t =~ s/^bright-//) ? 60 : 0;
+          $col = $COL{$t} + $b if exists $COL{$t};
+        }
+        my %u;
+        @a = sort { $a <=> $b } grep { !$u{$_}++ } @a;
+        return join ";", @a, (defined $col ? ($col) : ());
+      }
       local $/; my $d = eval { decode_json(<STDIN>) };
       exit 0 unless ref $d eq "HASH" && defined $d->{title};
       sub mss { my $s = int($_[0]); sprintf "%d:%02d", $s / 60, $s % 60 }
@@ -545,26 +577,34 @@ do_statusline() {
       }
       my $st = sub {
         my ($codes, $t) = @_;
-        ($c && length $t) ? "\e[${codes}m$t\e[0m" : $t;
+        ($c && length($codes // "") && length $t) ? "\e[${codes}m$t\e[0m" : $t;
       };
-      my $accent = $d->{playing} ? 32 : 33;
+      # The playing/paused accent (track icon + bar fill) comes from
+      # style.progressbar.playing / .paused; the icon keeps its bold on top.
+      my $acc = $d->{playing} ? ($sty{"progressbar.playing"} // "green")
+                              : ($sty{"progressbar.paused"}  // "yellow");
+      my $accsgr  = sgr($acc);
+      my $iconsgr = sgr("bold $acc");
+      my $appsgr  = sgr($sty{"app"});
       my $app = $d->{appName} // $d->{bundleIdentifier};
       # One token per renderable field; the order pass below assembles them.
       my %tok;
       if ($w{track}) {
         my $icon = $d->{playing} ? "\x{25B6}\x{FE0E}" : "\x{23F8}";
         my $title = $mq ? marquee($d->{title}) : $d->{title};
-        my $t = $st->("1;$accent", $icon) . " " . $st->(1, $title);
-        $t .= " " . $st->(2, "\x{2014}") . " " . $st->(3, $d->{artist})
+        my $t = $st->($iconsgr, $icon) . " "
+              . $st->(sgr($sty{"track.title"}), $title);
+        $t .= " " . $st->(2, "\x{2014}") . " "
+            . $st->(sgr($sty{"track.artist"}), $d->{artist})
           if defined $d->{artist};
-        $t .= " " . $st->(2, "($app)")
+        $t .= " " . $st->($appsgr, "($app)")
           if !$explicit && $w{app} && defined $app;
         $tok{track} = $t;
       }
       # Standalone app token: always in the explicit layout (folding happens
       # per line during assembly), only without a track in the grouped one.
       if ($w{app} && defined $app && ($explicit || !$w{track})) {
-        $tok{app} = $st->(2, $app);
+        $tok{app} = $st->($appsgr, $app);
       }
       my $pos = $d->{elapsedTimeNow} // $d->{elapsedTime};
       my $dur = $d->{duration};
@@ -572,12 +612,22 @@ do_statusline() {
         my $cells = 10;
         my $r = $pos / $dur; $r = 0 if $r < 0; $r = 1 if $r > 1;
         my $filled = int($r * $cells + 0.5);
-        $tok{progressbar} = $st->($accent, "\x{2588}" x $filled)
-                          . $st->(2, "\x{2591}" x ($cells - $filled));
+        # Bar characters by style.progressbar.style: a named charset or any
+        # two glyphs "filled+empty" — character choices show even with
+        # colors off.
+        my %cs = (blocks => ["\x{2588}", "\x{2591}"], wave => ["~", "-"],
+                  line => ["\x{2501}", "\x{2500}"], dots => ["\x{25CF}", "\x{25CB}"]);
+        my $csv = $sty{"progressbar.style"} // "blocks";
+        my ($fc, $ec) = $cs{$csv}           ? @{$cs{$csv}}
+                      : length($csv) == 2   ? (substr($csv, 0, 1), substr($csv, 1, 1))
+                      :                       @{$cs{blocks}};
+        $tok{progressbar} = $st->($accsgr, $fc x $filled)
+                          . $st->(2, $ec x ($cells - $filled));
       }
       if ($w{time} && defined $pos) {
-        $tok{time} = $st->(1, mss($pos))
-                   . $st->(2, "/" . (defined $dur ? mss($dur) : "LIVE"));
+        $tok{time} = $st->(sgr($sty{"time.elapsed"}), mss($pos))
+                   . $st->(sgr($sty{"time.total"}),
+                           "/" . (defined $dur ? mss($dur) : "LIVE"));
       }
       if ($w{output} && defined $d->{outputDevice}) {
         # Icon by device kind (adapter outputKind): headphones for Bluetooth
@@ -586,24 +636,31 @@ do_statusline() {
         my %oicon = ("headphones" => "\x{1F3A7}", "display" => "\x{1F4FA}",
                      "airplay" => "\x{1F4F6}");
         my $oi = $oicon{$d->{outputKind} // ""} // "\x{1F50A}";
-        $tok{output} = $st->(2, "$oi " . $d->{outputDevice});
+        $tok{output} = $st->(sgr($sty{"output"}), "$oi " . $d->{outputDevice});
       }
       if ($w{volume} && defined $d->{volume}) {
         my $v = int($d->{volume});
         $v = 0 if $v < 0; $v = 100 if $v > 100;
         if ($d->{muted}) {
-          $tok{volume} = $st->(2, "\x{1F507}");
+          $tok{volume} = "\x{1F507}";
         } else {
-          my $icon = $v == 0 ? "\x{1F507}"
-                   : $v < 34 ? "\x{1F508}"
-                   : $v < 67 ? "\x{1F509}"
-                   :           "\x{1F50A}";
+          # Icon by style.volume.icon: auto = tiered by level, none = hidden,
+          # anything else renders verbatim. Muted always shows the mute glyph.
+          my $vic = $sty{"volume.icon"} // "auto";
+          my $icon = $vic eq "auto"
+                   ? ($v == 0 ? "\x{1F507}"
+                    : $v < 34 ? "\x{1F508}"
+                    : $v < 67 ? "\x{1F509}"
+                    :           "\x{1F50A}")
+                   : $vic;
           # Eighth-block bar whose height tracks the level: ceil(v*8/100)
           # maps 1-100 onto ▁..█ (50% = ▄, the half block); 0 keeps the
           # lowest sliver and the mute glyph.
           my $i = int(($v * 8 + 99) / 100);
           $i = 1 if $i < 1;
-          $tok{volume} = $st->(2, "$icon " . chr(0x2580 + $i) . " $v%");
+          $tok{volume} = ($vic eq "none" ? "" : "$icon ")
+                       . $st->(sgr($sty{"volume.bar"}), chr(0x2580 + $i))
+                       . " " . $st->(sgr($sty{"volume.percent"}), "$v%");
         }
       }
       if ($explicit) {
@@ -619,7 +676,7 @@ do_statusline() {
           my @parts;
           for my $k (0 .. $#fs) {
             if ($fs[$k] eq "app" && $k > 0 && $fs[$k - 1] eq "track") {
-              $parts[-1] .= " " . $st->(2, "($app)");
+              $parts[-1] .= " " . $st->($appsgr, "($app)");
               next;
             }
             push @parts, $tok{$fs[$k]};
@@ -647,7 +704,7 @@ do_statusline() {
         $i++;
       }
       print join($ml ? "\n" : "  ", @groups);
-    ' "$fields" "$multiline" "$color" "$marquee" 2>/dev/null || true)"
+    ' "$fields" "$multiline" "$color" "$marquee" "$styles" 2>/dev/null || true)"
   fi
   mkdir -p "$DATA_DIR" 2>/dev/null || true
   printf '%s' "$line" > "$cache" 2>/dev/null || true
@@ -705,7 +762,7 @@ config_write() {
     }
     $d->{$key} = ($val eq "on") ? JSON::PP::true : JSON::PP::false;
     open my $fh, ">", "$file.tmp" or die "cannot write config: $!\n";
-    print $fh JSON::PP->new->canonical->encode($d), "\n";
+    print $fh JSON::PP->new->canonical->ascii->encode($d), "\n";
     close $fh;
     rename "$file.tmp", $file or die "cannot save config: $!\n";
   ' "$CONFIG_FILE" "$1" "$2"
@@ -780,12 +837,174 @@ config_set_statusline_fields() {
     }
     $d->{"statusline.fields"} = [@fields];
     open my $fh, ">", "$file.tmp" or die "cannot write config: $!\n";
-    print $fh JSON::PP->new->canonical->encode($d), "\n";
+    print $fh JSON::PP->new->canonical->ascii->encode($d), "\n";
     close $fh;
     rename "$file.tmp", $file or die "cannot save config: $!\n";
   ' "$CONFIG_FILE" $ordered
   rm -f "$DATA_DIR/statusline.cache"
   echo "statusline.fields =${ordered:- (none)}"
+}
+
+# ---- per-item statusline styles (string-valued style.* keys) -------------------
+
+# Every visible part of the statusline segment has a style.* key. Text parts
+# take a style spec — any of "bold dim italic underline" plus at most one
+# color (black red green yellow blue magenta cyan white, or bright-<color>),
+# or "none" for no styling; specs render only while statusline.color is on.
+# style.progressbar.style and style.volume.icon change the characters
+# instead, so they apply even with colors off. Per key, the value "reset"
+# deletes it (back to the default); "config style" lists everything and
+# "config style reset" clears all customizations. The defaults reproduce the
+# classic rendering exactly.
+STYLE_KEYS="style.track.title style.track.artist style.app style.volume.icon style.volume.bar style.volume.percent style.progressbar.playing style.progressbar.paused style.progressbar.style style.time.elapsed style.time.total style.output"
+
+# Print "key<TAB>value<TAB>default" for every style key, resolved against the
+# config file (stored strings win; absent keys fall back to the default).
+# This is the single source of the defaults table — the listing, single-key
+# get, doctor, and the renderer all consume it.
+style_resolve() {
+  /usr/bin/perl -MJSON::PP -e '
+    binmode STDOUT, ":utf8";
+    my @def = (
+      ["style.track.title",         "bold"],
+      ["style.track.artist",        "italic"],
+      ["style.app",                 "dim"],
+      ["style.volume.icon",         "auto"],
+      ["style.volume.bar",          "dim"],
+      ["style.volume.percent",      "dim"],
+      ["style.progressbar.playing", "green"],
+      ["style.progressbar.paused",  "yellow"],
+      ["style.progressbar.style",   "blocks"],
+      ["style.time.elapsed",        "bold"],
+      ["style.time.total",          "dim"],
+      ["style.output",              "dim"],
+    );
+    my $d = {};
+    if (-f $ARGV[0]) {
+      local $/;
+      if (open my $fh, "<", $ARGV[0]) { $d = eval { decode_json(<$fh>) } || {}; close $fh; }
+      $d = {} unless ref $d eq "HASH";
+    }
+    for my $e (@def) {
+      my ($k, $def) = @$e;
+      my $v = $d->{$k};
+      $v = $def unless defined $v && !ref $v && length $v;
+      print "$k\t$v\t$def\n";
+    }
+  ' "$CONFIG_FILE" 2>/dev/null
+}
+
+style_get() {
+  style_resolve | /usr/bin/awk -F'\t' -v k="$1" '$1 == k { print $2 }'
+}
+
+style_known() {
+  local k
+  for k in $STYLE_KEYS; do
+    [ "$k" = "$1" ] && return 0
+  done
+  echo "media: unknown style key: $1 (valid: $STYLE_KEYS)" >&2
+  return 2
+}
+
+# Validate + canonicalize a style value for a key: prints the canonical form,
+# exit 2 with a reason on stderr when invalid. -CAS because values may carry
+# non-ASCII glyphs (custom volume icons, custom bar characters).
+style_validate() {
+  /usr/bin/perl -CAS -e '
+    my ($key, $val) = @ARGV;
+    sub fail { print STDERR "media: $_[0]\n"; exit 2 }
+    if ($key eq "style.progressbar.style") {
+      # Keep exactly-two-character values raw so a space can be a bar glyph
+      # ("x " = filled x, empty space); only longer input is trimmed.
+      $val =~ s/^\s+|\s+$//g if length($val) != 2;
+      my %preset = map { $_ => 1 } qw(blocks wave line dots);
+      if ($preset{lc $val}) { print lc $val; exit 0 }
+      fail("progressbar style must be blocks|wave|line|dots or exactly two characters (filled+empty, e.g. \"~-\"); got: $val")
+        unless length($val) == 2 && $val !~ /[\t\n]/ && $val ne "  ";
+      print $val; exit 0;
+    }
+    $val =~ s/^\s+|\s+$//g;
+    if ($key eq "style.volume.icon") {
+      if (lc($val) eq "auto" || lc($val) eq "none") { print lc($val); exit 0 }
+      fail("volume icon must be auto, none, or a short glyph (1-8 characters, no whitespace); got: $val")
+        unless length($val) >= 1 && length($val) <= 8 && $val !~ /\s/;
+      print $val; exit 0;
+    }
+    my %attr = map { $_ => 1 } qw(bold dim italic underline);
+    my %col  = map { $_ => 1 } qw(black red green yellow blue magenta cyan white);
+    my (%have, $color, $none);
+    my @tok = grep { length } split /[\s,]+/, lc $val;
+    fail("empty style — use e.g. \"bold cyan\", or the value reset to restore the default") unless @tok;
+    for my $t (@tok) {
+      if ($t eq "none" || $t eq "plain") { $none = 1; next }
+      if ($attr{$t}) { $have{$t} = 1; next }
+      (my $c = $t) =~ s/^bright-//;
+      if ($col{$c}) {
+        fail("only one color per style (got: $color and $t)") if defined $color;
+        $color = $t; next;
+      }
+      fail("invalid style token: $t (valid: bold dim italic underline none, colors black red green yellow blue magenta cyan white or bright-<color>)");
+    }
+    fail("none cannot be combined with other style tokens") if $none && (%have || defined $color);
+    if ($none) { print "none"; exit 0 }
+    print join(" ", (grep { $have{$_} } qw(bold dim italic underline)),
+                    (defined $color ? ($color) : ()));
+  ' "$1" "$2"
+}
+
+# Write (or with an empty value delete) one style key. ->ascii keeps the
+# config file pure ASCII even for glyph values (\uXXXX escapes), so every
+# other reader/writer of config.json stays byte-safe.
+style_write() {
+  mkdir -p "$DATA_DIR"
+  /usr/bin/perl -CA -MJSON::PP -e '
+    my ($file, $key, $val) = @ARGV;
+    my $d = {};
+    if (-f $file) {
+      local $/;
+      if (open my $fh, "<", $file) { $d = eval { decode_json(<$fh>) } || {}; close $fh; }
+      $d = {} unless ref $d eq "HASH";
+    }
+    if (length $val) { $d->{$key} = $val } else { delete $d->{$key} }
+    open my $fh, ">", "$file.tmp" or die "cannot write config: $!\n";
+    print $fh JSON::PP->new->canonical->ascii->encode($d), "\n";
+    close $fh;
+    rename "$file.tmp", $file or die "cannot save config: $!\n";
+  ' "$CONFIG_FILE" "$1" "${2:-}"
+}
+
+# Delete every style.* key (config style reset).
+style_wipe() {
+  [ -f "$CONFIG_FILE" ] || return 0
+  /usr/bin/perl -MJSON::PP -e '
+    local $/;
+    open my $fh, "<", $ARGV[0] or exit 0;
+    my $d = eval { decode_json(<$fh>) } || {};
+    close $fh;
+    exit 0 unless ref $d eq "HASH";
+    delete $d->{$_} for grep { /^style\./ } keys %$d;
+    open my $out, ">", "$ARGV[0].tmp" or exit 0;
+    print $out JSON::PP->new->canonical->ascii->encode($d), "\n";
+    close $out;
+    rename "$ARGV[0].tmp", $ARGV[0];
+  ' "$CONFIG_FILE"
+}
+
+style_list() {
+  echo "style key                     value         default"
+  style_resolve | while IFS=$'\t' read -r k v def; do
+    if [ "$v" = "$def" ]; then
+      printf '%-29s %-13s %s\n' "$k" "$v" "$def"
+    else
+      printf '%-29s %-13s %s  *custom\n' "$k" "$v" "$def"
+    fi
+  done
+  echo "(spec: bold dim italic underline + one color — black red green yellow blue"
+  echo " magenta cyan white or bright-<color> — or none; style.progressbar.style:"
+  echo " blocks|wave|line|dots or two glyphs like \"~-\"; style.volume.icon:"
+  echo " auto|none|<glyph>. Set: media.sh config <style key> \"<spec>\" — the value"
+  echo " reset restores a default, media.sh config style reset clears them all.)"
 }
 
 # Preflight gate for enabling a display feature. Enabling is refused (exit 3)
@@ -810,12 +1029,18 @@ config_known() {
   for k in $CONFIG_KEYS; do
     [ "$k" = "$1" ] && return 0
   done
-  echo "media: unknown config key: $1 (valid keys: $CONFIG_KEYS)" >&2
+  echo "media: unknown config key: $1 (valid keys: $CONFIG_KEYS; per-item styles: media.sh config style)" >&2
   return 2
 }
 
 do_config() {
-  local key="${1:-}" value="${2:-}"
+  # Everything after the key joins into one value, so multi-word style specs
+  # and field lists work unquoted: config style.track.title bold cyan
+  local key="${1:-}" value=""
+  if [ $# -gt 1 ]; then
+    shift
+    value="$*"
+  fi
 
   # statusline.fields is array-valued (arranged with /media:statusline or
   # /media:config); handle it before the boolean keys.
@@ -827,6 +1052,46 @@ do_config() {
     fi
     return 0
   fi
+
+  # Per-item statusline styles (string-valued). "config style" lists them,
+  # "config style reset" clears every customization; per key, an empty value
+  # prints the resolved value and "reset" restores the default. Any style
+  # change drops the segment cache so it redraws on the next tick.
+  if [ "$key" = "style" ]; then
+    if [ -z "$value" ]; then
+      style_list
+      return 0
+    fi
+    if [ "$value" = "reset" ]; then
+      style_wipe
+      rm -f "$DATA_DIR/statusline.cache"
+      echo "style.* = defaults (all statusline styles cleared)"
+      return 0
+    fi
+    echo "media: usage: media.sh config style [reset]   (single key: media.sh config <style key> [\"<spec>\"|reset])" >&2
+    exit 2
+  fi
+  case "$key" in
+    style.*)
+      style_known "$key" || exit 2
+      if [ -z "$value" ]; then
+        style_get "$key"
+        return 0
+      fi
+      if [ "$value" = "reset" ]; then
+        style_write "$key" ""
+        rm -f "$DATA_DIR/statusline.cache"
+        echo "$key = $(style_get "$key") (default)"
+        return 0
+      fi
+      local canon
+      canon="$(style_validate "$key" "$value")" || exit 2
+      style_write "$key" "$canon"
+      rm -f "$DATA_DIR/statusline.cache"
+      echo "$key = $canon"
+      return 0
+      ;;
+  esac
 
   if [ -z "$key" ]; then
     local k
@@ -846,7 +1111,9 @@ do_config() {
     printf '%-21s %-6s %s\n' "statusline.fields" "-" \
       "[$(config_get_statusline_fields)] — items in render order, / starts a new line; arrange with /media:statusline"
     echo ""
-    echo "usage: media.sh config <key> [on|off]   (config file: $CONFIG_FILE)"
+    style_list
+    echo ""
+    echo "usage: media.sh config <key> [on|off|value]   (config file: $CONFIG_FILE)"
     return 0
   fi
   config_known "$key" || exit 2
@@ -969,7 +1236,7 @@ do_doctor() {
   fi
   echo "[7] Output dev  : $outdev"
   echo "[8] Config      : progressbar=$(config_get display.progressbar) statusline=$(config_get display.statusline) color=$(config_get statusline.color) marquee=$(config_get statusline.marquee)"
-  echo "                  statusline.fields=[$(config_get_statusline_fields)] history.record=$(config_get history.record)"
+  echo "                  statusline.fields=[$(config_get_statusline_fields)] history.record=$(config_get history.record) styles=$(style_resolve | /usr/bin/awk -F'\t' '$2 != $3 { n++ } END { print n + 0 }') customized"
   echo "                  ($CONFIG_FILE)"
   echo "[9] Build log   : $DATA_DIR/build.log"
   echo ""
@@ -1027,7 +1294,7 @@ case "$cmd" in
     fi
     primary_test
     ;;
-  config) do_config "${2:-}" "${3:-}" ;;
+  config) shift; do_config "$@" ;;
   doctor) do_doctor "${2:-}" ;;
   detect) do_detect ;;
   warmup) do_warmup ;;

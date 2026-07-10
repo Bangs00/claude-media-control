@@ -120,7 +120,7 @@ off:
 /media:config statusline.marquee off
 ```
 
-### Colors
+### Colors & per-item styles
 
 The segment ships styled by default — Claude Code statuslines render ANSI
 codes, and the wrapper below passes them through untouched:
@@ -134,6 +134,39 @@ Only standard 16-color SGR codes are used, so everything follows your
 terminal's own palette. Prefer plain text? Run
 `/media:config statusline.color off` — the `NO_COLOR` environment variable is
 honored too.
+
+Every part is also **individually styleable**. Run `/media:style` and say
+what you want ("title bold cyan", "bar style wave", "volume icon ♪"), or set
+the keys directly — each takes any of `bold dim italic underline`, at most
+one color (`black red green yellow blue magenta cyan white` or
+`bright-<color>`), or `none`:
+
+| key | part | default |
+| --- | --- | --- |
+| `style.track.title` / `style.track.artist` | title / artist | `bold` / `italic` |
+| `style.app` | app name `(Spotify)` | `dim` |
+| `style.time.elapsed` / `style.time.total` | `2:13` / `/4:24` | `bold` / `dim` |
+| `style.volume.icon` / `style.volume.bar` / `style.volume.percent` | volume icon / bar / percent | `auto` / `dim` / `dim` |
+| `style.progressbar.playing` / `style.progressbar.paused` | bar fill + ▶︎/⏸ accent | `green` / `yellow` |
+| `style.progressbar.style` | bar characters | `blocks` |
+| `style.output` | output device | `dim` |
+
+The progress bar's characters come from `style.progressbar.style`: `blocks`
+`██████░░░░` · `wave` `~~~~~~----` · `line` `━━━━━━────` · `dots`
+`●●●●●●○○○○`, or any two characters meaning "filled + empty" (`"#-"` →
+`######----`). The volume icon (`style.volume.icon`) is `auto` (🔈/🔉/🔊
+tiered by level), `none` (hidden), or any glyph like `♪` — muted always shows
+🔇. Character choices apply even with colors off; the other keys need
+`statusline.color` on.
+
+```
+/media:config style.track.title "bold cyan"    # set one part
+/media:config style.track.title reset          # that part back to its default
+/media:config style reset                      # everything back to defaults
+```
+
+`media.sh config style` lists every key with its current value and default.
+Changes show up on the next statusline tick — no restart needed.
 
 ## Step 2 — create the wrapper script
 

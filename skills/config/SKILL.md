@@ -37,6 +37,7 @@ Valid keys:
 - `statusline.marquee` — scroll statusline titles wider than 30 cells, one char/second (default `on`)
 - `history.record` — log played tracks to the local history (default `on`; view with `/media:history`)
 - `statusline.fields` — which items the statusline shows, as a comma/space list of `track app progressbar time output volume`; **saved in the order given, which is the render order**, and a `/` between items starts a new line (explicit per-line layout, e.g. `track,app,volume,/,progressbar,time,output`; interactive picker: `/media:statusline`)
+- `style.<part>` — per-item statusline styles: bold/italic/color for title, artist, app, time, volume bar/percent, output; playing/paused colors + bar characters for the progress bar; the volume icon. String-valued — list them with `config style`, set e.g. `config style.track.title "bold cyan"`, the value `reset` restores one key's default, `config style reset` restores all. Guided styling lives in `/media:style`.
 
 Rules you must follow:
 
@@ -138,4 +139,6 @@ statusline is ANSI-styled). Remind the user the segment only appears when
 `display.statusline` is on AND the wrapper from `docs/statusline.md` is
 installed. (If `statusline` prints nothing, it is off or nothing is playing.)
 The `NO_COLOR` env var also disables statusline color regardless of
-`statusline.color`.
+`statusline.color`. If the user asks about restyling individual items (bold /
+italic / colors per part, progress-bar characters, the volume icon), point
+them to `/media:style`.

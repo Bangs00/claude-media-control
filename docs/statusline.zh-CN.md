@@ -110,7 +110,7 @@ Stacked — 显式两行布局（模式 `123/456`，即
 /media:config statusline.marquee off
 ```
 
-### 颜色
+### 颜色与逐项样式
 
 组件默认带样式输出。Claude Code 的状态栏能渲染 ANSI 代码，下面的 wrapper
 会原样透传:
@@ -122,6 +122,38 @@ Stacked — 显式两行布局（模式 `123/456`，即
 用到的只有标准的 16 色 SGR 代码，所以最终色彩完全跟着你终端自己的配色走。
 更喜欢纯文本？运行 `/media:config statusline.color off`——`NO_COLOR`
 环境变量同样有效。
+
+不止如此，**每个部分都能单独定制**。运行 `/media:style` 用一句话说出想要的
+效果（"曲名加粗青色"、"进度条换成 wave"、"音量图标用 ♪"），或者直接设置
+配置键。每个键接受 `bold dim italic underline` 的任意组合外加至多一种颜色
+（`black red green yellow blue magenta cyan white` 或 `bright-<颜色>`），
+或者 `none`（完全不加样式）:
+
+| 键 | 对象 | 默认值 |
+| --- | --- | --- |
+| `style.track.title` / `style.track.artist` | 曲名 / 歌手 | `bold` / `italic` |
+| `style.app` | 应用名 `(Spotify)` | `dim` |
+| `style.time.elapsed` / `style.time.total` | `2:13` / `/4:24` | `bold` / `dim` |
+| `style.volume.icon` / `style.volume.bar` / `style.volume.percent` | 音量图标 / 音量条 / 百分比 | `auto` / `dim` / `dim` |
+| `style.progressbar.playing` / `style.progressbar.paused` | 进度条填充 + ▶︎/⏸ 强调色 | `green` / `yellow` |
+| `style.progressbar.style` | 进度条字符 | `blocks` |
+| `style.output` | 输出设备 | `dim` |
+
+进度条的字符由 `style.progressbar.style` 决定: `blocks` `██████░░░░` ·
+`wave` `~~~~~~----` · `line` `━━━━━━────` · `dots` `●●●●●●○○○○`，或任意
+两个字符表示"填充 + 空白"（`"#-"` → `######----`）。音量图标
+（`style.volume.icon`）可以是 `auto`（按音量分级 🔈/🔉/🔊）、`none`（隐藏）
+或 `♪` 之类的任意字形；静音时始终显示 🔇。改字符的这两个键即使关掉颜色也
+生效，其余键需要 `statusline.color` 处于开启状态。
+
+```
+/media:config style.track.title "bold cyan"    # 只设置一个部分
+/media:config style.track.title reset          # 单独恢复这一项的默认值
+/media:config style reset                      # 全部恢复默认
+```
+
+运行 `media.sh config style` 可以列出每个键的当前值和默认值。改动会在下一次
+状态栏刷新时立即生效，无需重启。
 
 ## 第 2 步——创建 wrapper 脚本
 

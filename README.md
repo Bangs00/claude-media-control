@@ -52,6 +52,7 @@ Natural language, slash commands, or an interactive menu — all work:
 | "switch to my AirPods" | `/media:output airpods` | show / switch the audio output device |
 | "give me a remote" | `/media:menu` | interactive controller (arrow-key menu) |
 | "arrange my statusline" | `/media:statusline` | pick a layout from visual previews, or place any item on any line with a numeric pattern |
+| "make the title cyan" | `/media:style` | style every statusline item — bold/italic/color per part, progress-bar characters, volume icon |
 | "configure the statusline" | `/media:config` | interactive settings — layout plus every display toggle (progress bar, history, colors, marquee) |
 | — | `/media:doctor` | diagnose build / permissions / fallbacks |
 
@@ -69,6 +70,12 @@ AirPlay, `🔊` speakers), titles wider than 30 cells scroll marquee-style
 (`statusline.marquee`), and the segment comes ANSI-styled — state-colored
 icon and progress bar, bold title and elapsed time, italic artist —
 `/media:config statusline.color off` (or `NO_COLOR`) restores plain text.
+Every part restyles individually with `/media:style`: bold/italic/color for
+the title, artist, app, time, volume bar & percent, and output device;
+playing/paused colors plus the bar characters (`wave` `~~~~--`, `line`,
+`dots`, or any two glyphs) for the progress bar; and the volume icon (`♪`,
+hidden, or the level-tiered default). Each key resets to its default
+individually (`reset`), or all at once (`/media:config style reset`).
 
 ## How it works
 

@@ -118,7 +118,7 @@ Stacked — 명시적 2줄 배치(패턴 `123/456`, 즉
 /media:config statusline.marquee off
 ```
 
-### 색상
+### 색상과 항목별 스타일
 
 세그먼트는 기본으로 스타일이 입혀져 나옵니다. Claude Code statusline은 ANSI
 코드를 렌더링하고, 아래 wrapper는 이를 손대지 않고 그대로 넘깁니다:
@@ -131,6 +131,40 @@ Stacked — 명시적 2줄 배치(패턴 `123/456`, 즉
 표준 16색 SGR 코드만 쓰기 때문에 실제 색은 터미널의 팔레트를 따릅니다.
 색 없이 쓰고 싶다면 `/media:config statusline.color off`를 실행하세요.
 `NO_COLOR` 환경 변수도 지원합니다.
+
+여기서 더 나아가 **모든 부분을 하나하나 따로 꾸밀 수 있습니다**.
+`/media:style`을 실행해 원하는 모습을 말로 하거나("제목은 굵은 하늘색",
+"바 스타일은 wave", "볼륨 아이콘은 ♪"), 키를 직접 설정하면 됩니다. 각 키는
+`bold dim italic underline` 조합에 색 하나(`black red green yellow blue
+magenta cyan white` 또는 `bright-<색>`)를 더하거나, `none`(스타일 없음)을
+받습니다:
+
+| 키 | 대상 | 기본값 |
+| --- | --- | --- |
+| `style.track.title` / `style.track.artist` | 제목 / 아티스트 | `bold` / `italic` |
+| `style.app` | 앱 이름 `(Spotify)` | `dim` |
+| `style.time.elapsed` / `style.time.total` | `2:13` / `/4:24` | `bold` / `dim` |
+| `style.volume.icon` / `style.volume.bar` / `style.volume.percent` | 볼륨 아이콘 / 바 / 퍼센트 | `auto` / `dim` / `dim` |
+| `style.progressbar.playing` / `style.progressbar.paused` | 바 채움 + ▶︎/⏸ 강조색 | `green` / `yellow` |
+| `style.progressbar.style` | 진행 바 문자 | `blocks` |
+| `style.output` | 출력 장치 | `dim` |
+
+진행 바의 문자는 `style.progressbar.style`이 정합니다: `blocks`
+`██████░░░░` · `wave` `~~~~~~----` · `line` `━━━━━━────` · `dots`
+`●●●●●●○○○○`, 또는 "채움 + 빈칸"을 뜻하는 아무 두 글자(`"#-"` →
+`######----`). 볼륨 아이콘(`style.volume.icon`)은 `auto`(레벨에 따라
+🔈/🔉/🔊), `none`(숨김), 또는 `♪` 같은 아무 글리프이며, 음소거 시에는 항상
+🔇가 나옵니다. 문자를 바꾸는 이 두 키는 색을 꺼도 적용되고, 나머지 키는
+`statusline.color`가 켜져 있어야 보입니다.
+
+```
+/media:config style.track.title "bold cyan"    # 한 부분만 설정
+/media:config style.track.title reset          # 그 부분만 기본값으로
+/media:config style reset                      # 전부 기본값으로
+```
+
+`media.sh config style`을 실행하면 모든 키의 현재 값과 기본값이 나옵니다.
+변경은 다음 statusline 틱에 바로 반영되며 재시작은 필요 없습니다.
 
 ## 2단계 — wrapper 스크립트 만들기
 

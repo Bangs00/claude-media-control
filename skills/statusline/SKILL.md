@@ -177,4 +177,6 @@ the arrangement is saved and will show once something plays.
 
 Close with one reminder: the segment appears in Claude Code's statusline once
 the one-time wrapper from `docs/statusline.md` is installed; on/off toggles,
-colors, and marquee live in `/media:config`.
+colors, and marquee live in `/media:config`, and per-item styles (bold /
+italic / color per part, progress-bar characters, the volume icon) in
+`/media:style`.
