@@ -825,8 +825,9 @@ do_statusline() {
     # green/yellow by default; the icon keeps its bold), bold title and
     # elapsed time (the moving part must stay readable, so only the
     # "/duration" tail is dim), italic artist, dim chrome. The bar characters
-    # come from style.progressbar.style (a named charset or two glyphs) and
-    # apply even with colors off. A text part whose style is "off" is not
+    # come from style.progressbar.style (a named charset or two glyphs), its
+    # width from style.progressbar.length (cells, default 20) — both apply
+    # even with colors off. A text part whose style is "off" is not
     # rendered at all: a hidden title drops the "—" separator with it, a
     # hidden elapsed time drops the total's leading "/", and a token whose
     # parts all vanished is never created — its field (and an explicit line
@@ -1052,8 +1053,14 @@ do_statusline() {
         }
         return $out;
       };
+      # Bar width in cells from style.progressbar.length (default 20; the
+      # setter validates 1-60). Junk in a hand-edited config falls back to
+      # the default instead of breaking the render. The volume mini bar
+      # below keeps its fixed 5 cells — it is deliberately compact.
+      my $blen = $sty{"progressbar.length"} // 20;
+      $blen = 20 unless $blen =~ /^\d+$/ && $blen >= 1 && $blen <= 60;
       if ($w{progressbar} && defined $pos && defined $dur && $dur > 0) {
-        $tok{progressbar} = $bar->(10, $pos / $dur, 1);
+        $tok{progressbar} = $bar->($blen, $pos / $dur, 1);
       }
       if ($w{time} && defined $pos) {
         my $t = "";
@@ -1715,8 +1722,9 @@ config_set_statusline_fields() {
 # "none" for no styling, or "off" to hide that part entirely (off is a text-
 # part value only); specs render only while statusline.color is on, but
 # "off" hides regardless — it changes content, not styling.
-# style.progressbar.style, style.volume.icon, style.volume.style, and
-# style.output.icon change the characters instead, so they apply even with
+# style.progressbar.style, style.progressbar.length, style.volume.icon,
+# style.volume.style, and style.output.icon change the characters/geometry
+# instead, so they apply even with
 # colors off. style.volume.bar is an on/off toggle: the bar draws in the
 # progress-bar playing/paused accent, so it has no spec of its own (a
 # pre-0.14 stored spec counts as on). Per key, the value "reset" deletes it
@@ -1725,8 +1733,10 @@ config_set_statusline_fields() {
 # customizations, and "config statusline reset" additionally restores the
 # statusline layout/line/color/marquee keys. The defaults reproduce the
 # classic rendering, except the bar charset default moved from blocks to
-# line in 0.12.0 (set "blocks" to restore the pre-0.12 bar).
-STYLE_KEYS="style.track.title style.track.artist style.app style.volume.icon style.volume.style style.volume.bar style.volume.percent style.progressbar.playing style.progressbar.paused style.progressbar.style style.time.elapsed style.time.total style.output.icon style.output"
+# line in 0.12.0 (set "blocks" to restore the pre-0.12 bar) and the bar
+# width default moved from 10 to 20 cells in 0.20.0 (set
+# style.progressbar.length 10 to restore the pre-0.20 bar).
+STYLE_KEYS="style.track.title style.track.artist style.app style.volume.icon style.volume.style style.volume.bar style.volume.percent style.progressbar.playing style.progressbar.paused style.progressbar.style style.progressbar.length style.time.elapsed style.time.total style.output.icon style.output"
 
 # Text parts that accept the "off" (hide) value; the icon keys spell hiding
 # as none, style.volume.bar is a dedicated on/off toggle, and the bar
@@ -1751,6 +1761,7 @@ style_resolve() {
       ["style.progressbar.playing", "green"],
       ["style.progressbar.paused",  "yellow"],
       ["style.progressbar.style",   "line"],
+      ["style.progressbar.length",  "20"],
       ["style.time.elapsed",        "bold"],
       ["style.time.total",          "dim"],
       ["style.output.icon",         "auto"],
@@ -1803,6 +1814,14 @@ style_validate() {
       fail("progressbar style must be blocks|wave|pulse|eq|notes|braille|chevron|tape|cassette|retro|knob|smooth|line|dots or exactly two characters (filled+empty, e.g. \"~-\"); got: $val")
         unless length($val) == 2 && $val !~ /[\t\n]/ && $val ne "  ";
       print $val; exit 0;
+    }
+    if ($key eq "style.progressbar.length") {
+      # The bar width in cells, shared by the statusline segment and the
+      # /media:now bar. Canonicalized to plain digits ("040" -> 40).
+      $val =~ s/^\s+|\s+$//g;
+      fail("progressbar length must be a whole number of cells from 1 to 60 (default 20); got: $val")
+        unless $val =~ /^\d+$/ && $val + 0 >= 1 && $val + 0 <= 60;
+      print $val + 0; exit 0;
     }
     $val =~ s/^\s+|\s+$//g;
     if ($key eq "style.volume.style") {
@@ -1911,7 +1930,8 @@ style_list() {
   echo " magenta cyan white or bright-<color> — or none; text parts also take off"
   echo " = hide that part; style.progressbar.style: blocks|wave|pulse|eq|notes|"
   echo " braille|chevron|tape|cassette|retro|knob|smooth|line|dots or two glyphs"
-  echo " like \"~-\"; style.volume.style: block|progress|stairs;"
+  echo " like \"~-\"; style.progressbar.length: 1-60 cells (also sizes the"
+  echo " /media:now bar); style.volume.style: block|progress|stairs;"
   echo " style.volume.bar: on|off — the bar draws in the progress-bar accent;"
   echo " style.volume.icon / style.output.icon: auto|none|<glyph>."
   echo " Set: media.sh config <style key> \"<spec>\" — the value reset restores a"

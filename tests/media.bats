@@ -1011,6 +1011,48 @@ setup() {
   [[ "$output" == *"blocks|wave|pulse|eq|notes|braille|chevron|tape|cassette|retro|knob|smooth|line|dots"* ]]
 }
 
+@test "config style.progressbar.length: whole number of cells 1-60, default 20" {
+  run "$MEDIA" config style.progressbar.length
+  [ "$output" = "20" ]
+  run "$MEDIA" config style.progressbar.length 10
+  [ "$status" -eq 0 ]
+  [ "$output" = "style.progressbar.length = 10" ]
+  run "$MEDIA" config style.progressbar.length "040"   # canonicalized
+  [ "$output" = "style.progressbar.length = 40" ]
+  for bad in 0 61 -5 1.5 abc "1 0"; do
+    run "$MEDIA" config style.progressbar.length "$bad"
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"1 to 60"* ]]
+  done
+  run "$MEDIA" config style.progressbar.length reset
+  [ "$status" -eq 0 ]
+  [ "$output" = "style.progressbar.length = 20 (default)" ]
+  run "$MEDIA" config style.progressbar.length
+  [ "$output" = "20" ]
+}
+
+@test "statusline: bar width follows style.progressbar.length" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  # Default width: 75.4/200 fills 8 of 20 cells.
+  echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["progressbar"]}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$output" = "━━━━━━━━────────────" ]
+  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["progressbar"],"style.progressbar.length":"5"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$output" = "━━───" ]                    # 75.4/200 -> 2 of 5 cells
+  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  # Junk in a hand-edited config falls back to the default width.
+  echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["progressbar"],"style.progressbar.length":"huge"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$output" = "━━━━━━━━────────────" ]
+  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  # The volume progress mini bar keeps its fixed 5 cells (45% -> 2 filled).
+  echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["volume"],"style.volume.style":"progress","style.progressbar.length":"40"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [[ "$output" == *"━━───"* ]]
+}
+
 @test "config style.volume.icon: auto, none, or a whitespace-free glyph" {
   run "$MEDIA" config style.volume.icon "♪"
   [ "$status" -eq 0 ]
@@ -1062,7 +1104,8 @@ setup() {
   [[ "$output" == *$'\e[1mStub Song\e[0m'* ]]            # bold title
   [[ "$output" == *$'\e[3mStub Artist\e[0m'* ]]          # italic artist
   [[ "$output" == *$'\e[2m(StubPlayer)\e[0m'* ]]         # dim app
-  [[ "$output" == *$'\e[32m━━━━\e[0m\e[2m──────\e[0m'* ]] # green fill + dim rest
+  # green fill + dim rest (75.4/200 -> 8 of the default 20 cells)
+  [[ "$output" == *$'\e[32m━━━━━━━━\e[0m\e[2m────────────\e[0m'* ]]
 }
 
 @test "statusline: style.track.title and style.track.artist restyle their parts" {
@@ -1080,13 +1123,15 @@ setup() {
   echo '{"display.statusline":true,"style.progressbar.playing":"red"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
   [ "$status" -eq 0 ]
-  [[ "$output" == *$'\e[31m━━━━\e[0m'* ]]   # red fill
-  [[ "$output" == *$'\e[1;31m'* ]]          # icon: bold + the same accent
+  [[ "$output" == *$'\e[31m━━━━━━━━\e[0m'* ]]   # red fill (8 of 20 cells)
+  [[ "$output" == *$'\e[1;31m'* ]]              # icon: bold + the same accent
 }
 
 @test "statusline: progressbar charsets — wave preset and a custom pair" {
   mkdir -p "$CLAUDE_PLUGIN_DATA"
-  echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["progressbar"],"style.progressbar.style":"wave"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  # Length pinned to 10 so the charset expectations stay compact — the
+  # default width has its own test.
+  echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["progressbar"],"style.progressbar.style":"wave","style.progressbar.length":"10"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
   # Fill cycles ▂▄▆▄ over ▁ water, phased by the position (75 % 4 = 3);
   # charset applies even with color off.
@@ -1095,20 +1140,20 @@ setup() {
   STUB_ELAPSED=76 run "$MEDIA" statusline
   [ "$output" = "▂▄▆▄▁▁▁▁▁▁" ]              # one second on — the swell rolls right
   rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
-  echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["progressbar"],"style.progressbar.style":"pulse"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["progressbar"],"style.progressbar.style":"pulse","style.progressbar.length":"10"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
   [ "$output" = "▂▂█▁▁▁▁▁▁▁" ]              # ECG beat ▂▂█▁▄, phase 75 % 5 = 0
   rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
-  echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["progressbar"],"style.progressbar.style":"#."}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["progressbar"],"style.progressbar.style":"#.","style.progressbar.length":"10"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
   [ "$output" = "####......" ]
 }
 
 @test "statusline: progressbar charsets — every 0.16.0 preset renders" {
   mkdir -p "$CLAUDE_PLUGIN_DATA"
-  # Stub position 75.4/200 → 4 of 10 cells; rolling fills phase by int(75).
-  # knob spends one filled cell on its ● head; smooth measures 30 eighths
-  # → 3 full blocks + ▊ (6/8).
+  # Length pinned to 10 (compact expectations): stub position 75.4/200 →
+  # 4 of 10 cells; rolling fills phase by int(75). knob spends one filled
+  # cell on its ● head; smooth measures 30 eighths → 3 full blocks + ▊ (6/8).
   local cases=(
     "eq|█▅▆▂▁▁▁▁▁▁"
     "notes|♫♪♫♪······"
@@ -1122,7 +1167,7 @@ setup() {
   )
   for c in "${cases[@]}"; do
     rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
-    echo "{\"display.statusline\":true,\"statusline.color\":false,\"statusline.fields\":[\"progressbar\"],\"style.progressbar.style\":\"${c%%|*}\"}" > "$CLAUDE_PLUGIN_DATA/config.json"
+    echo "{\"display.statusline\":true,\"statusline.color\":false,\"statusline.fields\":[\"progressbar\"],\"style.progressbar.style\":\"${c%%|*}\",\"style.progressbar.length\":\"10\"}" > "$CLAUDE_PLUGIN_DATA/config.json"
     run "$MEDIA" statusline
     echo "preset ${c%%|*}: got '$output', want '${c#*|}'"
     [ "$output" = "${c#*|}" ]
@@ -1606,8 +1651,8 @@ setup() {
   [ "$status" -eq 0 ]
   [[ "$output" == *$'\e]8;;claude-media://toggle\a'* ]]      # ▶︎/⏸ icon
   [[ "$output" == *$'\e]8;;claude-media://activate\a'* ]]    # title — artist (+ app)
-  [[ "$output" == *"claude-media://seek/5"* ]]               # first bar cell
-  [[ "$output" == *"claude-media://seek/95"* ]]              # last bar cell
+  [[ "$output" == *"claude-media://seek/2"* ]]               # first of 20 bar cells
+  [[ "$output" == *"claude-media://seek/97"* ]]              # last bar cell
   [[ "$output" == *"Stub Song"* ]]
 }
 
@@ -1616,14 +1661,23 @@ setup() {
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["progressbar"]}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
   [ "$status" -eq 0 ]
-  for pct in 5 15 25 35 45 55 65 75 85 95; do
+  # Cell i of the default 20 jumps to int((i+0.5)*100/20) percent.
+  for pct in 2 7 12 17 22 27 32 37 42 47 52 57 62 67 72 77 82 87 92 97; do
     [[ "$output" == *"claude-media://seek/$pct"* ]]
   done
-  # 10 cells x (open + close) = 20 OSC 8 sequences, nothing more.
-  [ "$(printf '%s' "$output" | /usr/bin/grep -o ']8;;' | wc -l | tr -d ' ')" -eq 20 ]
-  # Stripping the links leaves exactly the unlinked bar (75.4/200 -> 4 cells).
+  # 20 cells x (open + close) = 40 OSC 8 sequences, nothing more.
+  [ "$(printf '%s' "$output" | /usr/bin/grep -o ']8;;' | wc -l | tr -d ' ')" -eq 40 ]
+  # Stripping the links leaves exactly the unlinked bar (75.4/200 -> 8 cells).
   plain="$(printf '%s' "$output" | /usr/bin/perl -pe 's/\e\]8;;[^\a]*\a//g')"
-  [ "$plain" = "━━━━──────" ]
+  [ "$plain" = "━━━━━━━━────────────" ]
+  # A custom length re-divides the click map: 4 cells seek to their centers.
+  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["progressbar"],"style.progressbar.length":"4"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  for pct in 12 37 62 87; do
+    [[ "$output" == *"claude-media://seek/$pct"* ]]
+  done
+  [ "$(printf '%s' "$output" | /usr/bin/grep -o ']8;;' | wc -l | tr -d ' ')" -eq 8 ]
 }
 
 @test "statusline: no links without the handler app, with links off, and in the volume bar" {

@@ -17,7 +17,7 @@ Changes show up on the next statusline tick (≤ 1s). No restart, ever.
 ## Anatomy of the segment
 
 ```
-▶︎ Karma Police — Radiohead (Spotify)  🔉 ▄ 45%  ━━━━━━────  2:13/4:24  🎧 AirPods Pro
+▶︎ Karma Police — Radiohead (Spotify)  🔉 ▄ 45%  ━━━━━━━━━━━━────────  2:13/4:24  🎧 AirPods Pro
 ```
 
 | You see | Key | Default |
@@ -29,7 +29,7 @@ Changes show up on the next statusline tick (≤ 1s). No restart, ever.
 | `🔉` volume icon | `style.volume.icon` | `auto` |
 | `▄` volume bar | `style.volume.style` (shape) · `style.volume.bar` (show) | `block` · `on` |
 | `45%` | `style.volume.percent` | `dim` |
-| `━━━━━━────` | `style.progressbar.style` (characters) | `line` |
+| `━━━━━━━━━━━━────────` | `style.progressbar.style` (characters) · `style.progressbar.length` (cells) | `line` · `20` |
 | `2:13` elapsed | `style.time.elapsed` | `bold` |
 | `/4:24` total | `style.time.total` | `dim` |
 | `🎧` output icon | `style.output.icon` | `auto` |
@@ -44,36 +44,37 @@ progress-bar fill, and the volume bar all draw in
 
 ## Progress bar
 
-`style.progressbar.style` picks the characters. The statusline bar is 10
-cells; the `/media:now` reply draws its 20-cell bar with the same characters,
-so the two always match. Character choices apply even with colors off.
+`style.progressbar.style` picks the characters, `style.progressbar.length`
+how many cells wide the bar is (default 20). The `/media:now` reply draws
+its bar with the same characters and length, so the two always match.
+Character and length choices apply even with colors off.
 
 ![The bar presets and volume shapes, drawn live at one frame per second](styles.gif)
 
 ### Static presets
 
-Shown at 60% (`smooth` at 56%, where its partial cell shows):
+Shown at 60% (`smooth` at 58%, where its partial cell shows):
 
 | Value | Looks like | |
 | --- | --- | --- |
-| `line` | `━━━━━━────` | the default |
-| `blocks` | `██████░░░░` | the classic (pre-0.12 default) |
-| `smooth` | `█████▋░░░░` | boundary cell is a partial block — see below |
-| `knob` | `━━━━━●────` | a slider head caps the fill |
-| `braille` | `⣿⣿⣿⣿⣿⣿⣀⣀⣀⣀` | |
-| `chevron` | `▸▸▸▸▸▸▹▹▹▹` | |
-| `tape` | `▰▰▰▰▰▰▱▱▱▱` | |
-| `cassette` | `▮▮▮▮▮▮▯▯▯▯` | |
-| `retro` | `======----` | plain ASCII |
-| `dots` | `●●●●●●○○○○` | |
+| `line` | `━━━━━━━━━━━━────────` | the default |
+| `blocks` | `████████████░░░░░░░░` | the classic (pre-0.12 default) |
+| `smooth` | `███████████▋░░░░░░░░` | boundary cell is a partial block — see below |
+| `knob` | `━━━━━━━━━━━●────────` | a slider head caps the fill |
+| `braille` | `⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣀⣀⣀⣀⣀⣀⣀⣀` | |
+| `chevron` | `▸▸▸▸▸▸▸▸▸▸▸▸▹▹▹▹▹▹▹▹` | |
+| `tape` | `▰▰▰▰▰▰▰▰▰▰▰▰▱▱▱▱▱▱▱▱` | |
+| `cassette` | `▮▮▮▮▮▮▮▮▮▮▮▮▯▯▯▯▯▯▯▯` | |
+| `retro` | `============--------` | plain ASCII |
+| `dots` | `●●●●●●●●●●●●○○○○○○○○` | |
 
 `smooth` fills in ⅛-cell steps, so short tracks progress visibly between
 seconds:
 
 ```
- 5%  ▌░░░░░░░░░
-45%  ████▌░░░░░
-96%  █████████▋
+ 3%  ▋░░░░░░░░░░░░░░░░░░░
+47%  █████████▍░░░░░░░░░░
+98%  ███████████████████▋
 ```
 
 ### Animated presets
@@ -83,10 +84,10 @@ freeze on pause:
 
 | Value | t | t+1s | t+2s | |
 | --- | --- | --- | --- | --- |
-| `wave` | `▂▄▆▄▂▄▁▁▁▁` | `▄▂▄▆▄▂▁▁▁▁` | `▆▄▂▄▆▄▁▁▁▁` | a rolling swell |
-| `pulse` | `▂▂█▁▄▂▁▁▁▁` | `▄▂▂█▁▄▁▁▁▁` | `▁▄▂▂█▁▁▁▁▁` | an ECG beat |
-| `eq` | `▂▇▃█▅▆▁▁▁▁` | `▆▂▇▃█▅▁▁▁▁` | `▅▆▂▇▃█▁▁▁▁` | equalizer bars |
-| `notes` | `♪♫♪♫♪♫····` | `♫♪♫♪♫♪····` | `♪♫♪♫♪♫····` | marching notes |
+| `wave` | `▂▄▆▄▂▄▆▄▂▄▆▄▁▁▁▁▁▁▁▁` | `▄▂▄▆▄▂▄▆▄▂▄▆▁▁▁▁▁▁▁▁` | `▆▄▂▄▆▄▂▄▆▄▂▄▁▁▁▁▁▁▁▁` | a rolling swell |
+| `pulse` | `▂▂█▁▄▂▂█▁▄▂▂▁▁▁▁▁▁▁▁` | `▄▂▂█▁▄▂▂█▁▄▂▁▁▁▁▁▁▁▁` | `▁▄▂▂█▁▄▂▂█▁▄▁▁▁▁▁▁▁▁` | an ECG beat |
+| `eq` | `▂▇▃█▅▆▂▇▃█▅▆▁▁▁▁▁▁▁▁` | `▆▂▇▃█▅▆▂▇▃█▅▁▁▁▁▁▁▁▁` | `▅▆▂▇▃█▅▆▂▇▃█▁▁▁▁▁▁▁▁` | equalizer bars |
+| `notes` | `♪♫♪♫♪♫♪♫♪♫♪♫········` | `♫♪♫♪♫♪♫♪♫♪♫♪········` | `♪♫♪♫♪♫♪♫♪♫♪♫········` | marching notes |
 
 ### Your own characters
 
@@ -94,9 +95,25 @@ Any **exactly two characters** mean "filled + empty" (a space works as the
 empty half; two spaces, tabs, and newlines are refused):
 
 ```
-/media:config style.progressbar.style "#-"     →  ######----
-/media:config style.progressbar.style "~ "     →  ~~~~~~
+/media:config style.progressbar.style "#-"     →  ############--------
+/media:config style.progressbar.style "~ "     →  ~~~~~~~~~~~~
 ```
+
+### Bar length
+
+`style.progressbar.length` sets how many cells the bar spans — any whole
+number from 1 to 60 (default `20`):
+
+```
+/media:config style.progressbar.length 10   →  ━━━━━━────
+/media:config style.progressbar.length 40   →  ━━━━━━━━━━━━━━━━━━━━━━━━────────────────
+```
+
+One length drives both bars — the statusline segment and the `/media:now`
+reply. With links on every cell stays ⌘+clickable, so a longer bar simply
+seeks in finer steps. (The volume mini bar keeps its five cells — it is
+meant to stay small.) The default grew from 10 to 20 in 0.20.0; set `10`
+to bring back the compact pre-0.20 bar.
 
 ### Bar colors
 
@@ -201,7 +218,7 @@ statusline.
 /media:config style.track.title "bold bright-cyan"
 ```
 ```
-▶︎ Karma Police — Radiohead (Spotify)  ●●●●●●○○○○  2:13/4:24
+▶︎ Karma Police — Radiohead (Spotify)  ●●●●●●●●●●●●○○○○○○○○  2:13/4:24
 ```
 
 **Tape deck** — cassette bar, stair volume, note icon:
@@ -213,7 +230,7 @@ statusline.
 /media:config style.volume.icon ♪
 ```
 ```
-▶︎ Karma Police — Radiohead (Spotify)  ♪ ▂▄ 45%  ▰▰▰▰▰▰▱▱▱▱  2:13/4:24
+▶︎ Karma Police — Radiohead (Spotify)  ♪ ▂▄ 45%  ▰▰▰▰▰▰▰▰▰▰▰▰▱▱▱▱▱▱▱▱  2:13/4:24
 ```
 
 **Plain terminal** — ASCII bar, no colors:
@@ -223,7 +240,7 @@ statusline.
 /media:config statusline.color off
 ```
 ```
-▶︎ Karma Police — Radiohead (Spotify)  ======----  2:13/4:24
+▶︎ Karma Police — Radiohead (Spotify)  ============--------  2:13/4:24
 ```
 
 ## Back to defaults

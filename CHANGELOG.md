@@ -5,6 +5,31 @@ All notable changes to this project are documented here. The format follows
 [SemVer](https://semver.org/spec/v2.0.0.html), tracked in
 `.claude-plugin/plugin.json`.
 
+## [0.20.0] — 2026-07-11
+
+### Added
+
+- **The progress bar length is configurable** — new style key
+  `style.progressbar.length`, any whole number of cells from 1 to 60.
+  One length drives both bars: the statusline segment and the
+  `/media:now` reply draw with the same characters and the same width,
+  so the two always match. With cmd+click links on, the seek map
+  re-divides over the chosen cells — a longer bar simply seeks in finer
+  steps. The five-cell volume mini bar is deliberately compact and
+  keeps its size. Set the key directly
+  (`/media:config style.progressbar.length 30`), through the
+  `/media:statusline` styling flow, or just say it ("make the bar
+  shorter"). Junk values in a hand-edited config fall back to the
+  default instead of breaking the render.
+
+### Changed
+
+- **The default bar is twice as wide: 20 cells, up from 10.** The
+  statusline bar now matches the `/media:now` bar (which was already
+  20 characters), and the docs, the style gallery examples, and
+  `docs/styles.gif` are redrawn at the new width.
+  `style.progressbar.length 10` restores the pre-0.20 compact bar.
+
 ## [0.19.0] — 2026-07-11
 
 ### Added

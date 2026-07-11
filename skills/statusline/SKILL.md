@@ -1,6 +1,6 @@
 ---
 name: statusline
-description: Configure the now-playing statusline in one place — toggle items (volume, progress bar, time, output device), arrange which item sits on which line as a numeric pattern like 123/456, and style every part; bold/italic/color for the track title, artist, app, time, volume bar & percent, and output device name; playing/paused colors and bar characters for the progress bar; the volume icon and bar shape; the output device icon; the value off hides any part. Use when the user wants to lay out, reorder, restyle, recolor, hide, or redesign anything in the statusline — e.g. "make the title cyan", "hide the artist", "volume icon ♪", "bar style dots", "reset the statusline styling".
+description: Configure the now-playing statusline in one place — toggle items (volume, progress bar, time, output device), arrange which item sits on which line as a numeric pattern like 123/456, and style every part; bold/italic/color for the track title, artist, app, time, volume bar & percent, and output device name; playing/paused colors, bar characters, and bar length (cells) for the progress bar; the volume icon and bar shape; the output device icon; the value off hides any part. Use when the user wants to lay out, reorder, restyle, recolor, resize, hide, or redesign anything in the statusline — e.g. "make the title cyan", "hide the artist", "volume icon ♪", "bar style dots", "make the bar shorter", "reset the statusline styling".
 argument-hint: [pattern like 123/456 | preset | style wish like "title bold cyan" | reset]
 allowed-tools: Bash, AskUserQuestion
 ---
@@ -62,6 +62,7 @@ Every visible part has a `style.*` config key:
 | `style.progressbar.playing` | bar fill + ▶︎ accent while playing | `green` |
 | `style.progressbar.paused` | bar fill + ⏸ accent while paused | `yellow` |
 | `style.progressbar.style` | progress bar characters | `line` |
+| `style.progressbar.length` | progress bar width in cells (1–60) | `20` |
 | `style.time.elapsed` | elapsed time `2:13` | `bold` |
 | `style.time.total` | total-time tail `/4:24` | `dim` |
 | `style.output.icon` | output device icon | `auto` (by device kind) |
@@ -83,7 +84,9 @@ rolling swell) · `pulse` `▂▂█▁▄▂▁▁▁▁` (an ECG beat) · `eq`
 `cassette` `▮▮▮▮▮▮▯▯▯▯` · `retro` `======----` · `dots` `●●●●●●○○○○` — or
 any two characters meaning "filled + empty" (`"#-"` → `######----`).
 `wave`, `pulse`, `eq`, and `notes` roll forward each second while playing
-and freeze on pause. **Volume bar shape** (`style.volume.style`): `block` (one ▄
+and freeze on pause. **Bar length** (`style.progressbar.length`): any whole
+number of cells from 1 to 60 (default `20`); the `/media:now` bar follows
+it too. **Volume bar shape** (`style.volume.style`): `block` (one ▄
 whose height tracks the level, default) · `progress` (a five-cell mini bar
 drawn with the progress-bar characters) · `stairs` (`▂▄▆█` steps). The
 volume bar always draws in the playing/paused accent colors;
@@ -141,6 +144,8 @@ accent — a volume-bar color wish maps to `style.progressbar.playing` /
 `style.volume.percent`, "볼륨 아이콘" → `style.volume.icon`, "재생 색/playing
 color" → `style.progressbar.playing`, "일시정지/정지 색" →
 `style.progressbar.paused`, "바 스타일/문자" → `style.progressbar.style`,
+"바 길이/짧게/길게/bar length" → `style.progressbar.length` (a number of
+cells, 1–60; also sizes the `/media:now` bar),
 "현재 시간/elapsed" → `style.time.elapsed`, "총 시간/total" →
 `style.time.total`, "출력 (장치) 이름/output" → `style.output`, "출력
 아이콘" → `style.output.icon`. Translate color words to the English token
@@ -187,7 +192,7 @@ as tabs. Build the option labels from the current state shown above.
   groups; mark groups holding `*custom` values in their descriptions:
   - `Track & app` — title, artist, app name
   - `Volume` — icon, bar shape & styling, percent
-  - `Progress bar & time` — playing/paused colors, bar characters, elapsed/total
+  - `Progress bar & time` — playing/paused colors, bar characters & length, elapsed/total
   - `Output device` — icon, device name
 
   (An "Other" answer here that reads like "skip"/"none"/"그대로" means no
@@ -261,10 +266,13 @@ value in each question text.
     `Line ━━━━━━──── (default)` / `Blocks ██████░░░░` / Other → `smooth`,
     `knob`, `wave`, `pulse`, `eq`, `notes`, `braille`, `chevron`, `tape`,
     `cassette`, `retro`, `dots`, or any two glyphs like `#-`
-  - "Elapsed" (`style.time.elapsed`): Keep current / `Default (bold)` /
-    `Bold cyan` / Other
-  - "Total" (`style.time.total`): Keep current / `Default (dim)` /
-    `Off — hide the total` / Other
+  - "Bar length" (`style.progressbar.length`): Keep current /
+    `Default (20 cells)` / `10 — the pre-0.20 width` / Other → any whole
+    number of cells, 1–60 (the `/media:now` bar follows it)
+  - "Time" (`style.time.elapsed` / `style.time.total`): "elapsed/total —
+    `bold cyan/dim` styles them separately (`X/Y`); `off` as the total
+    hides the `/total` tail". Keep current / `Defaults (bold / dim)` /
+    `Elapsed only — total off` / Other → `X/Y`
 - **Output device** — 2 questions:
   - "Icon" (`style.output.icon`): Keep current / `Default — by device kind
     (auto)` / `Hide (none)` / Other → any glyph

@@ -6,7 +6,7 @@ The current track, as an extra line in Claude Code's statusline:
 
 ```
 [your existing statusline, untouched]
-▶︎ Karma Police — Radiohead (Spotify)  ━━━━━━────  2:13/4:24
+▶︎ Karma Police — Radiohead (Spotify)  ━━━━━━━━━━━━────────  2:13/4:24
 ```
 
 The segment answers from a 1-second TTL cache in well under 50ms — it never
@@ -42,7 +42,7 @@ In terminals with hyperlink support, the segment is **cmd+clickable**:
 | --- | --- |
 | `▶︎` / `⏸` icon | toggle play/pause |
 | title — artist, `(App)` | jump to the playing media: the playing browser tab (Safari, Chrome, Edge, Brave, Vivaldi, Opera) or the current track in Music; other apps just come to the front |
-| progress bar | seek — each of the 10 cells jumps to its position (5%, 15%, … 95%) |
+| progress bar | seek — every cell jumps to its position (at the default 20 cells: 2.5%, 7.5%, … 97.5%; a longer bar seeks in finer steps) |
 
 - **Works in**: iTerm2, Ghostty, WezTerm, Kitty, VS Code, Alacritty ≥ 0.11
   (tmux ≥ 3.4 passes links through). Terminals without hyperlink support
@@ -121,7 +121,7 @@ live. Every failure in the gate fails open: live, never frozen.
 | 1 | `track` | `▶︎ Karma Police — Radiohead` |
 | 2 | `app` | `(Spotify)` |
 | 3 | `volume` | `🔉 ▄ 45%` — `🔇` when muted |
-| 4 | `progressbar` | `━━━━━━────` |
+| 4 | `progressbar` | `━━━━━━━━━━━━────────` |
 | 5 | `time` | `2:13/4:24` |
 | 6 | `output` | `🎧 AirPods Pro` — icon by device kind |
 
@@ -133,21 +133,21 @@ list can also be set directly:
 Standard — everything on one line (`123456`):
 
 ```
-▶︎ Karma Police — Radiohead (Spotify)  🔉 ▄ 45%  ━━━━━━────  2:13/4:24  🎧 AirPods Pro
+▶︎ Karma Police — Radiohead (Spotify)  🔉 ▄ 45%  ━━━━━━━━━━━━────────  2:13/4:24  🎧 AirPods Pro
 ```
 
 Stacked — two lines (`123/456`):
 
 ```
 ▶︎ Karma Police — Radiohead (Spotify)  🔉 ▄ 45%
-━━━━━━────  2:13/4:24  🎧 AirPods Pro
+━━━━━━━━━━━━────────  2:13/4:24  🎧 AirPods Pro
 ```
 
 Output next to the track, no volume (`126/45`):
 
 ```
 ▶︎ Karma Police — Radiohead (Spotify)  🎧 AirPods Pro
-━━━━━━────  2:13/4:24
+━━━━━━━━━━━━────────  2:13/4:24
 ```
 
 How the layout behaves:
@@ -169,8 +169,9 @@ title and elapsed time, *italic* artist, dim chrome — standard 16-color SGR,
 so your terminal's palette decides the shades.
 
 Every part is individually styleable — colors, bold/italic, 14 progress-bar
-charsets, volume bar shapes, icons, or `off` to hide any part. **The full
-catalog, with examples and recipes: [docs/styles.md](styles.md).**
+charsets, the bar length (1–60 cells, default 20), volume bar shapes, icons,
+or `off` to hide any part. **The full catalog, with examples and recipes:
+[docs/styles.md](styles.md).**
 
 ```
 /media:config statusline.color off     # plain text (NO_COLOR works too)

@@ -35,7 +35,7 @@ Valid keys:
 - `statusline.activetab` — with several Claude Code sessions open, update the segment only in the terminal tab in use (default `on`; typing/scrolling/focusing a tab moves the live segment there). Inactive sessions keep the segment's last line frozen — bar and time stop moving — and catch up when used again. `off` = every session updates. Only the plugin's segment is gated — the user's own statusline runs live in every session either way. Sessions without a terminal (VS Code, headless) always update
 - `history.record` — log played tracks to the local history (default `on`; view with `/media:history`)
 - `statusline.fields` — which items the statusline shows, as an ordered comma/space list of `track app volume progressbar time output` with optional `/` line breaks (interactive: `/media:statusline`)
-- `style.<part>` — per-item statusline styles (14 string-valued keys; `config style` lists them, the value `reset` restores one, `config style reset` restores all). Guided styling lives in `/media:statusline`.
+- `style.<part>` — per-item statusline styles (15 string-valued keys; `config style` lists them, the value `reset` restores one, `config style reset` restores all). Guided styling lives in `/media:statusline`.
 - `statusline reset` — restore the whole statusline **appearance** to defaults: arrangement, explicit lines, colors, marquee, and every `style.*` key. Does not touch `display.statusline` or the non-statusline toggles.
 
 Rules you must follow:

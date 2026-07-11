@@ -13,7 +13,7 @@ second, ⌘+clickable, styleable down to the bar characters:
 
 ```
 ▶︎ Karma Police — Radiohead (Spotify)  🔉 ▄ 45%
-━━━━━━────  2:13/4:24  🎧 AirPods Pro
+━━━━━━━━━━━━────────  2:13/4:24  🎧 AirPods Pro
 ```
 
 And whatever your Mac is playing — Spotify, Apple Music, a browser tab,
@@ -60,8 +60,9 @@ Everything below is automatic — the full guide is
 - **Style every part**: playing/paused accent colors, bold/italic/color per
   part, 14 progress-bar charsets (from `line` `━━──` to `smooth` partial
   blocks, a `knob` slider head, and animated `wave`/`pulse`/`eq`/`notes`),
-  volume bar shapes, icons — or `off` to hide any part. **See the
-  [style gallery](docs/styles.md)** for all of them with examples.
+  the bar length (1–60 cells), volume bar shapes, icons — or `off` to hide
+  any part. **See the [style gallery](docs/styles.md)** for all of them with
+  examples.
 
 ## Control it from chat
 
