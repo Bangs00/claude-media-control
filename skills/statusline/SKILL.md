@@ -79,6 +79,12 @@ disappears (with its line, when it sat alone on one).
 **Bar characters** (`style.progressbar.style`): `line` `━━━━━━────`
 (default) · `blocks` `██████░░░░` · `smooth` `█████▋░░░░` (⅛-step partial
 boundary) · `rise` `█████▅░░░░` (⅛-step boundary rising bottom-up) ·
+`fade` `█████▓░░░░` (⅓-step shade boundary) · `corner` `█████▙░░░░`
+(¼-step quadrant boundary) · `glide` `━━━━━╾────` (half-cell steps) ·
+`stipple` `⣿⣿⣿⣿⣿⣶⣀⣀⣀⣀` (⅙-step braille boundary) · `tiles`
+`■■■■■◧□□□□` (half-filled square) · `dash` `━━━━━╌┈┈┈┈` (thin dashes
+fuse into a heavy line, ⅓ steps) · `seam` `━━━━━╌────` (thin-dash
+boundary, ¼ steps) ·
 `knob` `━━━━━●────` (slider head) · `wave` `▂▄▆▄▂▄▁▁▁▁` (a
 rolling swell) · `pulse` `▂▂█▁▄▂▁▁▁▁` (an ECG beat) · `eq` `▂▇▃█▅▆▁▁▁▁`
 (equalizer) · `notes` `♪♫♪♫♪♫····` (marching notes) · `braille`
@@ -268,8 +274,10 @@ value in each question text.
     one color (a name or a hex code like `#ff8800`)
   - "Bar characters" (`style.progressbar.style`): Keep current /
     `Line ━━━━━━──── (default)` / `Blocks ██████░░░░` / Other → `smooth`,
-    `rise`, `knob`, `wave`, `pulse`, `eq`, `notes`, `braille`, `chevron`,
-    `tape`, `cassette`, `retro`, `dots`, or any two glyphs like `#-`
+    `rise`, `fade`, `corner`, `glide`, `stipple`, `tiles`, `dash`,
+    `seam`, `knob`, `wave`, `pulse`, `eq`, `notes`, `braille`,
+    `chevron`, `tape`, `cassette`, `retro`, `dots`, or any two glyphs
+    like `#-`
   - "Bar length" (`style.progressbar.length`): Keep current /
     `Default (20 cells)` / `10 — the pre-0.20 width` / Other → any whole
     number of cells, 1–60 (the `/media:now` bar follows it)

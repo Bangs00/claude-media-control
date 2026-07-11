@@ -5,6 +5,25 @@ All notable changes to this project are documented here. The format follows
 [SemVer](https://semver.org/spec/v2.0.0.html), tracked in
 `.claude-plugin/plugin.json`.
 
+## [0.23.0] — 2026-07-12
+
+### Added
+
+- **Seven sub-cell boundary presets.** `style.progressbar.style` gains
+  `fade` (`███▓░░` — the boundary cell darkens through `▒▓`), `corner`
+  (`███▙░░` — it fills by quadrants `▖▌▙`), `glide` (`━━━╾──` — the
+  `line` bar advancing in half-cell steps), `stipple` (`⣿⣿⣷⣀⣀` — the
+  `braille` bar with its dots rising `⣄⣤⣦⣶⣷`), `tiles` (`■■◧□□` —
+  squares with a half-filled boundary), `dash` (`━━╌┈┈` — a heavy line
+  fusing out of its thin-dash track `┈→┄╌→━`), and `seam` (`━━╌──` —
+  the `line` bar cracking through the thin dashes `┈┄╌`). Like
+  `smooth` and `rise`, the boundary cell renders the remainder as a
+  partial glyph — fade/dash in thirds, corner/seam in quarters,
+  stipple in sixths, glide/tiles in
+  halves — so short tracks progress visibly between seconds. The volume
+  bar's `progress` shape and the `/media:now` bar follow along, and
+  with links on every cell stays ⌘+click-seekable.
+
 ## [0.22.0] — 2026-07-12
 
 ### Added
