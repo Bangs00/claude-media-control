@@ -121,8 +121,8 @@ number from 1 to 60 (default `20`):
 
 One length drives both bars — the statusline segment and the `/media:now`
 reply. With links on every cell stays ⌘+clickable, so a longer bar simply
-seeks in finer steps. (The volume mini bar keeps its five cells — it is
-meant to stay small.) The default grew from 10 to 20 in 0.20.0; set `10`
+seeks in finer steps. (The volume mini bar keeps its eight cells — one
+per volume step.) The default grew from 10 to 20 in 0.20.0; set `10`
 to bring back the compact pre-0.20 bar.
 
 ### Bar colors
@@ -144,14 +144,14 @@ it collapses to `🔇` alone. (It needs the native helper — see
 
 ### Bar shapes — `style.volume.style`
 
-| Value | 10% | 30% | 45% | 60% | 80% | 100% | |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| `block` | `▁` | `▃` | `▄` | `▅` | `▇` | `█` | one cell, height = level (default) |
-| `stairs` | `▂` | `▂▄` | `▂▄` | `▂▄▆` | `▂▄▆█` | `▂▄▆█` | quarter steps |
-| `progress` | `━────` | `━━───` | `━━───` | `━━━──` | `━━━━─` | `━━━━━` | 5-cell mini bar |
+| Value | 10% | 20% | 35% | 50% | 60% | 75% | 85% | 100% | |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `block` | `▁` | `▂` | `▃` | `▄` | `▅` | `▆` | `▇` | `█` | one cell, height = level (default) |
+| `stairs` | `▁` | `▁▂` | `▁▂▃` | `▁▂▃▄` | `▁▂▃▄▅` | `▁▂▃▄▅▆` | `▁▂▃▄▅▆▇` | `▁▂▃▄▅▆▇█` | eighth steps |
+| `progress` | `━───────` | `━━──────` | `━━━─────` | `━━━━────` | `━━━━━───` | `━━━━━━──` | `━━━━━━━─` | `━━━━━━━━` | 8-cell mini bar |
 
 `progress` draws with your progress-bar characters, animation and all —
-`blocks` gives `██░░░`, `dots` gives `●●○○○`. The volume bar always draws
+`blocks` gives `████░░░░`, `dots` gives `●●●●○○○○`. The volume bar always draws
 in the playing/paused accent; `style.volume.bar off` hides just the bar
 (`🔉 45%`).
 
@@ -240,7 +240,7 @@ statusline.
 /media:config style.volume.icon ♪
 ```
 ```
-▶︎ Karma Police — Radiohead (Spotify)  ♪ ▂▄ 45%  ▰▰▰▰▰▰▰▰▰▰▰▰▱▱▱▱▱▱▱▱  2:13/4:24
+▶︎ Karma Police — Radiohead (Spotify)  ♪ ▁▂▃▄ 45%  ▰▰▰▰▰▰▰▰▰▰▰▰▱▱▱▱▱▱▱▱  2:13/4:24
 ```
 
 **Plain terminal** — ASCII bar, no colors:

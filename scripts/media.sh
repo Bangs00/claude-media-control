@@ -736,8 +736,8 @@ do_statusline() {
     # + percent (`🔉 ▄ 45%`): a speaker glyph tiered by level (🔈/🔉/🔊, 🔇 at
     # 0; overridable via style.volume.icon), a bar shaped by
     # style.volume.style (block = one eighth-block whose height tracks the
-    # level, 50% = half block; progress = a five-cell mini bar drawn with the
-    # progress-bar charset; stairs = ▂▄▆█ steps), and the percent. The bar
+    # level, 50% = half block; progress = an eight-cell mini bar drawn with the
+    # progress-bar charset; stairs = a ▁..█ staircase), and the percent. The bar
     # draws in the playing/paused accent — style.volume.bar only toggles it
     # on/off. Muted
     # shows 🔇 alone — the underlying level is not what plays. The `output`
@@ -964,7 +964,7 @@ do_statusline() {
       # Bar width in cells from style.progressbar.length (default 20; the
       # setter validates 1-60). Junk in a hand-edited config falls back to
       # the default instead of breaking the render. The volume mini bar
-      # below keeps its fixed 5 cells — it is deliberately compact.
+      # below keeps its fixed 8 cells — one cell per volume step.
       my $blen = $sty{"progressbar.length"} // 20;
       $blen = 20 unless $blen =~ /^\d+$/ && $blen >= 1 && $blen <= 60;
       if ($w{progressbar} && defined $pos && defined $dur && $dur > 0) {
@@ -1027,13 +1027,14 @@ do_statusline() {
           unless ($hid->("volume.bar")) {
             my $shape = lc($sty{"volume.style"} // "block");
             if ($shape eq "progress") {
-              # Five-cell mini bar via the shared builder, so the two bars
-              # always match (charset, phase, knob head, smooth edge).
-              push @vp, $bar->(5, $v / 100);
+              # Eight-cell mini bar (one cell per volume step) via the shared
+              # builder, so the two bars always match (charset, phase, knob
+              # head, sub-cell edge).
+              push @vp, $bar->(8, $v / 100);
             } elsif ($shape eq "stairs") {
-              # Staircase: ceil(v*4/100) of ▂▄▆█ (45% -> ▂▄), min one step.
-              my @steps = ("\x{2582}", "\x{2584}", "\x{2586}", "\x{2588}");
-              my $n = int(($v * 4 + 99) / 100);
+              # Staircase: ceil(v*8/100) of ▁..█ (45% -> ▁▂▃▄), min one step.
+              my @steps = map { chr(0x2580 + $_) } 1 .. 8;
+              my $n = int(($v * 8 + 99) / 100);
               $n = 1 if $n < 1;
               push @vp, $st->($accsgr, join("", @steps[0 .. $n - 1]));
             } else {

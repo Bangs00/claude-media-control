@@ -916,10 +916,10 @@ setup() {
   run "$MEDIA" statusline
   [ "$output" = "━━━━━━━━────────────" ]
   rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
-  # The volume progress mini bar keeps its fixed 5 cells (45% -> 2 filled).
+  # The volume progress mini bar keeps its fixed 8 cells (45% -> 4 filled).
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["volume"],"style.volume.style":"progress","style.progressbar.length":"40"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
-  [[ "$output" == *"━━───"* ]]
+  [[ "$output" == *"━━━━────"* ]]
 }
 
 @test "config style.volume.icon: auto, none, or a whitespace-free glyph" {
@@ -1237,27 +1237,27 @@ setup() {
   mkdir -p "$CLAUDE_PLUGIN_DATA"
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["volume"],"style.volume.style":"progress"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
-  [ "$output" = "🔉 ━━─── 45%" ]                   # 45% of 5 cells, line charset
+  [ "$output" = "🔉 ━━━━──── 45%" ]                # 45% of 8 cells, line charset
   rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["volume"],"style.volume.style":"progress","style.progressbar.style":"#."}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
-  [ "$output" = "🔉 ##... 45%" ]                   # follows the custom pair
+  [ "$output" = "🔉 ####.... 45%" ]                # follows the custom pair
   rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["volume"],"style.volume.style":"progress","style.progressbar.style":"knob"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
-  [ "$output" = "🔉 ━●─── 45%" ]                   # knob head caps the fill
+  [ "$output" = "🔉 ━━━●──── 45%" ]                # knob head caps the fill
   rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["volume"],"style.volume.style":"progress","style.progressbar.style":"smooth"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
-  [ "$output" = "🔉 ██▎░░ 45%" ]                   # 45% of 5 cells = 18/8 → ▎
+  [ "$output" = "🔉 ███▋░░░░ 45%" ]                # 45% of 8 cells = 29/8 → ▋
   rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["volume"],"style.volume.style":"progress","style.progressbar.style":"rise"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
-  [ "$output" = "🔉 ██▂░░ 45%" ]                   # same 18/8, rising ramp → ▂
+  [ "$output" = "🔉 ███▅░░░░ 45%" ]                # same 29/8, rising ramp → ▅
   rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["volume"],"style.volume.style":"stairs"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
-  [ "$output" = "🔉 ▂▄ 45%" ]                      # ceil(45*4/100) = 2 steps
+  [ "$output" = "🔉 ▁▂▃▄ 45%" ]                    # ceil(45*8/100) = 4 steps
 }
 
 @test "statusline: output icon hides, swaps, and the name hides" {

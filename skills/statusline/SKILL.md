@@ -88,8 +88,9 @@ any two characters meaning "filled + empty" (`"#-"` → `######----`).
 and freeze on pause. **Bar length** (`style.progressbar.length`): any whole
 number of cells from 1 to 60 (default `20`); the `/media:now` bar follows
 it too. **Volume bar shape** (`style.volume.style`): `block` (one ▄
-whose height tracks the level, default) · `progress` (a five-cell mini bar
-drawn with the progress-bar characters) · `stairs` (`▂▄▆█` steps). The
+whose height tracks the level, default) · `progress` (an eight-cell mini
+bar drawn with the progress-bar characters) · `stairs` (a `▁..█` staircase
+by eighths). The
 volume bar always draws in the playing/paused accent colors;
 `style.volume.bar` is just its on/off switch (`on` default, `off` hides the
 bar). **Icons**: `style.volume.icon` and `style.output.icon` are `auto`
@@ -247,7 +248,7 @@ value in each question text.
   - "Icon" (`style.volume.icon`): Keep current / `Default — 🔈🔉🔊 by level
     (auto)` / `Hide (none)` / Other → any glyph, e.g. `🎵`
   - "Bar shape" (`style.volume.style`): Keep current / `Block ▄ (default)` /
-    `Progress ━━───` / `Stairs ▂▄▆█` — every shape draws in the
+    `Progress ━━━━────` / `Stairs ▁▂▃▄▅▆▇█` — every shape draws in the
     playing/paused accent colors
   - "Bar" (`style.volume.bar`): Keep current / `Show (on, default)` /
     `Hide (off)`

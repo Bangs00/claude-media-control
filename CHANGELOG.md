@@ -18,6 +18,15 @@ All notable changes to this project are documented here. The format follows
   `/media:config style.progressbar.style rise` or through
   `/media:statusline`.
 
+### Changed
+
+- **Every volume bar shape now resolves eight real steps.** `stairs`
+  climbs a `▁▂▃▄▅▆▇█` staircase (ceil(v×8/100) glyphs, 45% → `▁▂▃▄`)
+  instead of the old `▂▄▆█` quarters, and the `progress` mini bar grew
+  from five to eight cells — one cell per step, the same granularity
+  the one-cell `block` shape always had. Both now span up to eight
+  cells at full volume.
+
 ### Removed
 
 - **The active-tab statusline gate is gone.** 0.19.0 made the segment
