@@ -692,9 +692,7 @@ statusline_session_tty() {
   for _i in 1 2 3 4 5 6 7 8 9 10; do
     line="$(/bin/ps -o ppid=,tty= -p "$p" 2>/dev/null)" || return 0
     [ -n "$line" ] || return 0
-    set -- $line
-    p="${1:-}"
-    tty="${2:-}"
+    read -r p tty <<< "$line" || return 0
     if [ -n "$tty" ] && [ "$tty" != "??" ] && [ "$tty" != "-" ]; then
       printf '/dev/%s' "$tty"
       return 0
