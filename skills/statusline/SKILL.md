@@ -1,6 +1,6 @@
 ---
 name: statusline
-description: Configure the now-playing statusline in one place — toggle items (volume, progress bar, time, output device), arrange which item sits on which line as a numeric pattern like 123/456, and style every part; bold/italic/color for the track title, artist, app, time, volume bar & percent, and output device name; playing/paused colors, bar characters, and bar length (cells) for the progress bar; the volume icon and bar shape; the output device icon; the value off hides any part. Use when the user wants to lay out, reorder, restyle, recolor, resize, hide, or redesign anything in the statusline — e.g. "make the title cyan", "hide the artist", "volume icon ♪", "bar style dots", "make the bar shorter", "reset the statusline styling".
+description: Configure the now-playing statusline in one place — toggle items (volume, progress bar, time, output device), arrange which item sits on which line as a numeric pattern like 123/456, and style every part; bold/italic/color for the track title, artist, app, time, volume bar & percent, and output device name; playing/paused colors, bar characters, and bar length (cells) for the progress bar; the volume icon and bar shape; the output device icon; the value off hides any part. Use when the user wants to lay out, reorder, restyle, recolor, resize, hide, or redesign anything in the statusline — e.g. "make the title cyan", "title color #ff8800" (hex colors work), "hide the artist", "volume icon ♪", "bar style dots", "make the bar shorter", "reset the statusline styling".
 argument-hint: [pattern like 123/456 | preset | style wish like "title bold cyan" | reset]
 allowed-tools: Bash, AskUserQuestion
 ---
@@ -69,9 +69,10 @@ Every visible part has a `style.*` config key:
 | `style.output` | output device name | `dim` |
 
 **Style spec** (the text parts): any of `bold`, `dim`, `italic`, `underline`,
-plus at most one color — `black red green yellow blue magenta cyan white` or
-`bright-<color>` — or `none` (no styling, alone), or **`off` (hide that part,
-alone)**. Hiding follows the part: title off drops the `—` separator, elapsed
+plus at most one color — `black red green yellow blue magenta cyan white`,
+`bright-<color>`, or an exact hex code like `#ff8800` (short `#f80` works
+too; stored as `#rrggbb`, rendered as 24-bit truecolor) — or `none` (no
+styling, alone), or **`off` (hide that part, alone)**. Hiding follows the part: title off drops the `—` separator, elapsed
 off drops the `/` before the total, and an item whose parts are all hidden
 disappears (with its line, when it sat alone on one).
 
@@ -102,6 +103,10 @@ Notes you must apply when relevant:
 - SGR styles need `statusline.color` on (`NO_COLOR` always wins). Character
   choices — bar charsets, shapes, icons, and `off` — apply even with colors
   off.
+- Named colors follow the terminal palette; hex codes render as 24-bit
+  truecolor, which most terminals support (iTerm2, Ghostty, WezTerm, Kitty,
+  VS Code) but Apple Terminal does not — if colors look wrong there, fall
+  back to named colors.
 - The playing/paused colors style the progress-bar fill, the ▶︎/⏸ icon in
   front of the title (the icon keeps its bold), **and** the volume bar — one
   accent across the segment. To recolor any of them, change
@@ -146,7 +151,9 @@ cells, 1–60; also sizes the `/media:now` bar),
 "현재 시간/elapsed" → `style.time.elapsed`, "총 시간/total" →
 `style.time.total`, "출력 (장치) 이름/output" → `style.output`, "출력
 아이콘" → `style.output.icon`. Translate color words to the English token
-(`파란색` → `blue`, `하늘색` → `cyan` or `bright-cyan`); "굵게" → `bold`,
+(`파란색` → `blue`, `하늘색` → `cyan` or `bright-cyan`); a hex code
+(`#ff8800`, `#f80`) passes through verbatim — always double-quote the value
+so the shell does not treat `#` as a comment; "굵게" → `bold`,
 "기울임" → `italic`, "흐리게" → `dim`, "밑줄" → `underline`, "스타일
 없이/평문" → `none`; "숨겨/빼줘/미노출/hide" for a part → `off`. A
 progress-bar color wish like `cyan/black` means playing `cyan` + paused
@@ -258,7 +265,7 @@ value in each question text.
   - "Bar colors" (`style.progressbar.playing` / `.paused`): "playing/paused —
     `cyan/black` colors them separately, a single color sets both". Keep
     current / `Default (green / yellow)` / `cyan / black` / Other → `X/Y` or
-    one color
+    one color (a name or a hex code like `#ff8800`)
   - "Bar characters" (`style.progressbar.style`): Keep current /
     `Line ━━━━━━──── (default)` / `Blocks ██████░░░░` / Other → `smooth`,
     `rise`, `knob`, `wave`, `pulse`, `eq`, `notes`, `braille`, `chevron`,

@@ -773,9 +773,10 @@ do_statusline() {
         $k =~ s/^style\.//;
         $sty{$k} = $v;
       }
-      # Style spec -> SGR codes ("bold cyan" -> "1;36"). The setter validates;
-      # this stays lenient for hand-edited configs (unknown tokens drop out,
-      # "none" means no styling at all).
+      # Style spec -> SGR codes ("bold cyan" -> "1;36", "#ff8800" ->
+      # "38;2;255;136;0" 24-bit truecolor). The setter validates; this stays
+      # lenient for hand-edited configs (unknown tokens drop out, "none"
+      # means no styling at all, short #f80 hex is accepted here too).
       my %ATTR = (bold => 1, dim => 2, italic => 3, underline => 4);
       my %COL  = (black => 30, red => 31, green => 32, yellow => 33,
                   blue => 34, magenta => 35, cyan => 36, white => 37);
@@ -785,6 +786,12 @@ do_statusline() {
           next unless length $t;
           return "" if $t eq "none" || $t eq "plain";
           if (exists $ATTR{$t}) { push @a, $ATTR{$t}; next; }
+          if ($t =~ /^#([0-9a-f]{6}|[0-9a-f]{3})$/) {
+            my $h = $1;
+            $h =~ s/(.)/$1$1/g if length $h == 3;
+            $col = join ";", 38, 2, map { hex } unpack "(a2)3", $h;
+            next;
+          }
           my $b = ($t =~ s/^bright-//) ? 60 : 0;
           $col = $COL{$t} + $b if exists $COL{$t};
         }
@@ -1621,7 +1628,9 @@ config_set_statusline_fields() {
 
 # Every visible part of the statusline segment has a style.* key. Text parts
 # take a style spec — any of "bold dim italic underline" plus at most one
-# color (black red green yellow blue magenta cyan white, or bright-<color>),
+# color (black red green yellow blue magenta cyan white, bright-<color>, or
+# a hex code like #ff8800 — stored canonically as lowercase #rrggbb and
+# rendered as 24-bit truecolor SGR),
 # "none" for no styling, or "off" to hide that part entirely (off is a text-
 # part value only); specs render only while statusline.color is on, but
 # "off" hides regardless — it changes content, not styling.
@@ -1766,12 +1775,18 @@ style_validate() {
         $off = 1; next;
       }
       if ($attr{$t}) { $have{$t} = 1; next }
+      if ($t =~ /^#([0-9a-f]{3}|[0-9a-f]{6})$/) {
+        fail("only one color per style (got: $color and $t)") if defined $color;
+        # Canonicalize short #f80 to #ff8800 so the stored form is uniform.
+        ($color = $t) =~ s/^#(.)(.)(.)$/#$1$1$2$2$3$3/;
+        next;
+      }
       (my $c = $t) =~ s/^bright-//;
       if ($col{$c}) {
         fail("only one color per style (got: $color and $t)") if defined $color;
         $color = $t; next;
       }
-      fail("invalid style token: $t (valid: bold dim italic underline none, off to hide the part, colors black red green yellow blue magenta cyan white or bright-<color>)");
+      fail("invalid style token: $t (valid: bold dim italic underline none, off to hide the part, colors black red green yellow blue magenta cyan white, bright-<color>, or a hex code like #ff8800)");
     }
     fail("none cannot be combined with other style tokens") if $none && (%have || defined $color || $off);
     fail("off cannot be combined with other style tokens") if $off && (%have || defined $color);
@@ -1830,9 +1845,10 @@ style_list() {
     fi
   done
   echo "(spec: bold dim italic underline + one color — black red green yellow blue"
-  echo " magenta cyan white or bright-<color> — or none; text parts also take off"
-  echo " = hide that part; style.progressbar.style: blocks|wave|pulse|eq|notes|"
-  echo " braille|chevron|tape|cassette|retro|knob|smooth|rise|line|dots or two glyphs"
+  echo " magenta cyan white, bright-<color>, or a hex code like #ff8800 — or none;"
+  echo " text parts also take off = hide that part; style.progressbar.style:"
+  echo " blocks|wave|pulse|eq|notes|braille|chevron|tape|cassette|retro|knob|"
+  echo " smooth|rise|line|dots or two glyphs"
   echo " like \"~-\"; style.progressbar.length: 1-60 cells (also sizes the"
   echo " /media:now bar); style.volume.style: block|progress|stairs;"
   echo " style.volume.bar: on|off — the bar draws in the progress-bar accent;"

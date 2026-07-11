@@ -858,6 +858,21 @@ setup() {
   [[ "$output" == *"none cannot be combined"* ]]
 }
 
+@test "config style.*: hex colors accepted and canonicalized, one color max" {
+  run "$MEDIA" config style.track.title "bold #FF8800"
+  [ "$status" -eq 0 ]
+  [ "$output" = "style.track.title = bold #ff8800" ]   # lowercased, color last
+  run "$MEDIA" config style.progressbar.playing "#0aF"
+  [ "$status" -eq 0 ]
+  [ "$output" = "style.progressbar.playing = #00aaff" ]   # short #rgb doubles up
+  run "$MEDIA" config style.track.title "#ff88"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"invalid style token"* ]]
+  run "$MEDIA" config style.track.title "#ff8800 red"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"one color"* ]]
+}
+
 @test "config style.*: unknown style key rejected, exit 2" {
   run "$MEDIA" config style.bogus.part red
   [ "$status" -eq 2 ]
@@ -994,6 +1009,18 @@ setup() {
   [ "$status" -eq 0 ]
   [[ "$output" == *$'\e[31m━━━━━━━━\e[0m'* ]]   # red fill (8 of 20 cells)
   [[ "$output" == *$'\e[1;31m'* ]]              # icon: bold + the same accent
+}
+
+@test "statusline: hex colors render as 24-bit truecolor SGR" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  # The stored 3-digit form exercises the renderer's lenient path (the
+  # setter would have canonicalized #0af to #00aaff).
+  echo '{"display.statusline":true,"style.track.title":"bold #ff8800","style.progressbar.playing":"#0af"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$status" -eq 0 ]
+  [[ "$output" == *$'\e[1;38;2;255;136;0mStub Song\e[0m'* ]]   # bold + truecolor title
+  [[ "$output" == *$'\e[38;2;0;170;255m━━━━━━━━\e[0m'* ]]      # accent fill: #0af -> 0;170;255
+  [[ "$output" == *$'\e[1;38;2;0;170;255m'* ]]                 # icon: bold + the same accent
 }
 
 @test "statusline: progressbar charsets — wave preset and a custom pair" {

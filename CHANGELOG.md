@@ -5,6 +5,19 @@ All notable changes to this project are documented here. The format follows
 [SemVer](https://semver.org/spec/v2.0.0.html), tracked in
 `.claude-plugin/plugin.json`.
 
+## [0.22.0] — 2026-07-12
+
+### Added
+
+- **Hex colors in style specs.** Every color slot that took a named color
+  (`style.track.title`, `style.progressbar.playing`, …) now also accepts
+  an exact hex code — `#ff8800`, or the short `#f80` (stored canonically
+  as lowercase `#rrggbb`) — rendered as 24-bit truecolor SGR. Set it like
+  any other color, quoted so the shell doesn't read `#` as a comment:
+  `/media:config style.track.title "bold #ff8800"`. Named colors still
+  follow your terminal palette; hex needs a truecolor-capable terminal
+  (iTerm2, Ghostty, WezTerm, Kitty, VS Code — Apple Terminal is not one).
+
 ## [0.21.0] — 2026-07-12
 
 ### Added
