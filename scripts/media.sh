@@ -878,8 +878,9 @@ do_statusline() {
       # (wave, pulse, eq, notes) repeats cell by cell; its phase follows
       # the playback position, so the trace rolls toward the empty end each
       # second while playing and freezes on pause. A third charset glyph
-      # (knob) caps the last filled cell. smooth is special-cased in $bar:
-      # its boundary cell is an eighth-block sized by the remainder.
+      # (knob) caps the last filled cell. smooth and rise take the %sub
+      # path in $bar: their boundary cell is a partial block sized by the
+      # remainder — growing left-to-right for smooth, bottom-up for rise.
       my %cs = (blocks => ["\x{2588}", "\x{2591}"],
                 wave => ["\x{2582}\x{2584}\x{2586}\x{2584}", "\x{2581}"],
                 pulse => ["\x{2582}\x{2582}\x{2588}\x{2581}\x{2584}", "\x{2581}"],
@@ -892,7 +893,13 @@ do_statusline() {
                 retro => ["=", "-"],
                 knob => ["\x{2501}", "\x{2500}", "\x{25CF}"],
                 smooth => ["\x{2588}", "\x{2591}"],
+                rise => ["\x{2588}", "\x{2591}"],
                 line => ["\x{2501}", "\x{2500}"], dots => ["\x{25CF}", "\x{25CB}"]);
+      # Sub-cell ramps for the partial-boundary path in $bar (eighths of
+      # a cell): the smooth boundary fills left-to-right (▏..▉), the rise
+      # boundary bottom-up (▁..▇).
+      my %sub = (smooth => [map { chr(0x2590 - $_) } 1 .. 7],
+                 rise => [map { chr(0x2580 + $_) } 1 .. 7]);
       my $csv = $sty{"progressbar.style"} // "line";
       my ($fc, $ec, $hc) = $cs{$csv}      ? @{$cs{$csv}}
                     : length($csv) == 2   ? (substr($csv, 0, 1), substr($csv, 1, 1))
@@ -918,19 +925,19 @@ do_statusline() {
           my ($i, $t) = @_;
           $href->("claude-media://seek/" . int((($i + 0.5) * 100) / $cells), $t);
         };
-        if ($csv eq "smooth") {
+        if (my $ramp = $sub{$csv}) {
           # Fill measured in eighths of a cell; the remainder becomes one
-          # partial block on the boundary cell (chr: 0x2590 - e = ▏..▉).
+          # partial ramp glyph on the boundary cell (smooth ▏..▉, rise ▁..▇).
           my $te = int($r * $cells * 8 + 0.5);
           my ($nf, $e) = (int($te / 8), $te % 8);
           unless ($link) {
-            return $st->($accsgr, ($fc x $nf) . ($e ? chr(0x2590 - $e) : ""))
+            return $st->($accsgr, ($fc x $nf) . ($e ? $ramp->[$e - 1] : ""))
                  . $st->(2, $ec x ($cells - $nf - ($e ? 1 : 0)));
           }
           my $out = "";
           for my $i (0 .. $cells - 1) {
             $out .= $i < $nf          ? $cell->($i, $st->($accsgr, $fc))
-                  : ($i == $nf && $e) ? $cell->($i, $st->($accsgr, chr(0x2590 - $e)))
+                  : ($i == $nf && $e) ? $cell->($i, $st->($accsgr, $ramp->[$e - 1]))
                   :                     $cell->($i, $st->(2, $ec));
           }
           return $out;
@@ -1704,9 +1711,9 @@ style_validate() {
       $val =~ s/^\s+|\s+$//g if length($val) != 2;
       my %preset = map { $_ => 1 }
         qw(blocks wave pulse eq notes braille chevron tape cassette retro
-           knob smooth line dots);
+           knob smooth rise line dots);
       if ($preset{lc $val}) { print lc $val; exit 0 }
-      fail("progressbar style must be blocks|wave|pulse|eq|notes|braille|chevron|tape|cassette|retro|knob|smooth|line|dots or exactly two characters (filled+empty, e.g. \"~-\"); got: $val")
+      fail("progressbar style must be blocks|wave|pulse|eq|notes|braille|chevron|tape|cassette|retro|knob|smooth|rise|line|dots or exactly two characters (filled+empty, e.g. \"~-\"); got: $val")
         unless length($val) == 2 && $val !~ /[\t\n]/ && $val ne "  ";
       print $val; exit 0;
     }
@@ -1824,7 +1831,7 @@ style_list() {
   echo "(spec: bold dim italic underline + one color — black red green yellow blue"
   echo " magenta cyan white or bright-<color> — or none; text parts also take off"
   echo " = hide that part; style.progressbar.style: blocks|wave|pulse|eq|notes|"
-  echo " braille|chevron|tape|cassette|retro|knob|smooth|line|dots or two glyphs"
+  echo " braille|chevron|tape|cassette|retro|knob|smooth|rise|line|dots or two glyphs"
   echo " like \"~-\"; style.progressbar.length: 1-60 cells (also sizes the"
   echo " /media:now bar); style.volume.style: block|progress|stairs;"
   echo " style.volume.bar: on|off — the bar draws in the progress-bar accent;"

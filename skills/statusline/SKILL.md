@@ -77,7 +77,8 @@ disappears (with its line, when it sat alone on one).
 
 **Bar characters** (`style.progressbar.style`): `line` `━━━━━━────`
 (default) · `blocks` `██████░░░░` · `smooth` `█████▋░░░░` (⅛-step partial
-boundary) · `knob` `━━━━━●────` (slider head) · `wave` `▂▄▆▄▂▄▁▁▁▁` (a
+boundary) · `rise` `█████▅░░░░` (⅛-step boundary rising bottom-up) ·
+`knob` `━━━━━●────` (slider head) · `wave` `▂▄▆▄▂▄▁▁▁▁` (a
 rolling swell) · `pulse` `▂▂█▁▄▂▁▁▁▁` (an ECG beat) · `eq` `▂▇▃█▅▆▁▁▁▁`
 (equalizer) · `notes` `♪♫♪♫♪♫····` (marching notes) · `braille`
 `⣿⣿⣿⣿⣿⣿⣀⣀⣀⣀` · `chevron` `▸▸▸▸▸▸▹▹▹▹` · `tape` `▰▰▰▰▰▰▱▱▱▱` ·
@@ -259,8 +260,8 @@ value in each question text.
     one color
   - "Bar characters" (`style.progressbar.style`): Keep current /
     `Line ━━━━━━──── (default)` / `Blocks ██████░░░░` / Other → `smooth`,
-    `knob`, `wave`, `pulse`, `eq`, `notes`, `braille`, `chevron`, `tape`,
-    `cassette`, `retro`, `dots`, or any two glyphs like `#-`
+    `rise`, `knob`, `wave`, `pulse`, `eq`, `notes`, `braille`, `chevron`,
+    `tape`, `cassette`, `retro`, `dots`, or any two glyphs like `#-`
   - "Bar length" (`style.progressbar.length`): Keep current /
     `Default (20 cells)` / `10 — the pre-0.20 width` / Other → any whole
     number of cells, 1–60 (the `/media:now` bar follows it)

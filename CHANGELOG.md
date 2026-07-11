@@ -7,6 +7,17 @@ All notable changes to this project are documented here. The format follows
 
 ## [0.21.0] — 2026-07-12
 
+### Added
+
+- **New progress-bar preset `rise`** — each cell fills bottom-up in ⅛
+  steps: the boundary cell climbs ▁▂▃▄▅▆▇ and completes to █ over `░`
+  water (`███▆░░░░░░` at 37%). The vertical sibling of `smooth` (which
+  fills left-to-right), so short tracks progress visibly between
+  seconds; the volume mini bar (`style.volume.style progress`) draws
+  with it automatically. Set it with
+  `/media:config style.progressbar.style rise` or through
+  `/media:statusline`.
+
 ### Removed
 
 - **The active-tab statusline gate is gone.** 0.19.0 made the segment

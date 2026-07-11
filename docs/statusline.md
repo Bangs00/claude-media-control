@@ -137,7 +137,7 @@ The segment ships styled: green/yellow accent by playback state, **bold**
 title and elapsed time, *italic* artist, dim chrome — standard 16-color SGR,
 so your terminal's palette decides the shades.
 
-Every part is individually styleable — colors, bold/italic, 14 progress-bar
+Every part is individually styleable — colors, bold/italic, 15 progress-bar
 charsets, the bar length (1–60 cells, default 20), volume bar shapes, icons,
 or `off` to hide any part. **The full catalog, with examples and recipes:
 [docs/styles.md](styles.md).**

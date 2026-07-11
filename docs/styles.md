@@ -53,13 +53,14 @@ Character and length choices apply even with colors off.
 
 ### Static presets
 
-Shown at 60% (`smooth` at 58%, where its partial cell shows):
+Shown at 60% (`smooth` and `rise` at 58%, where their partial cells show):
 
 | Value | Looks like | |
 | --- | --- | --- |
 | `line` | `━━━━━━━━━━━━────────` | the default |
 | `blocks` | `████████████░░░░░░░░` | the classic (pre-0.12 default) |
 | `smooth` | `███████████▋░░░░░░░░` | boundary cell is a partial block — see below |
+| `rise` | `███████████▅░░░░░░░░` | boundary cell rises bottom-up — see below |
 | `knob` | `━━━━━━━━━━━●────────` | a slider head caps the fill |
 | `braille` | `⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣀⣀⣀⣀⣀⣀⣀⣀` | |
 | `chevron` | `▸▸▸▸▸▸▸▸▸▸▸▸▹▹▹▹▹▹▹▹` | |
@@ -75,6 +76,15 @@ seconds:
  3%  ▋░░░░░░░░░░░░░░░░░░░
 47%  █████████▍░░░░░░░░░░
 98%  ███████████████████▋
+```
+
+`rise` takes the same ⅛ steps bottom-up — each cell climbs ▁▂▃▄▅▆▇
+before it completes:
+
+```
+ 3%  ▅░░░░░░░░░░░░░░░░░░░
+47%  █████████▃░░░░░░░░░░
+98%  ███████████████████▅
 ```
 
 ### Animated presets

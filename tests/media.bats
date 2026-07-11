@@ -869,7 +869,7 @@ setup() {
   [ "$status" -eq 0 ]
   run "$MEDIA" config style.progressbar.style pulse
   [ "$status" -eq 0 ]
-  for p in eq notes braille chevron tape cassette retro knob smooth; do
+  for p in eq notes braille chevron tape cassette retro knob smooth rise; do
     run "$MEDIA" config style.progressbar.style "$p"
     [ "$status" -eq 0 ]
   done
@@ -877,7 +877,7 @@ setup() {
   [ "$status" -eq 0 ]
   run "$MEDIA" config style.progressbar.style "~~~"
   [ "$status" -eq 2 ]
-  [[ "$output" == *"blocks|wave|pulse|eq|notes|braille|chevron|tape|cassette|retro|knob|smooth|line|dots"* ]]
+  [[ "$output" == *"blocks|wave|pulse|eq|notes|braille|chevron|tape|cassette|retro|knob|smooth|rise|line|dots"* ]]
 }
 
 @test "config style.progressbar.length: whole number of cells 1-60, default 20" {
@@ -1041,6 +1041,48 @@ setup() {
     echo "preset ${c%%|*}: got '$output', want '${c#*|}'"
     [ "$output" = "${c#*|}" ]
   done
+}
+
+@test "statusline: progressbar rise preset — boundary cell climbs bottom-up" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  # Stub position 75.4/200 at length 10 measures 30 eighths: 3 full
+  # blocks + ▆ (6/8) over ░ water. Earlier positions walk the boundary
+  # down the ▁..▇ ramp; a nearly-done track still spans exactly 10 cells.
+  echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["progressbar"],"style.progressbar.style":"rise","style.progressbar.length":"10"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$output" = "███▆░░░░░░" ]
+  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  STUB_ELAPSED=65 run "$MEDIA" statusline
+  [ "$output" = "███▂░░░░░░" ]              # 26 eighths → ▂
+  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  STUB_ELAPSED=70 run "$MEDIA" statusline
+  [ "$output" = "███▄░░░░░░" ]              # 28 eighths → ▄
+  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  STUB_ELAPSED=77 run "$MEDIA" statusline
+  [ "$output" = "███▇░░░░░░" ]              # 31 eighths → ▇
+  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  STUB_ELAPSED=80 run "$MEDIA" statusline
+  [ "$output" = "████░░░░░░" ]              # 32 eighths — the cell completes
+  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  STUB_ELAPSED=199 run "$MEDIA" statusline
+  [ "$output" = "██████████" ]              # 199.4/200 rounds to full
+}
+
+@test "statusline: progressbar rise preset — accent run and per-cell links" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  # Colors on: fill + boundary share one accent run, the rest one dim run.
+  echo '{"display.statusline":true,"statusline.fields":["progressbar"],"style.progressbar.style":"rise","style.progressbar.length":"10"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [[ "$output" == *$'\e[32m███▆\e[0m\e[2m░░░░░░\e[0m'* ]]
+  # With the handler app present every cell (boundary included) is its own
+  # seek link, and stripping the links leaves the plain glyphs.
+  mkdir -p "$CLAUDE_PLUGIN_DATA/ClaudeMediaClick.app"
+  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["progressbar"],"style.progressbar.style":"rise","style.progressbar.length":"10"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$(printf '%s' "$output" | /usr/bin/grep -o ']8;;' | wc -l | tr -d ' ')" -eq 20 ]
+  plain="$(printf '%s' "$output" | /usr/bin/perl -pe 's/\e\]8;;[^\a]*\a//g')"
+  [ "$plain" = "███▆░░░░░░" ]
 }
 
 @test "statusline: volume icon override, none, and muted" {
@@ -1208,6 +1250,10 @@ setup() {
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["volume"],"style.volume.style":"progress","style.progressbar.style":"smooth"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
   [ "$output" = "🔉 ██▎░░ 45%" ]                   # 45% of 5 cells = 18/8 → ▎
+  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["volume"],"style.volume.style":"progress","style.progressbar.style":"rise"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$output" = "🔉 ██▂░░ 45%" ]                   # same 18/8, rising ramp → ▂
   rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["volume"],"style.volume.style":"stairs"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
