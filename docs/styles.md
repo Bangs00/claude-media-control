@@ -53,7 +53,7 @@ Character and length choices apply even with colors off.
 
 ### Static presets
 
-Shown at 60% (`smooth` and `rise` at 58%, where their partial cells show):
+Shown at 60% (sub-cell presets at 58%, where their partial cells show):
 
 | Value | Looks like | |
 | --- | --- | --- |
@@ -61,6 +61,13 @@ Shown at 60% (`smooth` and `rise` at 58%, where their partial cells show):
 | `blocks` | `████████████░░░░░░░░` | the classic (pre-0.12 default) |
 | `smooth` | `███████████▋░░░░░░░░` | boundary cell is a partial block — see below |
 | `rise` | `███████████▅░░░░░░░░` | boundary cell rises bottom-up — see below |
+| `fade` | `███████████▓░░░░░░░░` | boundary cell darkens ▒→▓ — see below |
+| `corner` | `███████████▌░░░░░░░░` | boundary cell fills by quadrants — see below |
+| `glide` | `━━━━━━━━━━━╾────────` | the `line` bar in half-cell steps — see below |
+| `stipple` | `⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣶⣀⣀⣀⣀⣀⣀⣀⣀` | the `braille` bar, dots rising — see below |
+| `tiles` | `■■■■■■■■■■■◧□□□□□□□□` | squares with a half-filled boundary — see below |
+| `dash` | `━━━━━━━━━━━╌┈┈┈┈┈┈┈┈` | a heavy line over a thin-dash track — see below |
+| `seam` | `━━━━━━━━━━━┄────────` | the `line` bar cracking through thin dashes — see below |
 | `knob` | `━━━━━━━━━━━●────────` | a slider head caps the fill |
 | `braille` | `⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣀⣀⣀⣀⣀⣀⣀⣀` | |
 | `chevron` | `▸▸▸▸▸▸▸▸▸▸▸▸▹▹▹▹▹▹▹▹` | |
@@ -85,6 +92,20 @@ before it completes:
  3%  ▅░░░░░░░░░░░░░░░░░░░
 47%  █████████▃░░░░░░░░░░
 98%  ███████████████████▅
+```
+
+The other seven sub-cell presets take the same partial-boundary path
+at their own resolution — fade and dash in thirds; corner and seam in
+quarters; stipple in sixths; glide and tiles in halves:
+
+```
+fade     47%  █████████▒░░░░░░░░░░      98%  ███████████████████▓
+corner   46%  █████████▖░░░░░░░░░░      99%  ███████████████████▙
+glide    47%  ━━━━━━━━━╾──────────      98%  ━━━━━━━━━━━━━━━━━━━╾
+stipple  46%  ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣄⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀      99%  ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣷
+tiles    47%  ■■■■■■■■■◧□□□□□□□□□□      98%  ■■■■■■■■■■■■■■■■■■■◧
+dash     47%  ━━━━━━━━━┄┈┈┈┈┈┈┈┈┈┈      98%  ━━━━━━━━━━━━━━━━━━━╌
+seam     46%  ━━━━━━━━━┈──────────      99%  ━━━━━━━━━━━━━━━━━━━╌
 ```
 
 ### Animated presets
