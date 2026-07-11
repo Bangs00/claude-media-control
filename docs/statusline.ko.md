@@ -2,46 +2,38 @@
 
 [English](statusline.md) | **한국어** | [日本語](statusline.ja.md) | [简体中文](statusline.zh-CN.md)
 
-Claude Code statusline에 현재 곡을 한 줄 추가해 보여줍니다:
+Claude Code statusline에 현재 곡이 한 줄 추가됩니다:
 
 ```
 [기존 statusline은 그대로]
-▶︎ Karma Police — Radiohead  ━━━━━━────  2:13/4:24
+▶︎ Karma Police — Radiohead (Spotify)  ━━━━━━────  2:13/4:24
 ```
 
-이 줄은 `media.sh statusline`이 만들어 냅니다. 작은 TTL 캐시(기본 1초)에서
-50ms도 안 걸려 응답하기 때문에 statusline이 느려질 일은 없습니다. 실제 재생
-정보 조회는 TTL 구간마다 최대 한 번만 일어나므로, statusline이 다시 그려질
-때 경과 시간과 진행 바는 대략 1초에 한 번씩 갱신됩니다.
+세그먼트는 1초 TTL 캐시에서 50ms도 안 걸려 응답하므로 statusline이
+느려질 일은 없습니다. 실제 재생 정보 조회는 초당 최대 한 번 — 시간과
+바가 1초에 한 번씩 움직이는 것도 이 주기 덕분입니다.
 
 ## 켜기
-
-Claude Code 안에서:
 
 ```
 /media:config display.statusline on
 ```
 
-설정은 이게 전부입니다. 켜기 전에 재생 정보를 실제로 읽을 수 있는지 먼저
-검증하고(거부되면 `/media:doctor`를 실행해 보세요), 이어서 세그먼트를
-Claude Code에 스스로 배선합니다:
+설정은 이게 전부입니다 — 재시작도, 수동 단계도 없습니다.
+(`/media:statusline`에서 배치를 저장해도 같은 방식으로 켜집니다.) 켜기
+전에 재생 정보를 실제로 읽을 수 있는지 먼저 검증하고(거부되면
+`/media:doctor`), 이어서 세그먼트를 스스로 배선합니다:
 
 1. `~/.claude/settings.json`의 현재 `"statusLine"` 값을
-   `~/.claude/statusline-media.backup.json`에 백업합니다(원래 없었다면
-   `null`).
-2. `~/.claude/statusline-media.sh`에 wrapper 스크립트를 생성합니다. 기존
-   statusline 명령을 먼저 실행하고, 그 뒤에 재생 정보 줄을 덧붙입니다.
-3. `settings.json`의 `statusLine`이 wrapper를 가리키게 합니다. 기존 항목의
-   다른 키(예: `padding`)는 모두 보존되고, `refreshInterval`을 직접 설정해
-   두지 않았다면 `refreshInterval: 1`이 추가됩니다 — statusline은 원래 대화
-   이벤트가 있을 때만 갱신되는데, 이 1초 주기 재실행이 있어야 가만히 있는
-   동안에도 경과 시간과 진행 바가 움직입니다. (다시 그리는 횟수를 줄이고
-   싶다면 `settings.json`에서 값을 올리거나 빼세요. 다시 그릴 때마다 기존
-   statusline 명령도 함께 실행됩니다.)
-
-세그먼트는 다음 statusline 틱에 바로 나타납니다 — 재시작도, 수동 단계도
-없습니다. `/media:statusline`에서 배치를 저장해도 같은 방식으로 켜지고
-배선됩니다.
+   `~/.claude/statusline-media.backup.json`에 백업합니다(없었다면 `null`).
+2. `~/.claude/statusline-media.sh`에 wrapper를 생성합니다. 기존 statusline
+   명령을 먼저 실행하고, 그 뒤에 재생 정보 줄을 덧붙입니다.
+3. `settings.json`이 wrapper를 가리키게 합니다. 기존 항목의 다른 키(예:
+   `padding`)는 모두 보존되고, 직접 설정해 두지 않았다면
+   `refreshInterval: 1`이 추가됩니다 — 이 1초 주기 재실행이 있어야 가만히
+   있는 동안에도 시간과 바가 움직입니다. (다시 그리는 횟수를 줄이려면
+   값을 올리거나 빼세요. 다시 그릴 때마다 기존 statusline 명령도 함께
+   실행됩니다.)
 
 ## 클릭으로 조작하기
 
@@ -50,293 +42,170 @@ Claude Code에 스스로 배선합니다:
 | 대상 | ⌘+클릭 동작 |
 | --- | --- |
 | `▶︎` / `⏸` 아이콘 | 재생/일시정지 토글 |
-| 제목 — 가수 (그리고 `(앱)`) | 재생 중인 미디어로 이동 — 재생 중인 브라우저 탭이 선택된 채로(Safari·AppleScript 지원 Chromium 계열), 또는 현재 트랙이 표시된 채로(Music) 앱이 앞으로 나옵니다; 그 외 앱은 앱만 앞으로 |
+| 제목 — 가수, `(앱)` | 재생 중인 미디어로 이동: 재생 중인 브라우저 탭(Safari, Chrome, Edge, Brave, Vivaldi, Opera) 또는 Music의 현재 트랙 — 그 외 앱은 앱만 앞으로 |
 | 진행 바 | seek — 10개 셀 각각이 그 위치로 점프 (5%, 15%, … 95%) |
 
-동작 원리: 각 부분이 로컬 `claude-media://` URL 스킴을 가리키는 OSC 8
-하이퍼링크로 감싸집니다. statusline을 켜면 작은 핸들러
-앱(`ClaudeMediaClick.app` — macOS 기본 도구 `osacompile`로 플러그인 데이터
-디렉터리에 생성, 서드파티 코드 없음)이 만들어져 LaunchServices에
-등록됩니다. 클릭하면 `media.sh open-url`이 실행되는데, 받아 주는 동작은
-정확히 세 가지 — toggle, activate, 퍼센트 seek — 뿐이고 그 외는 전부
-거부합니다. 브라우저 재생은 웹 콘텐츠 헬퍼를 소유 앱으로 해석해
-활성화하고(예: `com.openai.atlas.web` → ChatGPT Atlas), 앱이 허용하는
-한 미디어 자체에 내려앉습니다: 트랙 제목과 일치하는 창+탭을
-선택(Safari, Chrome, Edge, Brave, Vivaldi, Opera)하거나 현재 트랙을
-표시(Music)합니다. 스크립팅 인터페이스가 없는 앱(예: ChatGPT Atlas,
-Spotify)은 앞으로 나오는 데서 멈춥니다. 첫 탭 이동 시
-`ClaudeMediaClick.app`에 대한 자동화 허용을 한 번 묻습니다 — 거부해도
-조용히 앱 활성화까지만 동작합니다.
+- **지원 터미널**: iTerm2, Ghostty, WezTerm, Kitty, VS Code, Alacritty
+  0.11+ (tmux 3.4+는 링크를 통과시킵니다). 하이퍼링크를 모르는 터미널은
+  그냥 일반 세그먼트로 보입니다.
+- 클릭 결과는 다음 틱(1초 이내)에 반영됩니다: 아이콘이 바뀌고 바가
+  점프합니다.
+- 스위치: `/media:config statusline.links off`는 링크 없는 일반
+  세그먼트로 되돌립니다. 다시 켜면 핸들러 앱을 재생성하는데, 빌드가
+  실패하면 거부됩니다(exit 3) — 아무도 받지 않는 링크는 없느니만
+  못하니까요.
+- 첫 탭 이동 시 자동화 허용(`ClaudeMediaClick.app`)을 한 번 묻습니다 —
+  거부해도 조용히 앱 활성화까지만 동작합니다.
 
-참고:
+<details>
+<summary>클릭이 동작하는 원리 (그리고 안전한 이유)</summary>
 
-- **터미널 지원**: iTerm2, Ghostty, WezTerm, Kitty, VS Code, Alacritty
-  0.11+ 가 OSC 8 링크를 클릭 가능하게 표시합니다(보통 ⌘+클릭; 커스텀 URL
-  스킴은 처음 한 번 확인을 물을 수 있습니다). 하이퍼링크를 모르는
-  터미널(예: Terminal.app)에서는 링크 바이트가 보이지 않으니 그냥 일반
-  세그먼트로 나타납니다. tmux 3.4+ 는 하이퍼링크를 통과시킵니다.
-- 클릭 후 다음 틱(≤1초)에 세그먼트가 바로 반영됩니다: 아이콘이 바뀌고
-  바가 점프합니다.
-- 스위치는 `statusline.links`(기본 `on`)입니다:
-  `/media:config statusline.links off`는 링크 없는 일반 세그먼트로
-  되돌리고, 다시 켜면 핸들러 앱을 (재)생성·등록하며 그 빌드가 실패하면
-  **거부됩니다(exit 3)**. 링크는 핸들러 앱이 실제로 존재할 때만
-  렌더링됩니다 — 아무도 받지 않는 링크는 없느니만 못하니까요.
-  `/media:doctor`가 핸들러 상태를 보고합니다(`Click links`).
-- URL 스킴은 원래 시스템 전역입니다 — 어떤 앱이든 `claude-media://` URL을
-  열 수 있습니다. 핸들러가 노출하는 표면 전체가 재생/일시정지, 앱
-  활성화, seek 뿐이라 최악이라도 성가심 수준이며, 키보드 미디어 키와 같은
-  등급입니다.
-- 플러그인을 삭제하면(또는 `media.sh statusline uninstall`) 핸들러 앱도
-  나머지 배선과 함께 등록 해제되고 삭제됩니다.
+클릭 가능한 부분은 로컬 `claude-media://` URL 스킴을 가리키는 OSC 8
+하이퍼링크입니다. statusline을 켜면 작은 핸들러 앱(`ClaudeMediaClick.app`
+— macOS 기본 도구 `osacompile`로 플러그인 데이터 디렉터리에 생성, 서드파티
+코드 없음)이 만들어져 LaunchServices에 등록됩니다. 클릭하면 `media.sh
+open-url`이 실행되는데, 받아 주는 동작은 정확히 세 가지 — toggle,
+activate, 퍼센트 seek — 뿐이고 그 외는 전부 거부합니다. URL 스킴은 원래
+어떤 앱이든 열 수 있는 시스템 전역 통로라서, 표면을 이렇게 좁힌 것
+자체가 핵심입니다: 재생/일시정지, 앱 앞으로, seek — 최악이라도 성가심
+수준이고 키보드 미디어 키와 같은 등급입니다.
+
+브라우저 재생은 웹 콘텐츠 헬퍼 프로세스를 소유 앱으로 해석해
+활성화하고(예: `com.openai.atlas.web` → ChatGPT Atlas), 앱이 스크립팅을
+지원하면 미디어 자체에 내려앉습니다: 트랙 제목과 일치하는 창+탭을
+선택하거나 Music의 현재 트랙을 표시합니다. 스크립팅 인터페이스가 없는
+앱(예: ChatGPT Atlas, Spotify)은 앞으로 나오는 데서 멈춥니다. 플러그인을
+삭제하면(또는 `media.sh statusline uninstall`) 핸들러 앱도 등록 해제되고
+삭제됩니다. 상태는 `/media:doctor`가 보고합니다(`Click links`).
+
+</details>
 
 ## 업데이트는 사용 중인 탭을 따라갑니다
 
-Claude Code 세션을 여러 개 열어 두면 각 세션이 저마다 statusline을
-돌리지만, 재생 정보 세그먼트는 **실제로 사용 중인 세션에서만
-업데이트됩니다**. 나머지 세션은 세그먼트의 마지막 줄을 그대로 얼려 둡니다
-— 곡 정보는 계속 보이고, 진행 바와 경과 시간만 멈추며, 매 틱마다 하던
-읽기 작업도 거기서는 일어나지 않습니다. (원래 쓰던 statusline은 모든
-세션에서 그대로 살아 움직입니다 — 게이트가 걸리는 건 플러그인의 줄
-하나뿐입니다.) 설정할 것은 없습니다: 터미널이 마지막으로 입력을 받은
-세션이 살아 있는 세그먼트를 갖고 — 타이핑, 스크롤, 그 탭으로 전환하는
-것까지 전부 입력으로 칩니다(Claude Code가 터미널 focus reporting을 켜
-두므로 탭 전환만으로 충분합니다) — 돌아오면 한두 틱 안에 세그먼트가
-따라잡습니다.
+Claude Code 세션을 여러 개 열어 두면 세그먼트는 **실제로 사용 중인
+세션에서만 업데이트됩니다** — 타이핑, 스크롤, 그 탭으로 전환하는 것까지
+전부 사용으로 칩니다. 다른 세션은 마지막 줄을 얼린 채 유지하고(곡 정보는
+계속 보이고 바와 시간만 멈춥니다), 돌아오면 한두 틱 안에 따라잡습니다.
+원래 쓰던 statusline은 모든 세션에서 계속 살아 움직입니다 — 게이트는
+플러그인 줄에만 걸립니다. 설정할 것은 없습니다.
 
-동작 원리: statusline 명령은 제어 tty 없이 실행되므로, 세그먼트는 프로세스
-부모 체인을 따라 세션의 터미널을 쥔 Claude Code 프로세스를 찾아내고,
-터미널들의 마지막 입력 시각(`w`가 IDLE로 보여주는 그 atime 신호)을
-플러그인 데이터 디렉토리의 작은 상태 파일(`statusline.tty` — 내용은 현재
-보유자의 디바이스, mtime은 보유자의 heartbeat)로 비교합니다. 세션이 닫히면
-heartbeat가 멎으니 몇 초 안에 살아 있는 세그먼트를 내놓습니다. 살아 있는
-렌더는 매번 터미널별 스냅샷(`statusline.frozen.<tty>`)도 남기는데, 비활성
-세션이 다시 찍어 주는 줄이 바로 이것입니다. 자기 tty가 없는 세션(VS Code,
-데스크톱 앱, headless 실행)은 순위를 매길 수 없어 경쟁 없이 항상 살아
-있는 렌더를 하고, 게이트 내부의 모든 실패는 fail-open입니다 — 고장 나면
-얼리는 쪽이 아니라 살아 있는 쪽으로 동작합니다.
-
-예전처럼 모든 세션에서 세그먼트가 움직이는 쪽이 좋다면:
+모든 세션에서 움직이는 쪽이 좋다면:
 
 ```
 /media:config statusline.activetab off
 ```
 
-## 설계상 보장되는 것 (안심해도 되는 이유)
+<details>
+<summary>게이트가 동작하는 원리</summary>
 
-1. 기존 statusline 명령은 **대체되지 않습니다**. wrapper가 기존 명령을 원래
-   모습 그대로 먼저 실행하고, 그 출력은 **한 바이트도 바뀌지 않고** 그대로
-   통과합니다. 재생 정보는 언제나 **별도의 줄로만 덧붙습니다**.
-2. `display.statusline`이 꺼져 있으면(기본값) 세그먼트는 아무것도 출력하지
-   않습니다. 빈 줄조차 없습니다. Claude Code가 없는 줄을 접어 주기 때문에
-   statusline은 이전과 똑같이 보입니다. (`off`는 세그먼트를 즉시 숨기되
-   배선은 남겨 두므로 다시 켜는 것도 즉시입니다.)
-3. `settings.json`에서 건드리는 키는 정확히 하나 — `statusLine` — 이며,
-   반드시 이전 값을 `statusline-media.backup.json`에 저장한 뒤에만
-   수정합니다. 쓰기는 원자적이고, 심링크를 따라가며(dotfile 구성도
-   안전합니다), 다른 설정 키는 전혀 손대지 않습니다.
-4. **플러그인을 삭제하면 모든 것이 저절로 원복됩니다.** Claude Code에는
-   플러그인이 쓸 수 있는 uninstall 훅이 없기 때문에, wrapper가 스스로
-   치유하도록 만들었습니다: 매 틱마다 설치된 플러그인 목록을 확인하고,
-   플러그인이 사라졌으면 백업해 둔 `statusLine`을 `settings.json`에
-   복원한 뒤 자기 자신과 백업 파일을 삭제하고, `claude-media://` 클릭
-   핸들러 앱도 같은 방식으로 등록 해제하고 지웁니다. 아무것도 남지
-   않습니다 — 삭제 후 1초 안에 statusline이 원래 모습 그대로 돌아옵니다.
-5. 플러그인을 **비활성화**만 해 두면 wrapper는 아무것도 덧붙이지 않고
-   기다립니다 — 기존 statusline은 평소대로 돌고, 배선은 다시 켤 때를 위해
-   남아 있습니다.
-6. **직접 손으로** 배선한 statusline(아래 레시피, 또는 세그먼트를 이미
-   실행하는 어떤 명령이든)은 감지해서 설치·해제 어느 쪽에서도 절대
-   건드리지 않습니다.
+statusline 명령은 제어 tty 없이 실행되므로, 세그먼트는 프로세스 부모
+체인을 따라 세션의 터미널을 쥔 Claude Code 프로세스를 찾아내고, 터미널들의
+마지막 입력 시각(`w`가 IDLE로 보여주는 그 atime 신호)을 플러그인 데이터
+디렉터리의 작은 상태 파일로 비교합니다(`statusline.tty` — 내용은 현재
+보유자의 디바이스, mtime은 보유자의 heartbeat라서 세션이 닫히면 몇 초 안에
+자리를 내놓습니다). 살아 있는 렌더는 매번 터미널별
+스냅샷(`statusline.frozen.<tty>`)도 남기는데, 비활성 세션이 다시 찍는 줄이
+바로 이것입니다. 자기 tty가 없는 세션(VS Code, 데스크톱 앱, headless)은
+순위를 매길 수 없어 경쟁 없이 항상 살아 있는 렌더를 하고, 게이트 내부의
+모든 실패는 fail-open입니다 — 고장 나면 얼리는 쪽이 아니라 살아 있는
+쪽으로 동작합니다.
 
-플러그인을 삭제하지 않고 배선만 해제하려면 — 백업을 복원하고 wrapper와
-백업 파일을 지우며 `display.statusline`도 꺼 줍니다:
-
-```
-media.sh statusline uninstall     # 또는 그냥 "statusline 배선 해제해줘"라고 말하세요
-```
-
-`media.sh statusline status`는 현재 배선 상태(`managed`, `manual`,
-`none`)를 알려 주고, `/media:doctor` 리포트에도 포함됩니다.
+</details>
 
 ## 항목 배치하기
 
-`/media:statusline`을 실행하세요 — 세그먼트의 모습을 한 곳에서 정하는
-허브입니다. 탭 세 개가 열립니다: **Items**(볼륨·진행 바·시간·출력 장치
-켜고 끄기), **Layout**(Standard / Stacked 또는 숫자 패턴),
-**Style**(항목별 스타일 — 다음 절). 패턴은 아래 범례로 만듭니다:
+`/media:statusline`이 세그먼트의 모습을 정하는 허브입니다 — 탭 세 개:
+**Items**(켜고 끄기), **Layout**(프리셋 또는 숫자 패턴),
+**Style**([스타일 갤러리](styles.ko.md) 참고). 패턴의 범례:
 
 | # | 항목 | 표시 예 |
 | --- | --- | --- |
 | 1 | `track` | `▶︎ Karma Police — Radiohead` |
 | 2 | `app` | `(Spotify)` |
-| 3 | `volume` | `🔉 ▄ 45%` — 아이콘 + 볼륨량 높이 바 + 퍼센트, 음소거면 `🔇` |
+| 3 | `volume` | `🔉 ▄ 45%` — 음소거면 `🔇` |
 | 4 | `progressbar` | `━━━━━━────` |
 | 5 | `time` | `2:13/4:24` |
-| 6 | `output` | `🎧 AirPods Pro` — 아이콘은 장치 종류를 따름: `🎧` Bluetooth·헤드폰 잭 · `📺` HDMI/DisplayPort · `📶` AirPlay · `🔊` 스피커 |
+| 6 | `output` | `🎧 AirPods Pro` — 아이콘은 장치 종류를 따름 |
 
-숫자 순서가 곧 표시 순서입니다. `/`는 새 줄을 시작합니다. 뺀 숫자의 항목은
-표시되지 않습니다. 예를 들어 `123/456`은 1번째 줄에 track·app·볼륨, 2번째
-줄에 나머지를 놓습니다. 기본 구성은 `track app progressbar time`이고, 켜고
-끄는 빠른 토글과 statusline 전체 초기화는 `/media:config`에 있습니다.
+숫자 순서가 곧 표시 순서고, `/`는 새 줄을 시작하며, 뺀 숫자의 항목은
+표시되지 않습니다. 기본 구성은 `track app progressbar time`이고, 목록을
+직접 지정할 수도 있습니다:
+`/media:config statusline.fields "time,progressbar,track,app"`.
 
-배치가 동작하는 방식:
-
-- **순서** — 항목은 저장한 순서 그대로 그려집니다. "시간을 맨 앞에"라고
-  말해도 되고, 목록을 직접 지정할 수도 있습니다:
-  `/media:config statusline.fields "time,progressbar,track,app"`.
-- **줄 단위 명시 배치** — 항목 목록에 `/`를 넣으면 그 자리에서 줄이
-  바뀝니다. 각 줄에는 거기에 둔 항목만 그 순서대로 나옵니다. 보여줄 것이
-  없는 줄은 통째로 사라집니다(예: 네이티브 helper가 없을 때의 `output`).
-- **그룹 배치** (목록에 `/`가 없을 때) — 한 줄로 붙이거나,
-  `statusline.multiline on`이면 그룹마다 줄을 나눕니다. 그룹 규칙: `app`은
-  track에 붙습니다. `progressbar`와 `time`은 이웃할 때 한 그룹이 됩니다.
-  `output`과 `volume`은 이웃한 track 그룹에 합류하고, 서로 이웃하면 둘이
-  한 그룹이 됩니다.
-
-Standard — 모든 항목을 한 줄로(패턴 `123456`):
+Standard — 모든 항목을 한 줄로(`123456`):
 
 ```
 ▶︎ Karma Police — Radiohead (Spotify)  🔉 ▄ 45%  ━━━━━━────  2:13/4:24  🎧 AirPods Pro
 ```
 
-Stacked — 명시적 2줄 배치(패턴 `123/456`, 즉
-`statusline.fields "track,app,volume,/,progressbar,time,output"`):
+Stacked — 2줄(`123/456`):
 
 ```
 ▶︎ Karma Police — Radiohead (Spotify)  🔉 ▄ 45%
 ━━━━━━────  2:13/4:24  🎧 AirPods Pro
 ```
 
-출력 장치를 track 줄에, 볼륨은 빼고(패턴 `126/45`):
+출력 장치를 track 줄에, 볼륨은 빼고(`126/45`):
 
 ```
 ▶︎ Karma Police — Radiohead (Spotify)  🎧 AirPods Pro
 ━━━━━━────  2:13/4:24
 ```
 
-시간을 앞으로, 한 줄(패턴 `5412`, 즉
-`statusline.fields "time,progressbar,track,app"`):
+배치 규칙:
+
+- **목록에 `/`가 있으면** (명시 배치): 각 줄에는 거기에 둔 항목만 그
+  순서대로 나옵니다. 보여줄 것이 없는 줄은 통째로 사라집니다 — 빈 줄은
+  생기지 않습니다.
+- **`/`가 없으면** (그룹 배치): 한 줄로 붙이거나, `statusline.multiline
+  on`이면 그룹마다 줄을 나눕니다. 그룹 규칙: `app`은 track에 붙고, 이웃한
+  `progressbar`+`time`은 한 쌍이 되고, `output`/`volume`은 이웃한 track
+  그룹에 합류합니다(서로 이웃하면 둘이 한 쌍).
+- `output`과 `volume`은 네이티브 helper가 필요합니다. 세그먼트가 원래
+  하던 조회에 실려 오므로 추가 비용은 없습니다.
+
+## 꾸미기
+
+세그먼트는 기본으로 스타일이 입혀져 나옵니다: 재생 상태에 따른
+green/yellow 강조색, **굵은** 제목과 경과 시간, *기울임꼴* 아티스트,
+흐리게 처리된 나머지 — 표준 16색 SGR만 쓰므로 실제 색감은 터미널 팔레트를
+따릅니다.
+
+모든 부분을 하나하나 따로 꾸밀 수 있습니다 — 색, 굵게/기울임, 14가지 진행
+바 문자, 볼륨 바 모양, 아이콘, 그리고 `off`로 숨기기까지. **전체 카탈로그와
+예시, 레시피: [docs/styles.ko.md](styles.ko.md)**
 
 ```
-2:13/4:24  ━━━━━━────  ▶︎ Karma Police — Radiohead (Spotify)
+/media:config statusline.color off     # 일반 텍스트로 (NO_COLOR도 지원)
+/media:config statusline.marquee off   # 긴 제목 스크롤 끄기
 ```
 
-`output`과 `volume` 항목은 네이티브 helper가 필요합니다(세그먼트가 원래
-하던 조회에 함께 실려 오기 때문에 추가 비용은 없습니다). 장치 전환은
-`/media:output`, 볼륨 조절은 `/media:volume`으로 하면 되고, 세그먼트는
-다음 갱신 때 바로 반영됩니다.
+30칸(터미널 셀)보다 긴 제목은 고정 창 안에서 1초에 한 글자씩
+흘러갑니다(한글·한자·가나는 두 칸으로 계산해 창 너비가 일정합니다).
 
-### 긴 제목: marquee 스크롤
+## 토글 한눈에 보기
 
-30칸(터미널 셀)보다 긴 제목은 고정된 30칸 창 안에서 1초에 한 글자씩
-흘러갑니다. (창은 다시 그려질 때마다 한 칸씩 전진합니다 — 아래의 1초
-갱신 주기 참고.)
-
-```
-▶︎ ing Willow (10 Minute Version)  — Taylor Swift (Music)
-```
-
-한글·한자·가나 문자는 두 칸으로 계산하므로 CJK 제목에서도 창 너비가
-일정하게 유지됩니다. 아무리 길어도 제목 전체를 보고 싶다면 끄면 됩니다:
-
-```
-/media:config statusline.marquee off
-```
-
-### 색상과 항목별 스타일
-
-세그먼트는 기본으로 스타일이 입혀져 나옵니다. Claude Code statusline은 ANSI
-코드를 렌더링하고, wrapper는 이를 손대지 않고 그대로 넘깁니다:
-
-- ▶︎/⏸ 아이콘, 진행 바의 채워진 부분, 볼륨 바는 재생 상태를 따라 색이
-  바뀝니다 (재생 중 green, 일시정지 yellow)
-- **굵은** 제목과 경과 시간(계속 움직이는 부분이라 또렷하게 보입니다),
-  *기울임꼴* 아티스트, 흐리게 표시되는 전체 시간·빈 칸·앱 이름·출력 장치
-
-표준 16색 SGR 코드만 쓰기 때문에 실제 색은 터미널의 팔레트를 따릅니다.
-색 없이 쓰고 싶다면 `/media:config statusline.color off`를 실행하세요.
-`NO_COLOR` 환경 변수도 지원합니다.
-
-여기서 더 나아가 **모든 부분을 하나하나 따로 꾸밀 수 있습니다**.
-`/media:statusline`의 Style 탭을 쓰거나, 원하는 모습을 그냥 말로
-하거나("제목은 굵은 하늘색", "바 스타일은 dots", "볼륨 아이콘은 ♪", "가수는
-숨겨줘"), 키를 직접 설정하면 됩니다. 텍스트 키는 `bold dim italic
-underline` 조합에 색 하나(`black red green yellow blue magenta cyan white`
-또는 `bright-<색>`)를 더하거나, `none`(스타일 없음), 또는 **`off`(그 부분
-숨김)**를 받습니다:
-
-| 키 | 대상 | 기본값 |
+| 키 (`/media:config …`) | 기본값 | 역할 |
 | --- | --- | --- |
-| `style.track.title` / `style.track.artist` | 제목 / 아티스트 | `bold` / `italic` |
-| `style.app` | 앱 이름 `(Spotify)` | `dim` |
-| `style.time.elapsed` / `style.time.total` | `2:13` / `/4:24` | `bold` / `dim` |
-| `style.volume.icon` / `style.volume.style` / `style.volume.bar` / `style.volume.percent` | 볼륨 아이콘 / 바 모양 / 바 표시 여부 / 퍼센트 | `auto` / `block` / `on` / `dim` |
-| `style.progressbar.playing` / `style.progressbar.paused` | 바 채움 + ▶︎/⏸ 강조색 | `green` / `yellow` |
-| `style.progressbar.style` | 진행 바 문자 | `line` |
-| `style.output.icon` / `style.output` | 출력 아이콘 / 장치 이름 | `auto` / `dim` |
-
-숨김은 그 부분의 주변까지 함께 정리됩니다: 제목을 숨기면 `—` 구분자도
-사라지고, 경과 시간을 숨기면 총 시간 앞의 `/`도 사라지며, 한 항목의 모든
-부분이 숨겨지면 항목 자체가 사라집니다. (항목 하나를 통째로 빼는 건 배치의
-일입니다 — 패턴에서 그 숫자를 빼세요.)
-
-진행 바의 문자는 `style.progressbar.style`이 정합니다:
-
-| 프리셋 | 모양 | |
-|---|---|---|
-| `line`(기본값) | `━━━━━━────` | |
-| `blocks` | `██████░░░░` | |
-| `smooth` | `█████▋░░░░` | 경계 칸이 ⅛ 단위 부분 블록 |
-| `knob` | `━━━━━●────` | 슬라이더 노브가 채움 끝을 표시 |
-| `wave` | `▂▄▆▄▂▄▁▁▁▁` | 물결 — 재생 중 흘러감 |
-| `pulse` | `▂▂█▁▄▂▁▁▁▁` | 심전도 박동 — 재생 중 흘러감 |
-| `eq` | `▂▇▃█▅▆▁▁▁▁` | 이퀄라이저 — 재생 중 흘러감 |
-| `notes` | `♪♫♪♫♪♫····` | 음표 — 재생 중 행진 |
-| `braille` | `⣿⣿⣿⣿⣿⣿⣀⣀⣀⣀` | |
-| `chevron` | `▸▸▸▸▸▸▹▹▹▹` | |
-| `tape` | `▰▰▰▰▰▰▱▱▱▱` | |
-| `cassette` | `▮▮▮▮▮▮▯▯▯▯` | |
-| `retro` | `======----` | 순수 ASCII |
-| `dots` | `●●●●●●○○○○` | |
-
-"채움 + 빈칸"을 뜻하는 아무 두 글자도 됩니다(`"#-"` → `######----`).
-움직이는 프리셋은 재생 중에는 파형이 매초 빈 쪽으로 흘러가고, 일시정지하면
-멈춥니다. `/media:now` 응답의 진행 바도 같은 문자로 그려지기 때문에 두
-곳의 바가 항상 같은 모습입니다. 볼륨 바의 모양은
-`style.volume.style`입니다: `block`(볼륨에 따라 높이가 변하는 `▄` 하나,
-기본값), `progress`(진행 바 문자로 그리는 5칸 미니 바),
-`stairs`(`▂▄▆█` 계단). 모양이 무엇이든 볼륨 바의 색은 진행 바의
-재생/일시정지 색을 따라갑니다 — 세그먼트 전체가 하나의 강조색을 쓰는
-것이고, `style.volume.bar`는 바를 켜고 끄는 스위치일 뿐입니다(기본 `on`).
-아이콘(`style.volume.icon`,
-`style.output.icon`)은 `auto`(레벨별 / 장치 종류별), `none`(숨김), 또는
-`♪` 같은 아무 글리프이며, 음소거 시에는 항상 🔇가 나옵니다. 문자를 바꾸는
-키와 `off`는 색을 꺼도 적용되고, 나머지 키는 `statusline.color`가 켜져
-있어야 보입니다.
-
-```
-/media:config style.track.title "bold cyan"    # 한 부분만 설정
-/media:config style.track.title reset          # 그 부분만 기본값으로
-/media:config style reset                      # 스타일 전부 기본값으로
-/media:config statusline reset                 # 배치·줄·색·marquee·스타일까지
-                                               # 통째로 기본 모습으로
-```
-
-`media.sh config style`을 실행하면 모든 키의 현재 값과 기본값이 나옵니다.
-변경은 다음 statusline 틱에 바로 반영되며 재시작은 필요 없습니다.
+| `display.statusline` | `off` | 세그먼트 표시 (켜면 배선까지 자동) |
+| `statusline.fields` | `track,app,progressbar,time` | 항목, 순서, `/` 줄바꿈 |
+| `statusline.multiline` | `off` | 그룹 배치에서 그룹마다 한 줄 |
+| `statusline.color` | `on` | ANSI 스타일 (`NO_COLOR`가 우선) |
+| `statusline.marquee` | `on` | 30칸 넘는 제목 스크롤 |
+| `statusline.links` | `on` | ⌘+클릭 동작 |
+| `statusline.activetab` | `on` | 사용 중인 탭에서만 업데이트 |
+| `statusline reset` | — | 기본 모습으로 (배치·줄·색·marquee·스타일) |
 
 ## 수동 설정 (커스텀 statusline)
 
-배선을 직접 관리하고 싶다면 — 예컨대 세그먼트를 별도 줄로 덧붙이는 대신
-자기 statusline 스크립트 *안에* 넣고 싶다면? 명령을 **먼저** 구성해 두고 그
-다음에 세그먼트를 켜세요. 자동 배선은 세그먼트를 이미 실행하는
-`statusLine` 명령(`statusline-media.sh` 또는 `media.sh … statusline`이
-들어 있는 명령)을 인식해서 완전히 그대로 두고, 켜기는 표시 토글만
-바꿉니다.
+배선을 직접 관리하고 싶다면 — 예컨대 세그먼트를 별도 줄이 아니라 자기
+statusline 스크립트 *안에* 넣고 싶다면? 명령을 **먼저** 구성해 두고 그
+다음에 켜세요. 자동 배선은 세그먼트를 이미 실행하는 `statusLine`
+명령(`statusline-media.sh` 또는 `media.sh … statusline`이 들어 있는
+명령)을 인식해서 그대로 두고, 켜기는 표시 토글만 바꿉니다.
 
 출발점으로 쓸 만한 범용 wrapper — `~/.claude/statusline-media.sh`로
-저장하고 실행 권한을 주세요(`chmod +x ~/.claude/statusline-media.sh`):
+저장하고 `chmod +x`:
 
 ```bash
 #!/bin/bash
@@ -377,24 +246,47 @@ exit 0
 }
 ```
 
-(`refreshInterval: 1`은 가만히 있는 동안에도 시간과 바가 움직이게
-해 줍니다 — 위의 "켜기" 참고.) 체크아웃한 리포에서 개발
-중이라면(`claude --plugin-dir`) `MEDIA_DIR` 블록을 리포 경로로 바꾸면
-됩니다:
+체크아웃한 리포에서 개발 중이라면(`claude --plugin-dir`) `MEDIA_DIR`
+블록을 리포 경로로 바꾸면 됩니다:
 `np="$(/path/to/claude-media-control/scripts/media.sh statusline 2>/dev/null)"`
 
-## 관리 팁
+## 설계상 보장되는 것 (안심해도 되는 이유)
+
+1. 기존 statusline은 **대체되지 않습니다** — wrapper가 먼저 실행하고 그
+   출력은 한 바이트도 바뀌지 않고 통과하며, 재생 정보는 언제나 별도의
+   줄로만 덧붙습니다.
+2. 꺼져 있으면(기본값) 아무것도 출력하지 않습니다 — 빈 줄조차 없습니다.
+   Claude Code가 없는 줄을 접어 주므로 statusline은 이전과 똑같이
+   보입니다.
+3. `settings.json`에서 건드리는 키는 정확히 하나 — `statusLine` — 이며,
+   반드시 이전 값을 백업한 뒤에만 수정합니다. 쓰기는 원자적이고, 심링크를
+   따라가며(dotfile 구성도 안전), 다른 키는 전혀 손대지 않습니다.
+4. **플러그인을 삭제하면 모든 것이 저절로 원복됩니다.** Claude Code에는
+   uninstall 훅이 없어서 wrapper가 스스로 치유합니다: 플러그인이 사라지면
+   백업해 둔 `statusLine`을 복원하고 자기 자신과 백업 파일을 삭제하며,
+   클릭 핸들러 앱도 함께 제거합니다 — 삭제 후 1초 안에.
+5. 플러그인을 **비활성화**만 해 두면 wrapper는 아무것도 덧붙이지 않고
+   기다립니다 — 기존 statusline은 평소대로 돕니다.
+6. **직접 손으로** 배선한 statusline은 감지해서 설치·해제 어느 쪽에서도
+   절대 건드리지 않습니다.
+
+## 배선 명령
+
+```
+media.sh statusline status      # managed | manual | none (/media:doctor에도 표시)
+media.sh statusline uninstall   # 플러그인은 두고 배선만 해제:
+                                # 백업 복원, wrapper + 백업 삭제,
+                                # display.statusline off
+```
+
+참고:
 
 - **자동 배선(managed)**: wrapper는 생성된 파일이므로 직접 고치지 마세요.
-  플러그인 업데이트 시(세션 시작 warm-up) 그리고 `media.sh statusline
-  install`을 다시 실행할 때 새로 생성됩니다. `media.sh statusline
-  uninstall`은 배선을 해제하고 이전 statusline을 복원하며, 플러그인을
-  삭제하면 다음 statusline 틱에 같은 일이 자동으로 일어납니다.
+  플러그인 업데이트 시, 그리고 `media.sh statusline install`을 다시 실행할
+  때 새로 생성됩니다.
 - **수동 배선(manual)**: 파일들은 사용자의 것이고 플러그인은 절대 건드리지
-  않습니다. 나중에 statusline 구성을 바꾸면 `EXISTING` 줄도 같이 고쳐
-  주세요. 되돌리려면 `settings.json`의 `"statusLine"` 값을 원래대로
-  복원하고 wrapper를 지우면 됩니다. 플러그인만 삭제해도 세그먼트는 알아서
-  조용해지지만(플러그인 설정이 데이터 디렉토리와 함께 사라집니다), 파일
-  자체는 직접 지워야 합니다.
-- `/media:config display.statusline off`는 즉시 반영됩니다. 끄는 순간
-  캐시된 줄이 삭제되므로 statusline을 재시작할 필요가 없습니다.
+  않습니다. statusline 구성을 바꾸면 `EXISTING` 줄도 같이 고쳐 주세요.
+  플러그인만 삭제해도 세그먼트는 알아서 조용해지지만, wrapper 삭제와
+  `"statusLine"` 복원은 직접 해 주세요.
+- `/media:config display.statusline off`는 즉시 반영됩니다 — 끄는 순간
+  캐시된 줄이 삭제되고, 배선은 남아 있어 다시 켜는 것도 즉시입니다.

@@ -8,180 +8,129 @@
 
 [English](README.md) | [한국어](README.ko.md) | **日本語** | [简体中文](README.zh-CN.md)
 
-Spotify、Apple Music、ブラウザ、VLC ——**Mac でいま何が再生されていても**、
-Claude Code からそのまま確認・操作できます。「今かかってる曲は？」と聞く、
-「音楽を一時停止して」と頼む、インタラクティブなリモコンを開く——ぜんぶ
-できます。OAuth も API キーもアプリごとの連携設定も要りません。**Homebrew で
-インストールするものもありません**。
-
-![claude-media-control のデモ](docs/demo.ja.gif)
-
-## このプラグインならではの点
-
-既存の Claude 向け Spotify / Apple Music 連携は、どれも特定のアプリ専用で、
-OAuth や AppleScript のセットアップが前提です。このプラグインは **macOS の
-システム全体の now-playing サービス**と直接やり取りするため、どのアプリで
-再生していても、*いまアクティブな*プレイヤーをそのまま認識して操作できます。
-サードパーティ依存もゼロ。必要なのは Xcode Command Line Tools だけで、
-`git clone` が使える環境なら、まず間違いなくインストール済みです
-（[要件](#要件)を参照）。
-
-## インストール
-
-Claude Code の中で 2 行だけ。Homebrew の手順はありません:
-
-```
-/plugin marketplace add Bangs00/claude-media-control
-/plugin install media@claude-media-control
-```
-
-最初に media コマンドを実行したときに、小さな native helper を一度だけ
-ビルドします（約 2 秒）。以降はキャッシュが使われます。macOS 専用です。
-
-## 使い方
-
-自然言語でも、slash command でも、インタラクティブメニューでも操作できます:
-
-| こう話しかけると | …またはこれを実行 | どうなるか |
-| --- | --- | --- |
-| 「今かかってる曲は？」 | `/media:now` | 曲名 / アーティスト / アプリ + プログレスバーを表示 |
-| 「音楽を止めて」 | `/media:pause` · `/media:toggle` | 再生中のプレイヤーを一時停止 / 再開 |
-| 「次の曲にして」 | `/media:next` · `/media:prev` | 次の曲 / 前の曲 |
-| 「1:30 に飛ばして」 | `/media:seek 1:30` | 指定した位置へシーク |
-| 「アルバムアートを見せて」 | `/media:artwork` | ジャケット画像を保存して表示 |
-| 「音量を下げて」 | `/media:volume 30` | システム音量の確認 / 変更（0–100） |
-| 「さっき流れてた曲は？」 | `/media:history` | 最近再生された曲の一覧（ローカル記録） |
-| 「AirPods で流して」 | `/media:output airpods` | オーディオ出力デバイスの確認 / 切り替え |
-| 「リモコンを出して」 | `/media:menu` | 矢印キーで操作するインタラクティブコントローラ |
-| 「ステータスラインの並びを変えて」・「曲名をシアンにして」 | `/media:statusline` | ステータスラインのハブ——項目のオン / オフ、数字パターンでの配置、パーツごとのスタイルまで一か所で |
-| 「履歴をオフにして」 | `/media:config` | クイック設定——ステータスライン、`/media:now` のプログレスバー、履歴のオン / オフ + ステータスラインのリセット |
-| — | `/media:doctor` | ビルド / 権限 / フォールバックの診断 |
-
-ステータスラインに再生中の曲を出すこともできます——設定は完全に自動、
-コマンド 1 つで済みます:
+**いま流れている曲を、Claude Code のステータスラインにライブで** — 毎秒
+動き、⌘+クリックで操作でき、バーの文字ひとつまで好みに合わせられます:
 
 ```
 ▶︎ Karma Police — Radiohead (Spotify)  🔉 ▄ 45%
 ━━━━━━────  2:13/4:24  🎧 AirPods Pro
 ```
 
-- **オンにするのは `/media:config display.statusline on`** です
-  （`/media:statusline` で配置を決めても一緒にオンになります）。オンにした
-  時点でセグメントは `settings.json` に自動で配線されます——既存の
-  ステータスラインはそのまま動き続け、再生情報は独立した 1 行として
-  追加されるだけです。以前の `statusLine` の値はバックアップされ、
-  **プラグインをアンインストールすると自動で復元されます**。再起動も
-  手作業の手順も不要です（詳しい動作と設計上の保証:
-  [docs/statusline.ja.md](docs/statusline.ja.md)）。
-- **クリックで操作できます**——ハイパーリンク対応ターミナル（iTerm2、
-  Ghostty、WezTerm、Kitty、VS Code など）ではセグメントが **⌘+クリック**に
-  反応します: ▶︎/⏸ アイコンは再生/一時停止、タイトル—アーティストは再生中
-  のメディアへジャンプ（再生中のブラウザタブ、Music の現在のトラック——
-  スクリプト非対応アプリはアプリの最前面化まで）、プログレスバーはセル
-  単位でその位置へシーク。OSC 8 リンクとローカルの `claude-media://`
-  ハンドラアプリで動きます——macOS 標準ツールだけで生成、自動登録、
-  アンインストール時に削除。未対応ターミナルではただの通常セグメントと
-  して表示されます。オフにするには `/media:config statusline.links off`
-  （詳細: [docs/statusline.ja.md](docs/statusline.ja.md)）。
-- **更新は使っているタブだけ** — Claude Code のセッションを複数開いて
-  いるとき、セグメントは実際に使っているタブでだけ更新されます（タイプ・
-  スクロール・タブ切り替えのどれも「使用」に数えます）。ほかのタブは
-  最後の行を凍結したまま — バーと時間が止まるだけ — 戻った瞬間に
-  追いつきます。もともとのステータスラインはどのセッションでも生きた
-  まま — ゲートがかかるのはプラグインの行だけです。すべてのセッションで
-  更新するなら `/media:config statusline.activetab off`。
-- **自分好みにするのは `/media:statusline`** — 項目のオン / オフ、レイアウト
-  選択や `123/456` のような数字パターンでの配置（数字が項目——曲情報、
-  アプリ、音量、プログレスバー、時間、出力デバイス——で、`/` が改行）、
-  そしてパーツごとのスタイルまで変えられます: 太字/斜体/色、再生・一時停止
-  のアクセント色、バーの文字（デフォルト `line` `━━──` から `smooth` の
-  部分ブロック、`knob` のつまみ、再生中に流れる `wave`・`pulse`・`eq`・
-  `notes` まで 14 種のプリセット。任意の 2 文字も可）、
-  音量アイコンとバーの形
-  （`block`/`progress`/`stairs`）、出力デバイスのアイコン——さらに `off` で
-  どのパーツでも非表示にできます。
-- 長いタイトルはマーキー式にスクロールします。音量の項目はアイコン + 音量に
-  応じた高さのバー + パーセント（`🔉 ▄ 45%`）で、出力デバイスのアイコンは
-  デバイスの種類に合わせて（`🎧` Bluetooth、`📺` HDMI、`📶` AirPlay、`🔊`
-  スピーカー）表示されます。色は標準 16 色 SGR のみ——プレーンテキストに
-  戻すには `/media:config statusline.color off`（または `NO_COLOR`）を
-  使ってください。
-- オン / オフのクイック切り替えと**ステータスラインのリセット**は
-  `/media:config` にあります。キーは `reset` で個別にも戻せます。
+Mac で再生中のものなら何でも — Spotify、Apple Music、ブラウザのタブ、
+VLC — チャットからも操作できます:「今かかってる曲は？」「一時停止して」
+「次の曲」「AirPods で流して」。**macOS のシステム全体の now-playing
+サービス**と直接やり取りするので、特定アプリへのロックインも、OAuth も
+API キーも不要 — Homebrew でインストールするものもありません。
+
+![claude-media-control のデモ](docs/demo.ja.gif)
+
+## クイックスタート
+
+Claude Code の中で:
+
+```
+/plugin marketplace add Bangs00/claude-media-control
+/plugin install media@claude-media-control
+/media:config display.statusline on
+```
+
+最後の行がステータスラインです — 配線まで自動で終わり、次の更新から
+表示されます。macOS 専用。最初の media コマンドで小さな native helper を
+一度だけビルドします（約 2 秒）。インストールの確認は `/media:doctor`
+（正常なら `verdict: PRIMARY OK`）。
+
+## ステータスライン
+
+以下はぜんぶ自動です — 詳しいガイドは
+[docs/statusline.ja.md](docs/statusline.ja.md):
+
+- **安全な配線。** 有効にすると、セグメントは既存のステータスラインの
+  あとに独立した行として付け加わります — 既存分は 1 バイトも変わらず
+  動き続けます。以前の `statusLine` 値はバックアップされ、**プラグインを
+  アンインストールすれば自動で復元されます**。再起動も手作業もなし。
+- **⌘+クリックで操作**（iTerm2、Ghostty、WezTerm、Kitty、VS Code など）:
+  ▶︎/⏸ アイコンで再生 / 一時停止、曲名で再生中のブラウザタブや Music の
+  トラックへジャンプ、プログレスバーはマスごとにその位置へシーク。
+  非対応のターミナルでは、ただの通常セグメントとして表示されます。
+- **更新は使っているタブについてくる。** セッションを複数開いていても、
+  実際に使っているタブでだけ動きます。ほかのタブは最後の行を凍結した
+  まま保ち、戻った瞬間に追いつきます。
+- **数字パターンで配置** — `/media:statusline` で: 数字が項目 —
+  1 曲情報 · 2 アプリ · 3 音量 · 4 バー · 5 時間 · 6 出力デバイス — で、
+  `/` が改行。`123/456` なら曲 / アプリ / 音量の下にバー / 時間 / 出力が
+  重なります。
+- **パーツごとのスタイル**: 再生 / 一時停止のアクセントカラー、パーツ
+  ごとの太字 / 斜体 / 色、プログレスバー文字 14 種（デフォルトの `line`
+  `━━──` から `smooth` の部分ブロック、`knob` のスライダーつまみ、再生中
+  に流れる `wave`/`pulse`/`eq`/`notes` まで）、音量バーの形、アイコン —
+  そして `off` でどのパーツでも非表示に。**実例つきの全カタログは
+  [スタイルギャラリー](docs/styles.ja.md)へ。**
+
+## チャットから操作する
+
+自然言語でも、slash command でも、インタラクティブメニューでも:
+
+| こう話しかけると | …またはこれを実行 | どうなるか |
+| --- | --- | --- |
+| 「今かかってる曲は？」 | `/media:now` | 曲名 / アーティスト / アプリ + プログレスバー |
+| 「音楽を止めて」 | `/media:pause` · `/media:toggle` | 一時停止 / 再開 |
+| 「次の曲にして」 | `/media:next` · `/media:prev` | 次の曲 / 前の曲 |
+| 「1:30 に飛ばして」 | `/media:seek 1:30` | 指定位置へシーク |
+| 「アルバムアートを見せて」 | `/media:artwork` | ジャケットを保存して表示 |
+| 「音量を下げて」 | `/media:volume 30` | システム音量（0–100） |
+| 「さっき流れてた曲は？」 | `/media:history` | 最近再生された曲の一覧 |
+| 「AirPods で流して」 | `/media:output airpods` | 出力デバイスの確認 / 切り替え |
+| 「リモコンを出して」 | `/media:menu` | 矢印キーのインタラクティブ操作 |
+| 「曲名をシアンにして」 | `/media:statusline` | ステータスラインの配置 + スタイル |
+| 「履歴をオフにして」 | `/media:config` | クイックトグル + ステータスラインのリセット |
+| — | `/media:doctor` | ビルド / 権限 / フォールバックの診断 |
+
+再生履歴は**相乗りで**記録されます — どのみち行われる読み取り
+（ステータスラインの更新、コマンド）に便乗するので、ポーリングも
+デーモンもありません。ログは最新 500 曲までローカルにだけ保存され、
+マシンの外には出ません（`/media:config history.record off` で停止、
+`/media:history clear` で消去）。出力デバイスの一覧と切り替えは公開の
+CoreAudio API 経由 — 追加の権限は不要です。
 
 ## 仕組み
 
-macOS には、他のアプリの再生情報を読み取る公開 API がありません。非公開の
-`MediaRemote` フレームワークにはその機能がありますが、macOS 15.4 以降、
-このデーモンは Apple が署名したプロセスにしか応答しません。そこでこの
-プラグインは
+macOS には他アプリの再生情報を読む公開 API がなく、非公開の
+`MediaRemote` フレームワークは 15.4 以降 Apple 署名のプロセスにしか
+応答しません。
 [ungive/mediaremote-adapter](https://github.com/ungive/mediaremote-adapter)
-と同じ手法を使っています。小さな Objective-C ヘルパー
-（`native/adapter.m`）を、Apple のプラットフォームバイナリである
-`/usr/bin/perl` にロードさせることで、entitlement チェックを通過する仕組み
-です。再生操作とシークも同じ経路で処理します。
+と同じ手法で、小さな Objective-C ヘルパー（`native/adapter.m`）を Apple
+のプラットフォームバイナリである `/usr/bin/perl` に読み込ませ、
+エンタイトルメント検査を通過します。Command Line Tools がなければ、
+コンパイル不要の `osascript`/JXA での読み取りと、アプリ別 AppleScript で
+の操作（Spotify / Apple Music）に切り替わります。いまどのモードかは
+`/media:doctor` が教えてくれます。
 
-native helper をビルドできない環境では（Command Line Tools がない場合）、
-読み取りはコンパイル不要の `osascript`/JXA に、Spotify と Apple Music の
-操作はアプリごとの AppleScript にフォールバックします。いまどのモードで
-動いているかは `/media:doctor` が教えてくれます。
-
-> **免責事項。** このプラグインは**非公開かつドキュメント化されていない
-> Apple のフレームワーク**に依存しています。現時点では macOS 26.x で動作し、
-> macOS アップデートのたびに自動で再検証されます（ビルドキャッシュは OS の
-> ビルド番号がキー）が、Apple がいつ仕様を変えたり塞いだりしても不思議は
-> ありません。その場合、プラグインはフォールバック経路に切り替わって動作を
-> 続け、`/media:doctor` が状況を報告します。無保証です——[LICENSE](LICENSE)
-> を参照してください。
-
-## 再生履歴と出力デバイス
-
-`/media:history` は最近再生された曲を新しい順に一覧表示します。記録は
-どのみち行われる読み取り（ステータスラインの更新、`/media:now`、再生
-コマンド）に**相乗りして**残るため、バックグラウンドのポーリングもデーモンも
-追加のリソース負荷もありません。ログはプラグインのデータディレクトリに
-最新 500 曲まで保存され、マシンの外に出ることは決してありません。
-`/media:config history.record off` で記録を止め、`/media:history clear` で
-消去できます。
-
-`/media:output` はオーディオ出力デバイスの一覧表示と切り替えを行います
-（「AirPods で流して」）——公開の CoreAudio API を使うので追加の権限は
-不要です。ステータスラインに現在のデバイスを出すこともできます:
-`/media:statusline` の Items タブで「Output device」にチェックを入れるか、
-数字パターンで好きな位置に配置してください。
+> **免責。** このプラグインは**ドキュメント化されていない Apple の
+> 非公開フレームワーク**に依存しています。現在は macOS 26.x で動作し、
+> macOS アップデートのたびに自動で再検証されますが（ビルドキャッシュは
+> OS ビルド番号に紐づく）、Apple はいつでも変更・遮断できます — その
+> 場合はフォールバックに切り替わり、`/media:doctor` が報告します。
+> 無保証です — [LICENSE](LICENSE) を参照。
 
 ## 要件
 
-- **macOS**（macOS 26.x / Apple Silicon でテスト済み。この手法は 15.4 以降が
-  対象です）。ほかの OS はロードマップにあります。
-- **Xcode Command Line Tools**——初回の native ビルドに必要です。
-  `xcode-select --install` でインストールできますが、おそらくもう入って
-  います。プラグインの取得に必要な `git` が、`clang` と同じ Command Line
-  Tools に含まれているからです。なくてもプラグインはフォールバックモードで
-  動きます。
+- **macOS**（26.x / Apple Silicon でテスト。手法は 15.4+ が対象）。
+- **Xcode Command Line Tools** — 一度きりのビルド用。`git clone` が
+  使えるならもう入っています（なければ `xcode-select --install`。
+  なくてもフォールバックモードで動きます）。
 
-Homebrew も Node も Python も API キーも要りません。
-
-## インストールの確認
-
-```
-/media:doctor
-```
-
-正常にインストールできていれば `verdict: PRIMARY OK` で終わります。
-`DEGRADED` と出た場合は、レポートが対処法を教えてくれます（たいていは
-`xcode-select --install` してから `/media:doctor --rebuild`）。
+Homebrew も、Node も、Python も、API キーも要りません。
 
 ## トラブルシューティング
 
 | 症状 | 対処 |
 | --- | --- |
 | `DEGRADED — native helper unavailable` | `xcode-select --install` のあと `/media:doctor --rebuild` |
-| macOS アップデート後に `PRIMARY READ LIKELY BLOCKED` | `/media:doctor --rebuild`。直らなければ [issue を立ててください](https://github.com/Bangs00/claude-media-control/issues) |
-| AppleScript の操作が **error -1743** で失敗する | システム設定 → プライバシーとセキュリティ → オートメーションでターミナルアプリを許可（フォールバックモードのみ） |
-| 何も再生していないのに `now` が曲を表示する | アプリが古い状態を報告しています。`/media:next` を試すか、プレイヤーを再起動してください |
+| macOS アップデート後に `PRIMARY READ LIKELY BLOCKED` | `/media:doctor --rebuild`。続くようなら [issue を立ててください](https://github.com/Bangs00/claude-media-control/issues) |
+| AppleScript の操作が **error -1743** で失敗 | システム設定 → プライバシーとセキュリティ → オートメーションでターミナルを許可（フォールバックモードのみ） |
+| 何も再生していないのに `now` に曲が出る | アプリが古い状態を報告しています — `/media:next` を実行するかプレイヤーを再起動 |
 
-ビルドログは `${CLAUDE_PLUGIN_DATA}/build.log` にあります。
+ビルドログ: `${CLAUDE_PLUGIN_DATA}/build.log`
 
 ## アンインストール
 
@@ -190,55 +139,40 @@ Homebrew も Node も Python も API キーも要りません。
 /plugin marketplace remove claude-media-control
 ```
 
-これで**マシンはインストール前の状態に完全に戻ります。** プラグインが作る
-ものはすべて、Claude が管理する 2 つのディレクトリ
-（`~/.claude/plugins/cache/...` と `~/.claude/plugins/data/...`）の中だけに
-あり、どちらも Claude Code が片づけます。LaunchAgent も、ログイン項目も、
-システムパッケージもありません。一時的なジャケット画像は `$TMPDIR` に
-置かれ、macOS が自動で消します。
+これで**マシンはインストール前の状態に完全に戻ります。** すべては Claude
+が管理する 2 つのディレクトリ（`~/.claude/plugins/cache/…` と
+`…/data/…`）の中だけ — LaunchAgent もログイン項目もシステムパッケージも
+ありません。ステータスラインの配線は自分で元に戻ります: アンインストール
+後の最初の更新で、wrapper が以前の `statusLine` を復元し、自分自身と
+バックアップを削除し、クリックハンドラーアプリも取り除きます —
+1 秒以内にステータスラインは元の姿に戻ります
+（[詳細](docs/statusline.ja.md)）。
 
-唯一の例外は意図的なもので、自ら元に戻ります: **ステータスライン**の
-セグメントをオンにしていた場合、プラグインは `settings.json` のキーを
-ちょうど 1 つ（`statusLine`。必ず以前の値をバックアップしてから）編集して
-います。Claude Code にはアンインストールフックがないため、ステータスライン
-のラッパーは自己修復型です——アンインストール後、最初のステータスラインの
-更新で以前の `statusLine` を復元し、自分自身とバックアップを削除し、
-`claude-media://` クリックハンドラアプリも登録解除して消します。
-1 秒以内に、ステータスラインは元の姿そのままに戻ります
-（[docs/statusline.ja.md](docs/statusline.ja.md) を参照）。
-
-プラグインのファイルではないため残ることがあるものが 2 つあります
-（どちらも無害です）:
-
-- AppleScript フォールバックを使った場合、macOS は**オートメーションの許可**
-  （「ターミナル → Spotify/Music」）をシステムの権限データベースに残します。
-  消したければ `tccutil reset AppleEvents` を実行してください。
-- ステータスラインを**手作業で**配線していた場合
-  （`docs/statusline.ja.md` の手動セットアップのレシピ）、そのファイルは
-  ユーザーのものです: セグメントは自然に消えますが、ラッパーの削除と
-  `"statusLine"` の値の復元は自分で行ってください。
+無害なものが 2 つ残ることがあります: AppleScript フォールバックを使った
+場合の macOS の**オートメーション許可**の記録（`tccutil reset
+AppleEvents` で消去可能）と、ステータスラインを**手動で**配線していた
+場合のあなた自身の wrapper ファイル — こちらはご自身で削除してください。
 
 ## ロードマップ
 
-- **Linux** 対応——`playerctl`/MPRIS ベース。ディスパッチャはすでに OS ごとの
-  バックエンド構成になっています。コントリビューション歓迎。
-- **Windows** 対応——SMTC（`GlobalSystemMediaTransportControls`）ベース。
-  コントリビューション歓迎。
+- **Linux** は `playerctl`/MPRIS、**Windows** は SMTC ベース —
+  ディスパッチャは OS 別バックエンド構造になっています。コントリビュート
+  歓迎です。
 
 ## 開発
 
 ```bash
-claude --plugin-dir .          # チェックアウトからプラグインをロード
-shellcheck scripts/*.sh        # lint
+claude --plugin-dir .          # チェックアウトからプラグインを読み込む
+shellcheck scripts/*.sh        # リント
 npx bats tests/media.bats      # ユニットテスト（native はスタブ化）
 claude plugin validate . --strict
 ```
 
-CI では上記すべてに加えて、macOS ランナーで strict モードの native ビルドも
-実行しています。
+CI では上記すべてに加え、macOS ランナーで strict モードの native
+ビルドも走ります。
 
 ## ライセンス
 
 [MIT](LICENSE) です。native adapter は ungive/mediaremote-adapter の
-BSD-3-Clause の手法を移植し、ungive/media-control の CLI/JSON の慣例を
-参考にしています——[native/NOTICE](native/NOTICE) を参照してください。
+BSD-3-Clause の手法を移植し、ungive/media-control の CLI/JSON 慣習を
+参照しています — [native/NOTICE](native/NOTICE) を参照。

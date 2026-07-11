@@ -2,342 +2,207 @@
 
 **English** | [한국어](statusline.ko.md) | [日本語](statusline.ja.md) | [简体中文](statusline.zh-CN.md)
 
-Show the current track as an extra line in Claude Code's statusline:
+The current track, as an extra line in Claude Code's statusline:
 
 ```
 [your existing statusline, untouched]
-▶︎ Karma Police — Radiohead  ━━━━━━────  2:13/4:24
+▶︎ Karma Police — Radiohead (Spotify)  ━━━━━━────  2:13/4:24
 ```
 
-The segment comes from `media.sh statusline`, which answers from a small TTL
-cache (default 1s) in well under 50ms — it never slows your statusline down.
-The real now-playing read runs at most once per TTL window, so the elapsed
-time and progress bar advance about once a second when the statusline redraws.
+The segment answers from a 1-second TTL cache in well under 50ms — it never
+slows your statusline down. The real now-playing read runs at most once per
+second, which is also what makes the time and bar tick.
 
 ## Turn it on
-
-Inside Claude Code:
 
 ```
 /media:config display.statusline on
 ```
 
-That's the whole setup. Enabling verifies a working now-playing read path
-first (if it is refused, run `/media:doctor`), then wires the segment into
-Claude Code by itself:
+That's the whole setup — no restart, no manual steps. (Arranging the segment
+in `/media:statusline` enables it the same way.) Enabling first verifies a
+working now-playing read path (refused? run `/media:doctor`), then wires the
+segment in by itself:
 
 1. Your current `"statusLine"` value in `~/.claude/settings.json` is backed
-   up to `~/.claude/statusline-media.backup.json` (`null` when you had none).
-2. A wrapper script is generated at `~/.claude/statusline-media.sh`: it runs
-   your previous statusline command first and appends the now-playing line.
-3. `settings.json`'s `statusLine` is pointed at the wrapper. Every other key
-   of your entry (e.g. `padding`) is preserved, and `refreshInterval: 1` is
-   added unless you already set one — statuslines normally refresh only on
-   conversation events, and the once-a-second re-run is what makes the
-   elapsed time and progress bar tick while you're idle (raise or remove it
-   in `settings.json` if you prefer fewer redraws; each redraw re-runs your
-   existing statusline command too).
-
-The segment shows up on the next statusline tick — no restart, no manual
-steps. Arranging the segment in `/media:statusline` enables (and wires) it
-the same way.
+   up to `~/.claude/statusline-media.backup.json` (`null` if you had none).
+2. A wrapper is generated at `~/.claude/statusline-media.sh`: it runs your
+   previous statusline command first, then appends the now-playing line.
+3. `settings.json` points at the wrapper. Every other key of your entry
+   (e.g. `padding`) is preserved, and `refreshInterval: 1` is added unless
+   you set one — that once-a-second re-run is what keeps the time and bar
+   moving while you're idle. (Raise or remove it for fewer redraws; each
+   redraw re-runs your existing statusline command too.)
 
 ## Click to control
 
-In terminals with hyperlink support the segment is **cmd+clickable**:
+In terminals with hyperlink support, the segment is **cmd+clickable**:
 
-| target | ⌘+click does |
+| Target | ⌘+click does |
 | --- | --- |
 | `▶︎` / `⏸` icon | toggle play/pause |
-| title — artist (and `(App)`) | jump to the playing media — the app comes forward on its playing browser tab (Safari and AppleScript-capable Chromium browsers) or with the current track revealed (Music); other apps just come to the front |
+| title — artist, `(App)` | jump to the playing media: the playing browser tab (Safari, Chrome, Edge, Brave, Vivaldi, Opera) or the current track in Music; other apps just come to the front |
 | progress bar | seek — each of the 10 cells jumps to its position (5%, 15%, … 95%) |
 
-How it works: those parts are wrapped in OSC 8 hyperlinks pointing at a
-local `claude-media://` URL scheme. Enabling the statusline also builds a
-tiny handler app (`ClaudeMediaClick.app`, generated into the plugin data
-directory with macOS's bundled `osacompile` — no third-party code) and
-registers it with LaunchServices. A click runs `media.sh open-url`, whose
-whole surface is exactly three benign actions — toggle, activate, seek by
-percent — anything else is rejected. For browser players the activation
-resolves the web-content helper to its owning app (e.g.
-`com.openai.atlas.web` → ChatGPT Atlas), and then lands on the media
-itself where the app allows it: the window+tab whose title matches the
-track is selected (Safari, Chrome, Edge, Brave, Vivaldi, Opera), or the
-current track is revealed (Music). Apps without a scripting interface
-(e.g. ChatGPT Atlas, Spotify) stop at coming to the front. The first
-tab-jump shows a one-time Automation consent for `ClaudeMediaClick.app` —
-denying it keeps plain activation, silently.
+- **Works in**: iTerm2, Ghostty, WezTerm, Kitty, VS Code, Alacritty ≥ 0.11
+  (tmux ≥ 3.4 passes links through). Terminals without hyperlink support
+  just show the plain segment.
+- The segment reflects a click on the next tick (≤ 1s): the icon flips, the
+  bar jumps.
+- Switch: `/media:config statusline.links off` renders the segment plain.
+  Turning it back on rebuilds the handler app, and is refused (exit 3) if
+  that build fails — a link nothing answers is worse than no link.
+- The first tab-jump asks once for Automation consent
+  (`ClaudeMediaClick.app`); denying keeps plain activation, silently.
 
-Notes:
+<details>
+<summary>How clicks work (and why they're safe)</summary>
 
-- **Terminal support**: iTerm2, Ghostty, WezTerm, Kitty, VS Code, and
-  Alacritty ≥ 0.11 make OSC 8 links clickable (usually ⌘+click; some ask
-  once before opening a custom URL scheme). Terminals without hyperlink
-  support (e.g. Terminal.app) simply show the plain segment — the link
-  bytes are invisible either way. tmux ≥ 3.4 passes hyperlinks through.
-- After a click the segment reflects the change on the next tick (≤ 1s):
-  the icon flips, the bar jumps.
-- `statusline.links` (default `on`) is the switch:
-  `/media:config statusline.links off` renders the segment plain and
-  clickless; turning it back on (re)builds and registers the handler app,
-  and is **refused (exit 3)** when that build fails. Links render only
-  while the handler app actually exists — a link nothing answers is worse
-  than no link. `/media:doctor` reports the handler state (`Click links`).
-- A URL scheme is system-wide by nature — any app could open a
-  `claude-media://` URL. The handler's entire reachable surface is
-  play/pause, bringing the player forward, and seeking: nuisance-level at
-  worst, the same class as your keyboard's media keys.
-- Uninstalling the plugin (or `media.sh statusline uninstall`) unregisters
-  and deletes the handler app together with the rest of the wiring.
+The clickable parts are OSC 8 hyperlinks pointing at a local
+`claude-media://` URL scheme. Enabling the statusline builds a tiny handler
+app (`ClaudeMediaClick.app`, generated into the plugin data directory with
+macOS's bundled `osacompile` — no third-party code) and registers it with
+LaunchServices. A click runs `media.sh open-url`, whose whole surface is
+exactly three benign actions — toggle, activate, seek by percent; anything
+else is rejected. A URL scheme is reachable by any app by nature, so that
+surface is the point: play/pause, bringing the player forward, seeking —
+nuisance-level at worst, the same class as your keyboard's media keys.
+
+For browser players, activation resolves the web-content helper process to
+its owning app (e.g. `com.openai.atlas.web` → ChatGPT Atlas), then lands on
+the media itself where the app is scriptable: the window+tab whose title
+matches the track, or Music's current track. Apps without a scripting
+interface (e.g. ChatGPT Atlas, Spotify) stop at coming to the front.
+Uninstalling the plugin (or `media.sh statusline uninstall`) unregisters
+and deletes the handler app. `/media:doctor` reports its state
+(`Click links`).
+
+</details>
 
 ## Updates follow the tab you're using
 
-With several Claude Code sessions open, each one runs its own statusline —
-but the now-playing segment **updates only in the session you are actually
-using**. The other sessions keep the segment's last line, frozen: the track
-still shows, the bar and elapsed time just stop moving, and none of the
-per-tick read work happens there. (Whatever statusline you already had
-keeps running live in every session, untouched — only the plugin's own line
-is gated.) No setup: the session whose terminal last consumed input gets
-the live segment — keystrokes, scrolling, or simply switching to its tab
-all count (Claude Code enables terminal focus reporting, so a focus change
-alone is enough) — and the segment catches up within a tick or two when you
-move back.
+With several Claude Code sessions open, the segment **updates only in the
+session you're actually using** — typing, scrolling, or just switching to
+its tab all count. The other sessions keep its last line frozen (the track
+still shows; the bar and time stop moving) and catch up within a tick or
+two when you're back. Your own statusline keeps running live everywhere —
+only the plugin's line is gated. No setup.
 
-How it works: a statusline command runs without a controlling tty, so the
-segment walks its process ancestry to the Claude Code process that owns the
-session's terminal and compares the terminals' last-input times (the atime
-signal `w` prints as IDLE) through a tiny state file in the plugin data dir
-(`statusline.tty` — the holder's device; its mtime is the holder's
-heartbeat, so a closed session forfeits within seconds). Each live render
-also drops a per-terminal snapshot (`statusline.frozen.<tty>`) — that is
-the line an inactive session reprints. Sessions without a terminal of
-their own (VS Code, the desktop app, headless runs) cannot be ranked and
-always render live, without competing. Every failure in the gate fails
-open — it renders live rather than freezes.
-
-Prefer the segment ticking in every session, like before?
+Prefer the segment ticking in every session?
 
 ```
 /media:config statusline.activetab off
 ```
 
-## Design guarantees (why this is safe)
+<details>
+<summary>How the gate works</summary>
 
-1. Your existing statusline command is **not replaced** — the wrapper runs it
-   first, exactly as it was, and its output passes through **byte-for-byte
-   unmodified**. Now-playing is only ever **appended as its own line**.
-2. With `display.statusline` off (the default) the segment prints nothing —
-   not even an empty line. Claude Code collapses the missing line, so your
-   statusline looks exactly like before. (`off` hides the segment instantly
-   and keeps the wiring, so re-enabling is instant too.)
-3. Exactly one `settings.json` key is ever touched — `statusLine` — and only
-   after its previous value is saved to `statusline-media.backup.json`. The
-   write is atomic, follows symlinks (dotfile setups survive), and keeps
-   every other settings key untouched.
-4. **Uninstalling the plugin reverts everything by itself.** Claude Code has
-   no uninstall hook a plugin could run, so the wrapper is self-healing: on
-   every tick it checks the installed-plugins registry, and once the plugin
-   is gone it restores your backed-up `statusLine` into `settings.json` and
-   deletes itself and the backup — and unregisters + removes the
-   `claude-media://` click-handler app the same way. No leftovers — your
-   statusline is back to exactly what it was, within a second of the
-   uninstall.
-5. While the plugin is merely **disabled**, the wrapper adds nothing and
-   waits — your previous statusline runs as usual and the wiring stays for
-   re-enabling.
-6. A statusline you wired **by hand** (the recipe below, or any command that
-   already runs the segment) is detected and never touched, installed or
-   uninstalled.
+A statusline command runs without a controlling tty, so the segment walks
+its process ancestry to the Claude Code process that owns the session's
+terminal and compares the terminals' last-input times (the atime signal `w`
+prints as IDLE) through a tiny state file in the plugin data dir
+(`statusline.tty` — the holder's device; its mtime is the holder's
+heartbeat, so a closed session forfeits within seconds). Each live render
+drops a per-terminal snapshot (`statusline.frozen.<tty>`) — the line an
+inactive session reprints. Sessions without a terminal of their own
+(VS Code, the desktop app, headless runs) can't be ranked and always render
+live. Every failure in the gate fails open: live, never frozen.
 
-Unwire without uninstalling the plugin — restores the backup and removes the
-wrapper + backup files, and turns `display.statusline` off:
-
-```
-media.sh statusline uninstall     # or just ask Claude: "unwire the statusline"
-```
-
-`media.sh statusline status` reports the current wiring state (`managed`,
-`manual`, or `none`), and `/media:doctor` includes it in its report.
+</details>
 
 ## Arrange what the segment shows
 
-Run `/media:statusline` — the one hub for the segment's look. It opens three
-tabs: **Items** (volume, progress bar, time, and output device on/off),
-**Layout** (Standard / Stacked, or a numeric pattern), and **Style**
-(per-item styling, next section). Patterns are built from this legend:
+`/media:statusline` is the hub for the segment's look — three tabs: **Items**
+(on/off), **Layout** (presets or a numeric pattern), **Style** (see the
+[style gallery](styles.md)). Patterns use this legend:
 
-| # | item | looks like |
+| # | Item | Looks like |
 | --- | --- | --- |
 | 1 | `track` | `▶︎ Karma Police — Radiohead` |
 | 2 | `app` | `(Spotify)` |
-| 3 | `volume` | `🔉 ▄ 45%` — icon + level bar + percent; `🔇` when muted |
+| 3 | `volume` | `🔉 ▄ 45%` — `🔇` when muted |
 | 4 | `progressbar` | `━━━━━━────` |
 | 5 | `time` | `2:13/4:24` |
-| 6 | `output` | `🎧 AirPods Pro` — icon by device kind: `🎧` Bluetooth/headphones · `📺` HDMI/DisplayPort · `📶` AirPlay · `🔊` speakers |
+| 6 | `output` | `🎧 AirPods Pro` — icon by device kind |
 
-Digit order is display order. `/` starts a new line. A digit you leave out
-hides that item. So `123/456` puts track, app and volume on line 1 and the
-rest on line 2. The default set is `track app progressbar time`; quick on/off
-toggles and a full statusline reset live in `/media:config`.
+Digit order is display order, `/` starts a new line, and a digit you leave
+out hides that item. The default set is `track app progressbar time`; the
+list can also be set directly:
+`/media:config statusline.fields "time,progressbar,track,app"`.
 
-How the layout behaves:
-
-- **Order** — items render in exactly the order they are saved. Ask for
-  "time first", or set the list directly:
-  `/media:config statusline.fields "time,progressbar,track,app"`.
-- **Explicit lines** — a `/` in the field list starts a new line. Each line
-  then shows exactly the items you put there, in that order. A line with
-  nothing to show disappears (e.g. `output` without the native helper).
-- **Grouped layout** (no `/` in the list) — one line, or one line per group
-  with `statusline.multiline on`. The groups: `app` attaches to the track;
-  `progressbar` and `time` pair up when adjacent; `output` and `volume`
-  join an adjacent track group, and pair up with each other when adjacent.
-
-Standard — one line with all items (pattern `123456`):
+Standard — everything on one line (`123456`):
 
 ```
 ▶︎ Karma Police — Radiohead (Spotify)  🔉 ▄ 45%  ━━━━━━────  2:13/4:24  🎧 AirPods Pro
 ```
 
-Stacked — two explicit lines (pattern `123/456`, i.e.
-`statusline.fields "track,app,volume,/,progressbar,time,output"`):
+Stacked — two lines (`123/456`):
 
 ```
 ▶︎ Karma Police — Radiohead (Spotify)  🔉 ▄ 45%
 ━━━━━━────  2:13/4:24  🎧 AirPods Pro
 ```
 
-Output on the track's line, no volume (pattern `126/45`):
+Output next to the track, no volume (`126/45`):
 
 ```
 ▶︎ Karma Police — Radiohead (Spotify)  🎧 AirPods Pro
 ━━━━━━────  2:13/4:24
 ```
 
-Time first, one line (pattern `5412`, i.e.
-`statusline.fields "time,progressbar,track,app"`):
+How the layout behaves:
+
+- **With `/` in the list** (explicit layout): each line shows exactly the
+  items you put there, in that order. A line with nothing to show
+  disappears entirely — no blank lines.
+- **Without `/`** (grouped layout): one line — or one line per group with
+  `statusline.multiline on`. The groups: `app` attaches to the track,
+  adjacent `progressbar`+`time` pair up, `output`/`volume` join an adjacent
+  track group (and pair with each other).
+- `output` and `volume` need the native helper; they ride the same read as
+  the rest, so they add no extra cost.
+
+## Styling
+
+The segment ships styled: green/yellow accent by playback state, **bold**
+title and elapsed time, *italic* artist, dim chrome — standard 16-color SGR,
+so your terminal's palette decides the shades.
+
+Every part is individually styleable — colors, bold/italic, 14 progress-bar
+charsets, volume bar shapes, icons, or `off` to hide any part. **The full
+catalog, with examples and recipes: [docs/styles.md](styles.md).**
 
 ```
-2:13/4:24  ━━━━━━────  ▶︎ Karma Police — Radiohead (Spotify)
+/media:config statusline.color off     # plain text (NO_COLOR works too)
+/media:config statusline.marquee off   # don't scroll long titles
 ```
 
-The `output` and `volume` items need the native helper (they ride the same
-read as the rest of the segment, so they add no extra cost). Switch devices
-with `/media:output`, change the level with `/media:volume`; the segment
-updates on the next tick.
+Titles wider than 30 cells scroll marquee-style through a fixed window, one
+character per second (CJK counts as two cells, so the window stays steady).
 
-### Long titles: marquee scrolling
+## All toggles at a glance
 
-Titles wider than 30 terminal cells scroll through a fixed 30-cell window,
-one character per second. (The window advances on every redraw — see the
-1-second refresh below.)
-
-```
-▶︎ ing Willow (10 Minute Version)  — Taylor Swift (Music)
-```
-
-CJK characters count as two cells, so the window stays steady for Korean,
-Japanese, and Chinese titles. Prefer the full title, however long? Turn it
-off:
-
-```
-/media:config statusline.marquee off
-```
-
-### Colors & per-item styles
-
-The segment ships styled by default — Claude Code statuslines render ANSI
-codes, and the wrapper passes them through untouched:
-
-- the ▶︎/⏸ icon, the filled part of the progress bar, and the volume bar
-  follow the playback state (green playing, yellow paused)
-- **bold** title and elapsed time (the moving part stays readable), *italic*
-  artist, dimmed total time, empty bar cells, app name, and output device
-
-Only standard 16-color SGR codes are used, so everything follows your
-terminal's own palette. Prefer plain text? Run
-`/media:config statusline.color off` — the `NO_COLOR` environment variable is
-honored too.
-
-Every part is also **individually styleable** — the Style tab of
-`/media:statusline`, or just tell it what you want ("title bold cyan", "bar
-style dots", "volume icon ♪", "hide the artist"), or set the keys directly.
-Each text key takes any of `bold dim italic underline`, plus at most one
-color (`black red green yellow blue magenta cyan white` or
-`bright-<color>`) — or `none` (plain), or `off` to **hide that part**:
-
-| key | part | default |
+| Key (`/media:config …`) | Default | Does |
 | --- | --- | --- |
-| `style.track.title` / `style.track.artist` | title / artist | `bold` / `italic` |
-| `style.app` | app name `(Spotify)` | `dim` |
-| `style.time.elapsed` / `style.time.total` | `2:13` / `/4:24` | `bold` / `dim` |
-| `style.volume.icon` / `style.volume.style` / `style.volume.bar` / `style.volume.percent` | volume icon / bar shape / bar on-off / percent | `auto` / `block` / `on` / `dim` |
-| `style.progressbar.playing` / `style.progressbar.paused` | bar fill + ▶︎/⏸ accent | `green` / `yellow` |
-| `style.progressbar.style` | bar characters | `line` |
-| `style.output.icon` / `style.output` | output icon / device name | `auto` / `dim` |
-
-Hiding follows the part: a hidden title takes the `—` separator with it, a
-hidden elapsed time drops the `/` before the total, and an item whose parts
-are all hidden disappears entirely. (Dropping a whole item is an arrangement
-change — leave its digit out of the pattern.)
-
-The progress bar's characters come from `style.progressbar.style`:
-
-| preset | looks like | |
-|---|---|---|
-| `line` (default) | `━━━━━━────` | |
-| `blocks` | `██████░░░░` | |
-| `smooth` | `█████▋░░░░` | the boundary cell is a partial block (⅛ steps) |
-| `knob` | `━━━━━●────` | a slider head caps the fill |
-| `wave` | `▂▄▆▄▂▄▁▁▁▁` | a swell — rolls while playing |
-| `pulse` | `▂▂█▁▄▂▁▁▁▁` | an ECG beat — rolls while playing |
-| `eq` | `▂▇▃█▅▆▁▁▁▁` | equalizer bars — rolls while playing |
-| `notes` | `♪♫♪♫♪♫····` | notes — march while playing |
-| `braille` | `⣿⣿⣿⣿⣿⣿⣀⣀⣀⣀` | |
-| `chevron` | `▸▸▸▸▸▸▹▹▹▹` | |
-| `tape` | `▰▰▰▰▰▰▱▱▱▱` | |
-| `cassette` | `▮▮▮▮▮▮▯▯▯▯` | |
-| `retro` | `======----` | plain ASCII |
-| `dots` | `●●●●●●○○○○` | |
-
-Any two characters also work, meaning "filled + empty" (`"#-"` →
-`######----`). The rolling presets are animated: the trace rolls toward the
-empty end each second while playing and freezes on pause. The same
-characters draw the bar in the `/media:now` reply, so the two surfaces
-always match. The volume bar's shape is
-`style.volume.style`: `block` (one `▄` whose height tracks the level,
-default), `progress` (a five-cell mini bar drawn with the progress-bar
-characters), or `stairs` (`▂▄▆█` steps). Whatever its shape, the volume bar
-draws in the progress bar's playing/paused colors — one accent across the
-segment — and `style.volume.bar` is simply its on/off switch (`on` by
-default). The icons (`style.volume.icon`,
-`style.output.icon`) are `auto` (tiered by level / by device kind), `none`
-(hidden), or any glyph like `♪` — muted always shows 🔇. Character choices
-apply even with colors off; the other keys need `statusline.color` on.
-
-```
-/media:config style.track.title "bold cyan"    # set one part
-/media:config style.track.title reset          # that part back to its default
-/media:config style reset                      # all styles back to defaults
-/media:config statusline reset                 # full stock look — arrangement,
-                                               # lines, colors, marquee, styles
-```
-
-`media.sh config style` lists every key with its current value and default.
-Changes show up on the next statusline tick — no restart needed.
+| `display.statusline` | `off` | show the segment (enabling wires it in) |
+| `statusline.fields` | `track,app,progressbar,time` | items, order, and `/` line breaks |
+| `statusline.multiline` | `off` | grouped layout: one line per group |
+| `statusline.color` | `on` | ANSI styling (`NO_COLOR` wins) |
+| `statusline.marquee` | `on` | scroll titles wider than 30 cells |
+| `statusline.links` | `on` | cmd+click actions |
+| `statusline.activetab` | `on` | update only the tab in use |
+| `statusline reset` | — | restore the stock look (arrangement, lines, colors, marquee, styles) |
 
 ## Manual setup (custom statuslines)
 
-Prefer to own the wiring yourself — say, to embed the segment *inside* your
-own statusline script instead of appending it as a line? Set your command up
-**first**, then enable the segment: the automatic wiring recognizes a
-`statusLine` command that already runs the segment (it mentions
-`statusline-media.sh` or `media.sh … statusline`) and leaves it completely
-alone — enabling then only flips the visibility toggle.
+Prefer to own the wiring — say, to embed the segment *inside* your own
+statusline script? Set your command up **first**, then enable: the automatic
+wiring recognizes a `statusLine` that already runs the segment (it mentions
+`statusline-media.sh` or `media.sh … statusline`) and leaves it alone;
+enabling then only flips the visibility toggle.
 
-A universal wrapper to start from — save as `~/.claude/statusline-media.sh`
-and make it executable (`chmod +x ~/.claude/statusline-media.sh`):
+A universal wrapper to start from — save as `~/.claude/statusline-media.sh`,
+`chmod +x` it:
 
 ```bash
 #!/bin/bash
@@ -366,7 +231,7 @@ fi
 exit 0
 ```
 
-Then point `~/.claude/settings.json` at it yourself:
+Then point `~/.claude/settings.json` at it:
 
 ```json
 {
@@ -378,23 +243,45 @@ Then point `~/.claude/settings.json` at it yourself:
 }
 ```
 
-(`refreshInterval: 1` keeps the time and bar ticking while you're idle — see
-"Turn it on" above.) Developing from a checkout (`claude --plugin-dir`)?
-Replace the `MEDIA_DIR` block with your repo path:
+Developing from a checkout (`claude --plugin-dir`)? Replace the `MEDIA_DIR`
+block with your repo path:
 `np="$(/path/to/claude-media-control/scripts/media.sh statusline 2>/dev/null)"`.
 
-## Maintenance notes
+## Design guarantees (why this is safe)
 
-- **Managed wiring** (the automatic setup): the wrapper is a generated file —
-  don't edit it; it is refreshed on plugin updates (session-start warm-up)
-  and by re-running `media.sh statusline install`. `media.sh statusline
-  uninstall` unwires and restores your previous statusline; uninstalling the
-  plugin does the same automatically on the next statusline tick.
+1. Your existing statusline is **never replaced** — the wrapper runs it
+   first and its output passes through byte-for-byte; now-playing is only
+   ever appended as its own line.
+2. Off (the default) prints nothing — not even an empty line. Claude Code
+   collapses the missing line, so your statusline looks exactly as before.
+3. Exactly one `settings.json` key is ever touched — `statusLine` — and only
+   after its previous value is backed up. The write is atomic, follows
+   symlinks (dotfile setups survive), and keeps every other key untouched.
+4. **Uninstalling the plugin reverts everything by itself.** Claude Code has
+   no uninstall hook, so the wrapper self-heals: once the plugin is gone it
+   restores your backed-up `statusLine`, deletes itself and the backup, and
+   removes the click-handler app — within a second of the uninstall.
+5. While the plugin is merely **disabled**, the wrapper adds nothing and
+   waits; your previous statusline runs as usual.
+6. A statusline you wired **by hand** is detected and never touched —
+   installed or uninstalled.
+
+## Wiring commands
+
+```
+media.sh statusline status      # managed | manual | none (also in /media:doctor)
+media.sh statusline uninstall   # unwire without uninstalling the plugin:
+                                # restores the backup, removes wrapper + backup,
+                                # turns display.statusline off
+```
+
+Notes:
+
+- **Managed wiring**: the wrapper is a generated file — don't edit it; it's
+  refreshed on plugin updates and by re-running `media.sh statusline install`.
 - **Manual wiring**: the files are yours; the plugin never touches them. If
-  you change your statusline setup later, update the `EXISTING` line too. To
-  undo, restore your old `"statusLine"` value in `settings.json` and delete
-  your wrapper. After a plugin uninstall the segment goes quiet on its own
-  (the plugin's config dies with its data directory), but the files are
-  yours to remove.
-- The segment honors `/media:config display.statusline off` instantly — the
-  cached line is deleted on disable, no statusline restart needed.
+  you change your statusline later, update the `EXISTING` line too. After a
+  plugin uninstall the segment goes quiet on its own, but remove your
+  wrapper and restore your `"statusLine"` yourself.
+- `/media:config display.statusline off` takes effect instantly — the cached
+  line is deleted on disable; re-enabling is instant too (the wiring stays).
