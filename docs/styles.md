@@ -69,6 +69,7 @@ Shown at 60% (sub-cell presets at 58%, where their partial cells show):
 | `dash` | `━━━━━━━━━━━╌┈┈┈┈┈┈┈┈` | a heavy line over a thin-dash track — see below |
 | `seam` | `━━━━━━━━━━━┄────────` | the `line` bar cracking through thin dashes — see below |
 | `knob` | `━━━━━━━━━━━●────────` | a slider head caps the fill |
+| `playhead` | `───────────╼╾───────` | a thick head gliding along a thin track — see below |
 | `braille` | `⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣀⣀⣀⣀⣀⣀⣀⣀` | |
 | `chevron` | `▸▸▸▸▸▸▸▸▸▸▸▸▹▹▹▹▹▹▹▹` | |
 | `tape` | `▰▰▰▰▰▰▰▰▰▰▰▰▱▱▱▱▱▱▱▱` | |
@@ -106,6 +107,19 @@ stipple  46%  ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣄⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀      
 tiles    47%  ■■■■■■■■■◧□□□□□□□□□□      98%  ■■■■■■■■■■■■■■■■■■■◧
 dash     47%  ━━━━━━━━━┄┈┈┈┈┈┈┈┈┈┈      98%  ━━━━━━━━━━━━━━━━━━━╌
 seam     46%  ━━━━━━━━━┈──────────      99%  ━━━━━━━━━━━━━━━━━━━╌
+```
+
+`playhead` never fills: the track stays thin end to end while a
+one-cell thick head glides along it in the same half-cell steps as
+`glide` — parked on a cell it draws `━`, straddling two cells it splits
+into `╼╾`. The elapsed side keeps the accent color, so progress still
+reads at a glance (with colors off the head alone carries it):
+
+```
+ 0%  ━───────────────────
+47%  ─────────━──────────
+50%  ─────────╼╾─────────
+99%  ───────────────────━
 ```
 
 ### Animated presets
