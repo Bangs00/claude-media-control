@@ -670,91 +670,6 @@ do_output() {
 # docs/statusline.md; idle statuslines otherwise refresh only on events).
 STATUSLINE_TTL_SECONDS=1
 
-# A holder whose state file stopped refreshing for this long is treated as
-# gone (its session closed) — ticks run every second, so 3 missed beats.
-STATUSLINE_HEARTBEAT_SECONDS=3
-
-# The terminal device of this Claude Code session, resolved through the
-# process ancestry: statusline commands are spawned without a controlling
-# tty (ps shows ??), but their parent chain reaches the Claude Code TUI
-# process, which holds the session's tty. Walked with one targeted ps per
-# hop (the managed chain is 3 hops; a full ps snapshot costs ~5x more).
-# Empty output when no ancestor has one (VS Code, the desktop app, headless
-# and background sessions). MEDIA_STATUSLINE_TTY (a device path; set-but-
-# empty means "no tty") bypasses the walk — tests steer the active-tab gate
-# with plain files through it.
-statusline_session_tty() {
-  if [ -n "${MEDIA_STATUSLINE_TTY+x}" ]; then
-    printf '%s' "$MEDIA_STATUSLINE_TTY"
-    return 0
-  fi
-  local p="$$" line tty _i
-  for _i in 1 2 3 4 5 6 7 8 9 10; do
-    line="$(/bin/ps -o ppid=,tty= -p "$p" 2>/dev/null)" || return 0
-    [ -n "$line" ] || return 0
-    read -r p tty <<< "$line" || return 0
-    if [ -n "$tty" ] && [ "$tty" != "??" ] && [ "$tty" != "-" ]; then
-      printf '/dev/%s' "$tty"
-      return 0
-    fi
-    [ -n "$p" ] && [ "$p" -gt 1 ] 2>/dev/null || return 0
-  done
-  return 0
-}
-
-# Gate for statusline.activetab (default on): with several sessions open the
-# segment UPDATES only in the one the user is actually using — the other
-# sessions keep their last line, frozen (do_statusline reprints their per-tty
-# snapshot). "In use" is the session tty's atime — the kernel bumps it
-# whenever the session consumes input, which covers keystrokes, scrolling,
-# and switching terminal tabs (Claude Code enables focus reporting, so a
-# focus change alone delivers bytes); it is the signal `w` prints as IDLE.
-# Sessions coordinate through a tiny state file naming the current holder
-# (content) whose mtime is the holder's heartbeat, refreshed on every held
-# tick. A challenger takes over when its tty saw input more recently, when
-# the holder's tty is gone, or when the heartbeat stopped (session closed —
-# also covers a closed tab whose tty number an unrelated process reuses).
-# Sessions without a tty cannot be ranked and always render live, without
-# competing. Every failure in here fails open: a broken gate must never
-# freeze the statusline. Side effect: STATUSLINE_SESSION_TTY carries the
-# resolved device for the caller (empty when none).
-STATUSLINE_SESSION_TTY=""
-statusline_tab_active() {
-  local mytty myat
-  mytty="$(statusline_session_tty)"
-  STATUSLINE_SESSION_TTY="$mytty"
-  [ -n "$mytty" ] || return 0
-  myat="$(/usr/bin/stat -f %Fa "$mytty" 2>/dev/null)" || myat=""
-  [ -n "$myat" ] || return 0
-  local state="$DATA_DIR/statusline.tty" holder=""
-  holder="$(/bin/cat "$state" 2>/dev/null)" || holder=""
-  if [ "$holder" = "$mytty" ]; then
-    /usr/bin/touch "$state" 2>/dev/null || true
-    return 0
-  fi
-  if [ -n "$holder" ]; then
-    local beat now hat
-    beat="$(/usr/bin/stat -f %m "$state" 2>/dev/null || echo 0)"
-    now="$(/bin/date +%s 2>/dev/null || echo 0)"
-    if [ "$((now - beat))" -le "$STATUSLINE_HEARTBEAT_SECONDS" ]; then
-      hat="$(/usr/bin/stat -f %Fa "$holder" 2>/dev/null)" || hat=""
-      # %Fa is fixed-width (seconds.nanoseconds), so string comparison
-      # orders correctly; a tie keeps the holder (stability).
-      if [ -n "$hat" ] && ! [[ "$myat" > "$hat" ]]; then
-        # Another session is in use. The activetab toggle is consulted only
-        # here on the quiet path — the winning tick (every tick of the
-        # common single-session setup) never pays this second config read.
-        [ "$(config_get statusline.activetab)" = "on" ] || return 0
-        return 1
-      fi
-    fi
-  fi
-  mkdir -p "$DATA_DIR" 2>/dev/null || true
-  printf '%s' "$mytty" > "$state.tmp$$" 2>/dev/null || return 0
-  /bin/mv -f "$state.tmp$$" "$state" 2>/dev/null || /bin/rm -f "$state.tmp$$" 2>/dev/null || true
-  return 0
-}
-
 # One-line now-playing segment for a statusline command. Statuslines fire on
 # every conversation event (plus optional refreshInterval polling), so this
 # must answer instantly: a TTL file cache absorbs the perl+dylib startup cost
@@ -763,20 +678,6 @@ statusline_tab_active() {
 # wrapper recipe in docs/statusline.md relies on that to add no extra line.
 do_statusline() {
   [ "$(config_get display.statusline)" = "on" ] || return 0
-  # Several sessions open -> the segment UPDATES only in the tab in use
-  # (statusline.activetab). An inactive session reprints its own last active
-  # render, frozen — the line stays, the bar and time just stop moving —
-  # bootstrapped from the shared cache for a tab that never rendered (so a
-  # session opened in the background still shows the track). It catches up
-  # within a tick of the tab being used again.
-  if ! statusline_tab_active; then
-    local frozen="$DATA_DIR/statusline.frozen.${STATUSLINE_SESSION_TTY##*/}"
-    if [ ! -f "$frozen" ] && [ -f "$DATA_DIR/statusline.cache" ]; then
-      /bin/cp "$DATA_DIR/statusline.cache" "$frozen" 2>/dev/null || true
-    fi
-    /bin/cat "$frozen" 2>/dev/null || true
-    return 0
-  fi
   local cache="$DATA_DIR/statusline.cache"
   local now_epoch mtime age
   now_epoch="$(/bin/date +%s)"
@@ -1188,11 +1089,6 @@ do_statusline() {
   fi
   mkdir -p "$DATA_DIR" 2>/dev/null || true
   printf '%s' "$line" > "$cache" 2>/dev/null || true
-  # This terminal's freeze snapshot rides every live render: when the tab
-  # stops being the one in use, its statusline keeps this exact line.
-  if [ -n "$STATUSLINE_SESSION_TTY" ]; then
-    printf '%s' "$line" > "$DATA_DIR/statusline.frozen.${STATUSLINE_SESSION_TTY##*/}" 2>/dev/null || true
-  fi
   printf '%s' "$line"
   return 0
 }
@@ -1511,7 +1407,7 @@ statusline_install() {
     echo "media: statusline wiring failed — $SETTINGS_FILE was left unchanged." >&2
     return 1
   fi
-  rm -f "$DATA_DIR/statusline.cache" "$DATA_DIR/statusline.tty" "$DATA_DIR"/statusline.frozen.*
+  rm -f "$DATA_DIR/statusline.cache"
   if [ -n "$orig_cmd" ]; then
     echo "statusline: wired into settings.json — your previous statusline still runs first (backup: $WRAPPER_BACKUP_FILE; auto-restored if the plugin is uninstalled)."
   else
@@ -1562,7 +1458,7 @@ statusline_uninstall() {
       rm -f "$WRAPPER_FILE" "$WRAPPER_BACKUP_FILE"
       "$SCRIPT_DIR/build-click-handler.sh" --remove >/dev/null 2>&1 || true
       config_write display.statusline off
-      rm -f "$DATA_DIR/statusline.cache" "$DATA_DIR/statusline.tty" "$DATA_DIR"/statusline.frozen.*
+      rm -f "$DATA_DIR/statusline.cache"
       echo "statusline: unwired — the previous \"statusLine\" is back in settings.json (display.statusline = off)."
       ;;
   esac
@@ -1581,7 +1477,7 @@ do_statusline_status() {
 
 # ---- config (§4.9: fail-closed enable) ---------------------------------------
 
-CONFIG_KEYS="display.progressbar display.statusline statusline.multiline statusline.color statusline.marquee statusline.links statusline.activetab history.record"
+CONFIG_KEYS="display.progressbar display.statusline statusline.multiline statusline.color statusline.marquee statusline.links history.record"
 
 # Which segments the statusline renders, in the order they were stored
 # (arranged with /media:statusline or /media:config). "output" and "volume"
@@ -1600,7 +1496,6 @@ config_default() {
     statusline.color)    echo on ;;
     statusline.marquee)  echo on ;;
     statusline.links)    echo on ;;
-    statusline.activetab) echo on ;;
     history.record)      echo on ;;
     *) return 1 ;;
   esac
@@ -2083,7 +1978,6 @@ do_config() {
         statusline.color)    note="ANSI colors/bold/italic in the statusline segment (honors NO_COLOR)" ;;
         statusline.marquee)  note="scroll statusline titles wider than 30 cells (1 char/second)" ;;
         statusline.links)    note="cmd+click actions in the statusline: icon toggles, track jumps to the playing media (tab/track), bar seeks (OSC 8 + claude-media:// handler)" ;;
-        statusline.activetab) note="update the segment only in the terminal tab in use; other sessions keep their last line frozen (off = every session updates)" ;;
         history.record)      note="log played tracks to history.jsonl (view with /media:history)" ;;
       esac
       printf '%-21s %-6s %s\n' "$k" "$(config_get "$k")" "$note"
@@ -2114,8 +2008,8 @@ do_config() {
       # Any key that changes what the segment renders drops the stale cache so
       # the change shows up on the next tick instead of after the TTL.
       case "$key" in
-        display.statusline | display.progressbar | statusline.multiline | statusline.color | statusline.marquee | statusline.links | statusline.activetab)
-          rm -f "$DATA_DIR/statusline.cache" "$DATA_DIR/statusline.tty" "$DATA_DIR"/statusline.frozen.* ;;
+        display.statusline | display.progressbar | statusline.multiline | statusline.color | statusline.marquee | statusline.links)
+          rm -f "$DATA_DIR/statusline.cache" ;;
       esac
       echo "$key = on"
       ;;
@@ -2125,8 +2019,8 @@ do_config() {
       # A stale segment cache must not outlive the toggle (§4.8.1: off leaves
       # no trace, not even a cached line; layout/field changes must re-render).
       case "$key" in
-        display.statusline | display.progressbar | statusline.multiline | statusline.color | statusline.marquee | statusline.links | statusline.activetab)
-          rm -f "$DATA_DIR/statusline.cache" "$DATA_DIR/statusline.tty" "$DATA_DIR"/statusline.frozen.* ;;
+        display.statusline | display.progressbar | statusline.multiline | statusline.color | statusline.marquee | statusline.links)
+          rm -f "$DATA_DIR/statusline.cache" ;;
       esac
       echo "$key = off"
       ;;
@@ -2234,7 +2128,7 @@ do_doctor() {
     clicks="on but the handler app is MISSING — links render plain; rebuild with /media:config statusline.links on"
   fi
   echo "[9] Click links : $clicks"
-  echo "[10] Config     : progressbar=$(config_get display.progressbar) statusline=$(config_get display.statusline) color=$(config_get statusline.color) marquee=$(config_get statusline.marquee) activetab=$(config_get statusline.activetab)"
+  echo "[10] Config     : progressbar=$(config_get display.progressbar) statusline=$(config_get display.statusline) color=$(config_get statusline.color) marquee=$(config_get statusline.marquee)"
   echo "                  statusline.fields=[$(config_get_statusline_fields)] history.record=$(config_get history.record) styles=$(style_resolve | /usr/bin/awk -F'\t' '$2 != $3 { n++ } END { print n + 0 }') customized"
   echo "                  ($CONFIG_FILE)"
   echo "[11] Build log  : $DATA_DIR/build.log"

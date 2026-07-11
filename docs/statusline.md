@@ -79,37 +79,6 @@ and deletes the handler app. `/media:doctor` reports its state
 
 </details>
 
-## Updates follow the tab you're using
-
-With several Claude Code sessions open, the segment **updates only in the
-session you're actually using** — typing, scrolling, or just switching to
-its tab all count. The other sessions keep its last line frozen (the track
-still shows; the bar and time stop moving) and catch up within a tick or
-two when you're back. Your own statusline keeps running live everywhere —
-only the plugin's line is gated. No setup.
-
-Prefer the segment ticking in every session?
-
-```
-/media:config statusline.activetab off
-```
-
-<details>
-<summary>How the gate works</summary>
-
-A statusline command runs without a controlling tty, so the segment walks
-its process ancestry to the Claude Code process that owns the session's
-terminal and compares the terminals' last-input times (the atime signal `w`
-prints as IDLE) through a tiny state file in the plugin data dir
-(`statusline.tty` — the holder's device; its mtime is the holder's
-heartbeat, so a closed session forfeits within seconds). Each live render
-drops a per-terminal snapshot (`statusline.frozen.<tty>`) — the line an
-inactive session reprints. Sessions without a terminal of their own
-(VS Code, the desktop app, headless runs) can't be ranked and always render
-live. Every failure in the gate fails open: live, never frozen.
-
-</details>
-
 ## Arrange what the segment shows
 
 `/media:statusline` is the hub for the segment's look — three tabs: **Items**
@@ -191,7 +160,6 @@ character per second (CJK counts as two cells, so the window stays steady).
 | `statusline.color` | `on` | ANSI styling (`NO_COLOR` wins) |
 | `statusline.marquee` | `on` | scroll titles wider than 30 cells |
 | `statusline.links` | `on` | cmd+click actions |
-| `statusline.activetab` | `on` | update only the tab in use |
 | `statusline reset` | — | restore the stock look (arrangement, lines, colors, marquee, styles) |
 
 ## Manual setup (custom statuslines)

@@ -111,11 +111,6 @@ Notes you must apply when relevant:
   otherwise — and bar cells seek) are not a style key — a wish to turn
   clicks/links on or off ("클릭/링크 꺼줘") maps to
   `/media:config statusline.links on|off`.
-- With several sessions open the segment updates only in the tab in use
-  (default); other tabs keep its last line frozen. A wish to have it
-  update in every session/tab at once ("모든 탭에서 움직이게") — or back
-  to the active tab only — maps to
-  `/media:config statusline.activetab off|on`, not to a style key.
 - `config style.<key> reset` restores one default; `config style reset` all
   styles; `config statusline reset` additionally restores the arrangement,
   lines, colors, and marquee (the full stock look).

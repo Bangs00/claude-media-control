@@ -51,9 +51,6 @@ Everything below is automatic — the full guide is
   ▶︎/⏸ icon toggles playback, the title jumps to the playing browser tab or
   Music track, and every progress-bar cell seeks to its position. Other
   terminals simply show the plain segment.
-- **Updates follow the tab you're using.** With several sessions open, the
-  segment ticks only in the tab you're actually in; the others keep its last
-  line frozen and catch up the moment you're back.
 - **Arrange it with a pattern** in `/media:statusline`: digits are items —
   1 track · 2 app · 3 volume · 4 bar · 5 time · 6 output — and `/` starts a
   new line, so `123/456` stacks track/app/volume over bar/time/output.

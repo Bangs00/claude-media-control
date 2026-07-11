@@ -5,6 +5,19 @@ All notable changes to this project are documented here. The format follows
 [SemVer](https://semver.org/spec/v2.0.0.html), tracked in
 `.claude-plugin/plugin.json`.
 
+## [0.21.0] — 2026-07-12
+
+### Removed
+
+- **The active-tab statusline gate is gone.** 0.19.0 made the segment
+  update only in the terminal tab in use and freeze everywhere else;
+  that behavior, its `statusline.activetab` config key, the tty-ancestry
+  detection, and the per-terminal freeze snapshots are all removed — the
+  segment simply updates in every session again, and the demo GIFs drop
+  their two-tab scene. Stale `statusline.tty` / `statusline.frozen.*`
+  files left in the plugin data dir by 0.19–0.20 are inert; delete them
+  if you like.
+
 ## [0.20.0] — 2026-07-11
 
 ### Added
