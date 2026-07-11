@@ -49,7 +49,7 @@
 그려지므로 두 곳이 항상 같은 모습입니다. 문자와 길이는 색을 꺼 둔
 상태에서도 적용됩니다.
 
-![진행 바 프리셋과 볼륨 모양이 1초에 한 프레임씩 실제로 움직이는 모습](styles.gif)
+![진행 바 프리셋과 볼륨 모양, 헥스 강조색이 1초에 한 프레임씩 실제로 움직이는 모습](styles.gif)
 
 ### 고정 프리셋
 
@@ -133,6 +133,7 @@
 
 ```
 /media:config style.progressbar.playing bright-cyan
+/media:config style.progressbar.playing "#1db954"   # 어떤 헥스 색이든
 /media:config style.progressbar.paused magenta
 ```
 
@@ -185,13 +186,15 @@
 
 - `bold`, `dim`, `italic`, `underline` 중 몇 개든
 - 색은 최대 하나: `black` `red` `green` `yellow` `blue` `magenta` `cyan`
-  `white` 또는 `bright-<색>` (실제 색감은 터미널 팔레트가 정합니다 —
-  표준 16색 SGR만 사용)
+  `white`, `bright-<색>` (실제 색감은 터미널 팔레트가 정합니다), 또는
+  정확한 헥스 코드 — `#ff8800`, 짧게 `#f80` — 24-bit 트루컬러로
+  렌더링됩니다 (대부분의 터미널이 지원하지만 Apple Terminal은 미지원)
 - 또는 `none` — 스타일 없음
 - 또는 `off` — **그 부분을 숨김**
 
 ```
 /media:config style.track.title "bold bright-cyan"
+/media:config style.track.title "bold #ff8800"   # 정확한 색 — 헥스는 따옴표로
 /media:config style.track.artist off
 ```
 

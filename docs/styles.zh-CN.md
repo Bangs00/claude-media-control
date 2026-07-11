@@ -47,7 +47,7 @@
 决定（默认 20 格）。`/media:now` 回复里的进度条用同一套字符、同一个长度，
 两处永远长得一样。字符和长度在关掉颜色后依然有效。
 
-![进度条预设与音量条形状，以每秒一帧实时绘制](styles.gif)
+![进度条预设、音量条形状与十六进制强调色，以每秒一帧实时绘制](styles.gif)
 
 ### 静态预设
 
@@ -127,6 +127,7 @@
 
 ```
 /media:config style.progressbar.playing bright-cyan
+/media:config style.progressbar.playing "#1db954"   # 任何十六进制颜色都行
 /media:config style.progressbar.paused magenta
 ```
 
@@ -177,13 +178,15 @@
 
 - `bold`、`dim`、`italic`、`underline` 任意组合
 - 颜色至多一种：`black` `red` `green` `yellow` `blue` `magenta` `cyan`
-  `white`，或 `bright-<颜色>`（实际色调由你终端的调色板决定——只用标准
-  16 色 SGR）
+  `white`，`bright-<颜色>`（实际色调由你终端的调色板决定），或一个精确的
+  十六进制色号——`#ff8800`，短写 `#f80`——按 24 位真彩色渲染
+  （多数终端支持；Apple Terminal 不支持）
 - 或 `none`——完全不加样式
 - 或 `off`——**隐藏这一部分**
 
 ```
 /media:config style.track.title "bold bright-cyan"
+/media:config style.track.title "bold #ff8800"   # 精确颜色——hex 要加引号
 /media:config style.track.artist off
 ```
 

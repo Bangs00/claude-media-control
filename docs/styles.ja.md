@@ -51,7 +51,7 @@
 返信に出るバーも同じ文字・同じ長さで描かれるので、2 つの表示は常に
 一致します。文字と長さの選択は色をオフにしていても有効です。
 
-![バーのプリセットと音量の形が毎秒 1 フレームで動く様子](styles.gif)
+![バーのプリセットと音量の形、hex アクセントが毎秒 1 フレームで動く様子](styles.gif)
 
 ### 静的なプリセット
 
@@ -136,6 +136,7 @@
 
 ```
 /media:config style.progressbar.playing bright-cyan
+/media:config style.progressbar.playing "#1db954"   # 任意の hex カラーも
 /media:config style.progressbar.paused magenta
 ```
 
@@ -188,13 +189,16 @@
 
 - `bold`、`dim`、`italic`、`underline` をいくつでも
 - 色は最大 1 つ: `black` `red` `green` `yellow` `blue` `magenta` `cyan`
-  `white`、または `bright-<色>`（実際の色味はターミナルのパレット次第 —
-  標準 16 色の SGR のみ使用）
+  `white`、`bright-<色>`（実際の色味はターミナルのパレット次第）、または
+  正確な 16 進カラーコード — `#ff8800`、短縮形 `#f80` — 24-bit
+  トゥルーカラーで描画（ほとんどのターミナルが対応。Apple Terminal は
+  非対応）
 - または `none` — スタイルなし
 - または `off` — **そのパーツを非表示**
 
 ```
 /media:config style.track.title "bold bright-cyan"
+/media:config style.track.title "bold #ff8800"   # 正確な色 — hex は引用符で
 /media:config style.track.artist off
 ```
 

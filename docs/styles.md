@@ -49,7 +49,7 @@ how many cells wide the bar is (default 20). The `/media:now` reply draws
 its bar with the same characters and length, so the two always match.
 Character and length choices apply even with colors off.
 
-![The bar presets and volume shapes, drawn live at one frame per second](styles.gif)
+![The bar presets, volume shapes, and a hex accent, drawn live at one frame per second](styles.gif)
 
 ### Static presets
 
@@ -133,6 +133,7 @@ since the segment shares one accent. Empty cells stay dim.
 
 ```
 /media:config style.progressbar.playing bright-cyan
+/media:config style.progressbar.playing "#1db954"   # or any exact hex color
 /media:config style.progressbar.paused magenta
 ```
 
@@ -185,13 +186,15 @@ output name — takes a **style spec**:
 
 - any of `bold`, `dim`, `italic`, `underline`
 - plus at most one color: `black` `red` `green` `yellow` `blue` `magenta`
-  `cyan` `white`, or `bright-<color>` (your terminal's palette decides the
-  actual shades — standard 16-color SGR only)
+  `cyan` `white` or `bright-<color>` (your terminal's palette decides the
+  actual shades), or an exact hex code — `#ff8800`, short `#f80` — rendered
+  as 24-bit truecolor (most terminals support it; Apple Terminal does not)
 - or `none` — no styling at all
 - or `off` — **hide that part**
 
 ```
 /media:config style.track.title "bold bright-cyan"
+/media:config style.track.title "bold #ff8800"   # exact color — quote the hex
 /media:config style.track.artist off
 ```
 
