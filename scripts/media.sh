@@ -889,7 +889,7 @@ do_statusline() {
       # split entirely — a dedicated branch in $bar glides a one-cell
       # thick head along a thin ─ track in half-cell steps (╼╾ when it
       # straddles two cells). The sub-cell presets (smooth,
-      # rise, fade, corner, glide, stipple, tiles, dash, seam)
+      # rise, fade, corner, glide, stipple, tiles, dash)
       # take the %sub path
       # in $bar: their boundary cell is a partial glyph sized by the
       # remainder — left-to-right for smooth, bottom-up for rise, and per
@@ -913,17 +913,17 @@ do_statusline() {
                 glide => ["\x{2501}", "\x{2500}"],
                 stipple => ["\x{28FF}", "\x{28C0}"],
                 tiles => ["\x{25A0}", "\x{25A1}"],
-                dash => ["\x{2501}", "\x{2508}"],
-                seam => ["\x{2501}", "\x{2500}"],
+                dash => ["\x{2501}", "\x{2500}"],
                 line => ["\x{2501}", "\x{2500}"], dots => ["\x{25CF}", "\x{25CB}"]);
       # Sub-cell ramps for the partial-boundary path in $bar; steps per
       # cell = partials + 1. smooth fills left-to-right in eighths (▏..▉),
       # rise climbs bottom-up (▁..▇), fade darkens through the shades
       # (▒▓), corner fills by quadrants (▖▌▙), glide advances half a cell
       # (╾), stipple raises the braille dots row by row (⣄⣤⣦⣶⣷), tiles
-      # half-fills the square (◧), dash fuses its thin-dash track into
-      # the heavy line (┈→┄╌→━), seam cracks the thin line through the
-      # thin dashes (─→┈┄╌→━).
+      # half-fills the square (◧), dash cracks the light line into ever
+      # finer dashes, then thickens them back into the heavy line
+      # (─→╌┄┈→╍┅┉→━) — every step adds ink, so the boundary reads as
+      # one continuous thickening.
       my %sub = (smooth => [map { chr(0x2590 - $_) } 1 .. 7],
                  rise => [map { chr(0x2580 + $_) } 1 .. 7],
                  fade => ["\x{2592}", "\x{2593}"],
@@ -931,8 +931,8 @@ do_statusline() {
                  glide => ["\x{257E}"],
                  stipple => ["\x{28C4}", "\x{28E4}", "\x{28E6}", "\x{28F6}", "\x{28F7}"],
                  tiles => ["\x{25E7}"],
-                 dash => ["\x{2504}", "\x{254C}"],
-                 seam => ["\x{2508}", "\x{2504}", "\x{254C}"]);
+                 dash => ["\x{254C}", "\x{2504}", "\x{2508}",
+                          "\x{254D}", "\x{2505}", "\x{2509}"]);
       my $csv = $sty{"progressbar.style"} // "line";
       my ($fc, $ec, $hc) = $cs{$csv}      ? @{$cs{$csv}}
                     : length($csv) == 2   ? (substr($csv, 0, 1), substr($csv, 1, 1))
@@ -965,6 +965,8 @@ do_statusline() {
           # (0:00 parks it on the first cell, the end on the last), and
           # the elapsed side keeps the accent so progress still reads
           # at a glance — with colors off the head alone carries it.
+          # The accent ends at ╼: the ╾ half sits in the next cell,
+          # which is still remaining time, so it dims with the track.
           my $p = int($r * (2 * $cells - 2) + 0.5);
           my ($hs, $he) = $p % 2 ? (($p - 1) / 2, ($p + 1) / 2)
                                  : ($p / 2, $p / 2);
@@ -974,12 +976,12 @@ do_statusline() {
             : $_ == $hs            ? "\x{257C}" : "\x{257E}"
           } 0 .. $cells - 1;
           unless ($link) {
-            return $st->($accsgr, join "", @g[0 .. $he])
-                 . ($he < $cells - 1
-                    ? $st->(2, join "", @g[$he + 1 .. $cells - 1]) : "");
+            return $st->($accsgr, join "", @g[0 .. $hs])
+                 . ($hs < $cells - 1
+                    ? $st->(2, join "", @g[$hs + 1 .. $cells - 1]) : "");
           }
           return join "", map {
-            $cell->($_, $st->($_ <= $he ? $accsgr : 2, $g[$_]))
+            $cell->($_, $st->($_ <= $hs ? $accsgr : 2, $g[$_]))
           } 0 .. $cells - 1;
         }
         if (my $ramp = $sub{$csv}) {
@@ -1774,9 +1776,9 @@ style_validate() {
       my %preset = map { $_ => 1 }
         qw(blocks wave pulse eq notes braille chevron tape cassette retro
            knob playhead smooth rise fade corner glide stipple tiles dash
-           seam line dots);
+           line dots);
       if ($preset{lc $val}) { print lc $val; exit 0 }
-      fail("progressbar style must be blocks|wave|pulse|eq|notes|braille|chevron|tape|cassette|retro|knob|playhead|smooth|rise|fade|corner|glide|stipple|tiles|dash|seam|line|dots or exactly two characters (filled+empty, e.g. \"~-\"); got: $val")
+      fail("progressbar style must be blocks|wave|pulse|eq|notes|braille|chevron|tape|cassette|retro|knob|playhead|smooth|rise|fade|corner|glide|stipple|tiles|dash|line|dots or exactly two characters (filled+empty, e.g. \"~-\"); got: $val")
         unless length($val) == 2 && $val !~ /[\t\n]/ && $val ne "  ";
       print $val; exit 0;
     }
@@ -1901,7 +1903,7 @@ style_list() {
   echo " magenta cyan white, bright-<color>, or a hex code like #ff8800 — or none;"
   echo " text parts also take off = hide that part; style.progressbar.style:"
   echo " blocks|wave|pulse|eq|notes|braille|chevron|tape|cassette|retro|knob|"
-  echo " playhead|smooth|rise|fade|corner|glide|stipple|tiles|dash|seam|line|dots"
+  echo " playhead|smooth|rise|fade|corner|glide|stipple|tiles|dash|line|dots"
   echo " or two glyphs"
   echo " like \"~-\"; style.progressbar.length: 1-60 cells (also sizes the"
   echo " /media:now bar); style.volume.style: block|progress|stairs;"

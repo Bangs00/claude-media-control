@@ -885,7 +885,7 @@ setup() {
   run "$MEDIA" config style.progressbar.style pulse
   [ "$status" -eq 0 ]
   for p in eq notes braille chevron tape cassette retro knob playhead \
-           smooth rise fade corner glide stipple tiles dash seam; do
+           smooth rise fade corner glide stipple tiles dash; do
     run "$MEDIA" config style.progressbar.style "$p"
     [ "$status" -eq 0 ]
   done
@@ -893,7 +893,7 @@ setup() {
   [ "$status" -eq 0 ]
   run "$MEDIA" config style.progressbar.style "~~~"
   [ "$status" -eq 2 ]
-  [[ "$output" == *"blocks|wave|pulse|eq|notes|braille|chevron|tape|cassette|retro|knob|playhead|smooth|rise|fade|corner|glide|stipple|tiles|dash|seam|line|dots"* ]]
+  [[ "$output" == *"blocks|wave|pulse|eq|notes|braille|chevron|tape|cassette|retro|knob|playhead|smooth|rise|fade|corner|glide|stipple|tiles|dash|line|dots"* ]]
 }
 
 @test "config style.progressbar.length: whole number of cells 1-60, default 20" {
@@ -1133,12 +1133,13 @@ setup() {
   [ "$output" = "─────────━" ]              # pinned to the last cell
 }
 
-@test "statusline: progressbar playhead — accent covers the head, links per cell" {
+@test "statusline: progressbar playhead — accent stops at ╼, links per cell" {
   mkdir -p "$CLAUDE_PLUGIN_DATA"
-  # Colors on: elapsed track + head are one accent run, the rest one dim run.
+  # Colors on: elapsed track + ╼ are one accent run; the ╾ half sits in
+  # the next (remaining) cell, so it dims with the rest of the track.
   echo '{"display.statusline":true,"statusline.fields":["progressbar"],"style.progressbar.style":"playhead","style.progressbar.length":"10"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
-  [[ "$output" == *$'\e[32m───╼╾\e[0m\e[2m─────\e[0m'* ]]
+  [[ "$output" == *$'\e[32m───╼\e[0m\e[2m╾─────\e[0m'* ]]
   # With the handler app present every cell is its own seek link, and
   # stripping the links leaves the plain glyphs.
   mkdir -p "$CLAUDE_PLUGIN_DATA/ClaudeMediaClick.app"
@@ -1153,18 +1154,17 @@ setup() {
 @test "statusline: progressbar sub-cell presets — ramp arity drives the step math" {
   mkdir -p "$CLAUDE_PLUGIN_DATA"
   # Stub position 75.4/200 at length 10, measured in steps-per-cell
-  # (partials + 1): fade and dash thirds → 11 → 3 cells + ▓/╌ (2/3);
-  # corner and seam quarters → 15 → 3 cells + ▙/╌ (3/4); stipple sixths
-  # → 23 → 3 cells + ⣷ (5/6); glide and tiles halves → 8 → 4 cells,
-  # no partial.
+  # (partials + 1): fade thirds → 11 → 3 cells + ▓ (2/3); corner
+  # quarters → 15 → 3 cells + ▙ (3/4); stipple sixths → 23 → 3 cells
+  # + ⣷ (5/6); dash sevenths → 26 → 3 cells + ┅ (5/7); glide and
+  # tiles halves → 8 → 4 cells, no partial.
   local cases=(
     "fade|███▓░░░░░░"
     "corner|███▙░░░░░░"
     "stipple|⣿⣿⣿⣷⣀⣀⣀⣀⣀⣀"
     "glide|━━━━──────"
     "tiles|■■■■□□□□□□"
-    "dash|━━━╌┈┈┈┈┈┈"
-    "seam|━━━╌──────"
+    "dash|━━━┅──────"
   )
   for c in "${cases[@]}"; do
     rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
@@ -1219,36 +1219,21 @@ setup() {
   [ "$output" = "■■■◧□□□□□□" ]
 }
 
-@test "statusline: progressbar seam preset — thin dashes crack the boundary" {
+@test "statusline: progressbar dash preset — the boundary cracks, then thickens" {
   mkdir -p "$CLAUDE_PLUGIN_DATA"
-  # Quarters at length 10 (S=4): elapsed 65..75 crack the light line
-  # through the thin dashes ┈ ┄ ╌, and 79 fuses the cell into the
-  # heavy line.
-  echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["progressbar"],"style.progressbar.style":"seam","style.progressbar.length":"10"}' > "$CLAUDE_PLUGIN_DATA/config.json"
-  STUB_ELAPSED=65 run "$MEDIA" statusline
-  [ "$output" = "━━━┈──────" ]              # 13 quarters → ┈
-  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
-  STUB_ELAPSED=70 run "$MEDIA" statusline
-  [ "$output" = "━━━┄──────" ]              # 14 quarters → ┄
-  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
-  STUB_ELAPSED=75 run "$MEDIA" statusline
-  [ "$output" = "━━━╌──────" ]              # 15 quarters → ╌
-  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
-  STUB_ELAPSED=79 run "$MEDIA" statusline
-  [ "$output" = "━━━━──────" ]              # 16 quarters — the cell fuses
-}
-
-@test "statusline: progressbar dash preset — thin dashes fuse into a heavy line" {
-  mkdir -p "$CLAUDE_PLUGIN_DATA"
-  # Thirds at length 10 (S=3): elapsed 65 → 10 thirds → 3 cells + ┄,
-  # the 75.4 default → 11 → ╌ (pinned above), and 79 → 12 — the
-  # boundary cell fuses solid.
+  # Sevenths at length 10 (S=7): the boundary cell cracks the light line
+  # into ever finer dashes (╌ ┄ ┈), then thickens them back into the
+  # heavy line (╍ ┅ ┉ → ━) — every step adds ink. Elapsed 65 → 23
+  # sevenths → 3 cells + ┄; 70 → 25 → ╍; 79 → 28 — the cell completes.
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["progressbar"],"style.progressbar.style":"dash","style.progressbar.length":"10"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   STUB_ELAPSED=65 run "$MEDIA" statusline
-  [ "$output" = "━━━┄┈┈┈┈┈┈" ]              # 10 thirds → ┄
+  [ "$output" = "━━━┄──────" ]              # 23 sevenths → ┄ (2/7)
+  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  STUB_ELAPSED=70 run "$MEDIA" statusline
+  [ "$output" = "━━━╍──────" ]              # 25 sevenths → ╍ (4/7)
   rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
   STUB_ELAPSED=79 run "$MEDIA" statusline
-  [ "$output" = "━━━━┈┈┈┈┈┈" ]              # 12 thirds — the cell completes
+  [ "$output" = "━━━━──────" ]              # 28 sevenths — the cell fuses
 }
 
 @test "statusline: progressbar fade preset — accent run and per-cell links" {

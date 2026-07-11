@@ -5,6 +5,29 @@ All notable changes to this project are documented here. The format follows
 [SemVer](https://semver.org/spec/v2.0.0.html), tracked in
 `.claude-plugin/plugin.json`.
 
+## [0.25.0] — 2026-07-12
+
+### Changed
+
+- **`playhead` accent stops at `╼`.** In the straddling state the `╾`
+  half sits in the next cell — still remaining time — so it now dims
+  with the track instead of taking the accent: the color boundary
+  lands exactly on the progress boundary.
+- **`dash` reworked: a light track and a six-step boundary.** The fill
+  is `━` over a plain `─` track now, and the boundary cell walks
+  `╌ ┄ ┈ ╍ ┅ ┉` in sevenths — the light line cracks into ever finer
+  dashes, then thickens back into the solid line. Every step adds
+  ink, so the boundary moves as continuously as `smooth`. This folds
+  the old `seam` crack into `dash` and finally puts the heavy dashes
+  to use.
+
+### Removed
+
+- **The `seam` preset.** Its light-line crack lives on as the first
+  half of the new `dash` boundary; a stored
+  `style.progressbar.style seam` falls back to `line`. Set `dash` for
+  the successor.
+
 ## [0.24.0] — 2026-07-12
 
 ### Added
