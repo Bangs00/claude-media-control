@@ -885,7 +885,10 @@ do_statusline() {
       # (wave, pulse, eq, notes) repeats cell by cell; its phase follows
       # the playback position, so the trace rolls toward the empty end each
       # second while playing and freezes on pause. A third charset glyph
-      # (knob) caps the last filled cell. The sub-cell presets (smooth,
+      # (knob) caps the last filled cell. playhead skips the fill/empty
+      # split entirely — a dedicated branch in $bar glides a one-cell
+      # thick head along a thin ─ track in half-cell steps (╼╾ when it
+      # straddles two cells). The sub-cell presets (smooth,
       # rise, fade, corner, glide, stipple, tiles, dash, seam)
       # take the %sub path
       # in $bar: their boundary cell is a partial glyph sized by the
@@ -902,6 +905,7 @@ do_statusline() {
                 cassette => ["\x{25AE}", "\x{25AF}"],
                 retro => ["=", "-"],
                 knob => ["\x{2501}", "\x{2500}", "\x{25CF}"],
+                playhead => ["\x{2501}", "\x{2500}"],
                 smooth => ["\x{2588}", "\x{2591}"],
                 rise => ["\x{2588}", "\x{2591}"],
                 fade => ["\x{2588}", "\x{2591}"],
@@ -954,6 +958,30 @@ do_statusline() {
           my ($i, $t) = @_;
           $href->("claude-media://seek/" . int((($i + 0.5) * 100) / $cells), $t);
         };
+        if ($csv eq "playhead") {
+          # A one-cell thick head gliding along the thin track in
+          # half-cell steps: parked on a cell it renders ━, straddling
+          # two it splits into ╼╾. The head never leaves the track
+          # (0:00 parks it on the first cell, the end on the last), and
+          # the elapsed side keeps the accent so progress still reads
+          # at a glance — with colors off the head alone carries it.
+          my $p = int($r * (2 * $cells - 2) + 0.5);
+          my ($hs, $he) = $p % 2 ? (($p - 1) / 2, ($p + 1) / 2)
+                                 : ($p / 2, $p / 2);
+          my @g = map {
+              $_ < $hs || $_ > $he ? "\x{2500}"
+            : $hs == $he           ? "\x{2501}"
+            : $_ == $hs            ? "\x{257C}" : "\x{257E}"
+          } 0 .. $cells - 1;
+          unless ($link) {
+            return $st->($accsgr, join "", @g[0 .. $he])
+                 . ($he < $cells - 1
+                    ? $st->(2, join "", @g[$he + 1 .. $cells - 1]) : "");
+          }
+          return join "", map {
+            $cell->($_, $st->($_ <= $he ? $accsgr : 2, $g[$_]))
+          } 0 .. $cells - 1;
+        }
         if (my $ramp = $sub{$csv}) {
           # Fill measured in ramp steps of a cell (partials + 1: eighths
           # for smooth/rise, thirds for fade, ...); the remainder becomes
@@ -1745,10 +1773,10 @@ style_validate() {
       $val =~ s/^\s+|\s+$//g if length($val) != 2;
       my %preset = map { $_ => 1 }
         qw(blocks wave pulse eq notes braille chevron tape cassette retro
-           knob smooth rise fade corner glide stipple tiles dash seam
-           line dots);
+           knob playhead smooth rise fade corner glide stipple tiles dash
+           seam line dots);
       if ($preset{lc $val}) { print lc $val; exit 0 }
-      fail("progressbar style must be blocks|wave|pulse|eq|notes|braille|chevron|tape|cassette|retro|knob|smooth|rise|fade|corner|glide|stipple|tiles|dash|seam|line|dots or exactly two characters (filled+empty, e.g. \"~-\"); got: $val")
+      fail("progressbar style must be blocks|wave|pulse|eq|notes|braille|chevron|tape|cassette|retro|knob|playhead|smooth|rise|fade|corner|glide|stipple|tiles|dash|seam|line|dots or exactly two characters (filled+empty, e.g. \"~-\"); got: $val")
         unless length($val) == 2 && $val !~ /[\t\n]/ && $val ne "  ";
       print $val; exit 0;
     }
@@ -1873,7 +1901,7 @@ style_list() {
   echo " magenta cyan white, bright-<color>, or a hex code like #ff8800 — or none;"
   echo " text parts also take off = hide that part; style.progressbar.style:"
   echo " blocks|wave|pulse|eq|notes|braille|chevron|tape|cassette|retro|knob|"
-  echo " smooth|rise|fade|corner|glide|stipple|tiles|dash|seam|line|dots"
+  echo " playhead|smooth|rise|fade|corner|glide|stipple|tiles|dash|seam|line|dots"
   echo " or two glyphs"
   echo " like \"~-\"; style.progressbar.length: 1-60 cells (also sizes the"
   echo " /media:now bar); style.volume.style: block|progress|stairs;"

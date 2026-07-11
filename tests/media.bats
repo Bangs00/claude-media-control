@@ -884,8 +884,8 @@ setup() {
   [ "$status" -eq 0 ]
   run "$MEDIA" config style.progressbar.style pulse
   [ "$status" -eq 0 ]
-  for p in eq notes braille chevron tape cassette retro knob smooth rise \
-           fade corner glide stipple tiles dash seam; do
+  for p in eq notes braille chevron tape cassette retro knob playhead \
+           smooth rise fade corner glide stipple tiles dash seam; do
     run "$MEDIA" config style.progressbar.style "$p"
     [ "$status" -eq 0 ]
   done
@@ -893,7 +893,7 @@ setup() {
   [ "$status" -eq 0 ]
   run "$MEDIA" config style.progressbar.style "~~~"
   [ "$status" -eq 2 ]
-  [[ "$output" == *"blocks|wave|pulse|eq|notes|braille|chevron|tape|cassette|retro|knob|smooth|rise|fade|corner|glide|stipple|tiles|dash|seam|line|dots"* ]]
+  [[ "$output" == *"blocks|wave|pulse|eq|notes|braille|chevron|tape|cassette|retro|knob|playhead|smooth|rise|fade|corner|glide|stipple|tiles|dash|seam|line|dots"* ]]
 }
 
 @test "config style.progressbar.length: whole number of cells 1-60, default 20" {
@@ -1111,6 +1111,43 @@ setup() {
   [ "$(printf '%s' "$output" | /usr/bin/grep -o ']8;;' | wc -l | tr -d ' ')" -eq 20 ]
   plain="$(printf '%s' "$output" | /usr/bin/perl -pe 's/\e\]8;;[^\a]*\a//g')"
   [ "$plain" = "███▆░░░░░░" ]
+}
+
+@test "statusline: progressbar playhead — thick head glides a thin track" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  # Stub position 75.4/200 at length 10: the head's left edge sits at
+  # round(0.377 * 18) = 7 half-steps — odd, so it straddles cells 3+4
+  # as ╼╾. Aligned positions park it as ━ on one cell, and the ends pin
+  # it to the first and last cell (a playhead exists even at 0:00).
+  echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["progressbar"],"style.progressbar.style":"playhead","style.progressbar.length":"10"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$output" = "───╼╾─────" ]
+  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  STUB_ELAPSED=70 run "$MEDIA" statusline
+  [ "$output" = "───━──────" ]              # 6.336 → 6 half-steps, aligned
+  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  STUB_ELAPSED=1 run "$MEDIA" statusline
+  [ "$output" = "━─────────" ]              # parked at the start
+  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  STUB_ELAPSED=199 run "$MEDIA" statusline
+  [ "$output" = "─────────━" ]              # pinned to the last cell
+}
+
+@test "statusline: progressbar playhead — accent covers the head, links per cell" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  # Colors on: elapsed track + head are one accent run, the rest one dim run.
+  echo '{"display.statusline":true,"statusline.fields":["progressbar"],"style.progressbar.style":"playhead","style.progressbar.length":"10"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [[ "$output" == *$'\e[32m───╼╾\e[0m\e[2m─────\e[0m'* ]]
+  # With the handler app present every cell is its own seek link, and
+  # stripping the links leaves the plain glyphs.
+  mkdir -p "$CLAUDE_PLUGIN_DATA/ClaudeMediaClick.app"
+  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["progressbar"],"style.progressbar.style":"playhead","style.progressbar.length":"10"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$(printf '%s' "$output" | /usr/bin/grep -o ']8;;' | wc -l | tr -d ' ')" -eq 20 ]
+  plain="$(printf '%s' "$output" | /usr/bin/perl -pe 's/\e\]8;;[^\a]*\a//g')"
+  [ "$plain" = "───╼╾─────" ]
 }
 
 @test "statusline: progressbar sub-cell presets — ramp arity drives the step math" {

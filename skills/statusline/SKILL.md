@@ -85,7 +85,10 @@ boundary) · `rise` `█████▅░░░░` (⅛-step boundary rising b
 `■■■■■◧□□□□` (half-filled square) · `dash` `━━━━━╌┈┈┈┈` (thin dashes
 fuse into a heavy line, ⅓ steps) · `seam` `━━━━━╌────` (thin-dash
 boundary, ¼ steps) ·
-`knob` `━━━━━●────` (slider head) · `wave` `▂▄▆▄▂▄▁▁▁▁` (a
+`knob` `━━━━━●────` (slider head) · `playhead` `─────╼╾───` (a one-cell
+thick head gliding along a thin track in half-cell steps — aligned it
+draws `━`, straddling it splits into `╼╾`; the elapsed side keeps the
+accent) · `wave` `▂▄▆▄▂▄▁▁▁▁` (a
 rolling swell) · `pulse` `▂▂█▁▄▂▁▁▁▁` (an ECG beat) · `eq` `▂▇▃█▅▆▁▁▁▁`
 (equalizer) · `notes` `♪♫♪♫♪♫····` (marching notes) · `braille`
 `⣿⣿⣿⣿⣿⣿⣀⣀⣀⣀` · `chevron` `▸▸▸▸▸▸▹▹▹▹` · `tape` `▰▰▰▰▰▰▱▱▱▱` ·
@@ -275,9 +278,9 @@ value in each question text.
   - "Bar characters" (`style.progressbar.style`): Keep current /
     `Line ━━━━━━──── (default)` / `Blocks ██████░░░░` / Other → `smooth`,
     `rise`, `fade`, `corner`, `glide`, `stipple`, `tiles`, `dash`,
-    `seam`, `knob`, `wave`, `pulse`, `eq`, `notes`, `braille`,
-    `chevron`, `tape`, `cassette`, `retro`, `dots`, or any two glyphs
-    like `#-`
+    `seam`, `knob`, `playhead`, `wave`, `pulse`, `eq`, `notes`,
+    `braille`, `chevron`, `tape`, `cassette`, `retro`, `dots`, or any
+    two glyphs like `#-`
   - "Bar length" (`style.progressbar.length`): Keep current /
     `Default (20 cells)` / `10 — the pre-0.20 width` / Other → any whole
     number of cells, 1–60 (the `/media:now` bar follows it)

@@ -5,6 +5,20 @@ All notable changes to this project are documented here. The format follows
 [SemVer](https://semver.org/spec/v2.0.0.html), tracked in
 `.claude-plugin/plugin.json`.
 
+## [0.24.0] — 2026-07-12
+
+### Added
+
+- **`playhead` bar preset.** `style.progressbar.style playhead` draws no
+  fill at all: the track stays a thin `─` line end to end while a
+  one-cell thick head glides along it in half-cell steps — parked on a
+  cell it renders `━`, straddling two cells it splits into `╼╾`
+  (`─────╼╾────────`). The elapsed side keeps the playing/paused accent
+  so progress still reads at a glance, the head never leaves the track
+  (0:00 parks it on the first cell, the end on the last), and — like
+  every preset — the volume bar's `progress` shape and the `/media:now`
+  bar follow along, every cell still ⌘+click-seekable.
+
 ## [0.23.0] — 2026-07-12
 
 ### Added
