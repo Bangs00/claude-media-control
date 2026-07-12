@@ -66,7 +66,7 @@ Shown at 60% (sub-cell presets at 58%, where their partial cells show):
 | `glide` | `━━━━━━━━━━━╾────────` | the `line` bar in half-cell steps — see below |
 | `stipple` | `⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣶⣀⣀⣀⣀⣀⣀⣀⣀` | the `braille` bar, dots rising — see below |
 | `tiles` | `■■■■■■■■■■■◧□□□□□□□□` | squares with a half-filled boundary — see below |
-| `dash` | `━━━━━━━━━━━╍────────` | the light line cracks to dashes, then thickens back — see below |
+| `dash` | `━━━━━━━━━━━┅╌╌╌╌╌╌╌╌` | a heavy line over a dashed track; the boundary dashes thicken and fuse — see below |
 | `knob` | `━━━━━━━━━━━●────────` | a slider head caps the fill |
 | `playhead` | `───────────╼╾───────` | a thick head gliding along a thin track — see below |
 | `braille` | `⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣀⣀⣀⣀⣀⣀⣀⣀` | |
@@ -96,10 +96,10 @@ before it completes:
 
 The other six sub-cell presets take the same partial-boundary path
 at their own resolution — fade in thirds; corner in quarters; stipple
-in sixths; dash in sevenths (the light line cracks into ever finer
-dashes `╌┄┈`, then thickens through `╍┅┉` into the solid line — every
-step adds ink, so it moves as continuously as `smooth`); glide and
-tiles in halves:
+in sixths; dash in quarters (a heavy line advancing over a dashed
+track: at the boundary the dashes thicken `╍`, multiply `┅┉`, and fuse
+into the solid line — ink only ever grows, so it fills as continuously
+as `smooth`); glide and tiles in halves:
 
 ```
 fade     47%  █████████▒░░░░░░░░░░      98%  ███████████████████▓
@@ -107,7 +107,7 @@ corner   46%  █████████▖░░░░░░░░░░      
 glide    47%  ━━━━━━━━━╾──────────      98%  ━━━━━━━━━━━━━━━━━━━╾
 stipple  46%  ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣄⣀⣀⣀⣀⣀⣀⣀⣀⣀⣀      99%  ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣷
 tiles    47%  ■■■■■■■■■◧□□□□□□□□□□      98%  ■■■■■■■■■■■■■■■■■■■◧
-dash     47%  ━━━━━━━━━┈──────────      98%  ━━━━━━━━━━━━━━━━━━━╍
+dash     46%  ━━━━━━━━━╍╌╌╌╌╌╌╌╌╌╌      99%  ━━━━━━━━━━━━━━━━━━━┉
 ```
 
 `playhead` never fills: the track stays thin end to end while a
