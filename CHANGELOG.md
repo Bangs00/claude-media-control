@@ -5,6 +5,23 @@ All notable changes to this project are documented here. The format follows
 [SemVer](https://semver.org/spec/v2.0.0.html), tracked in
 `.claude-plugin/plugin.json`.
 
+## [0.27.0] — 2026-07-12
+
+### Added
+
+- **A recipes gallery — [`docs/recipes.md`](docs/recipes.md)** (English,
+  한국어, 日本語, 简体中文): twelve ready-to-paste looks, each grounded
+  in something recognizable — a green-phosphor CRT, a cassette deck, a
+  backlit tuner dial, a VFD hi-fi panel, a mixing console, amber
+  night-drive gauges, synthwave neon, lo-fi pastels, and more. Every
+  recipe ships a GIF captured from the real statusline renderer (a 10 s
+  loop with playing and paused frames), the exact `/media:config` block
+  — every line validated through the real CLI — and a plain-text
+  preview, with one fictional track playing throughout. The old
+  four-recipe section in the style galleries points there now, and the
+  `twilight` recipe closes with a named-color swap for terminals
+  without truecolor.
+
 ## [0.26.0] — 2026-07-12
 
 ### Changed
