@@ -5,12 +5,16 @@
 #   null               — get prints "null", test exits 5 (daemon, no info)
 #   fail               — every symbol fails (exit 1)
 # $STUB_TRACK_TITLE overrides the fixed track's title (history/marquee tests),
-# $STUB_TRACK_ARTIST its artist (history artist-lag amend tests).
+# $STUB_TRACK_ARTIST its artist (history artist-lag amend tests),
+# $STUB_APP_NAME its app name (default "StubPlayer"), $STUB_DURATION its
+# length in seconds (default 200), and $STUB_PLAYING the playback state
+# (default "true" — the docs GIF pipeline renders paused frames with it).
 # $STUB_ELAPSED overrides the playback position (default 75 / 75.4 "now";
 # the wave-phase tests advance it one second).
 # $STUB_VOLUME / $STUB_MUTED override the enriched system volume fields
-# (defaults 45 / false), and $STUB_OUTPUT_KIND the device category (default
-# "speaker"), mirroring adapter_get's CoreAudio enrichment.
+# (defaults 45 / false), $STUB_OUTPUT_KIND the device category (default
+# "speaker"), and $STUB_OUTPUT_DEVICE the reported device name, mirroring
+# adapter_get's CoreAudio enrichment.
 # Output devices are fixed ("Stub Speakers", "Stub AirPods"); output_set
 # persists the choice in $CLAUDE_PLUGIN_DATA/stub-output-current so a
 # following output_list reflects the switch.
@@ -25,15 +29,19 @@ exit 1 if $mode eq "fail";
 
 my $title  = $ENV{STUB_TRACK_TITLE} // "Stub Song";
 my $artist = $ENV{STUB_TRACK_ARTIST} // "Stub Artist";
+my $app     = $ENV{STUB_APP_NAME} // "StubPlayer";
+my $dur     = $ENV{STUB_DURATION} // 200;
+my $playing = $ENV{STUB_PLAYING} // "true";
 my $elap  = $ENV{STUB_ELAPSED} // 75;
 my $vol   = $ENV{STUB_VOLUME} // 45;
 my $muted = $ENV{STUB_MUTED} // "false";
 my $okind = $ENV{STUB_OUTPUT_KIND} // "speaker";
+my $odev  = $ENV{STUB_OUTPUT_DEVICE} // "Stub Speakers";
 my $track = "{\"title\":\"$title\",\"artist\":\"$artist\",\"album\":\"Stub Album\","
-  . '"bundleIdentifier":"com.stub.player","appName":"StubPlayer","playing":true,'
+  . "\"bundleIdentifier\":\"com.stub.player\",\"appName\":\"$app\",\"playing\":$playing,"
   . "\"processIdentifier\":1,\"elapsedTime\":$elap,\"elapsedTimeNow\":$elap.4,"
-  . '"duration":200,"playbackRate":1,"timestamp":"2026-07-09T00:00:00Z",'
-  . "\"outputDevice\":\"Stub Speakers\",\"outputKind\":\"$okind\","
+  . "\"duration\":$dur,\"playbackRate\":1,\"timestamp\":\"2026-07-09T00:00:00Z\","
+  . "\"outputDevice\":\"$odev\",\"outputKind\":\"$okind\","
   . "\"volume\":$vol,\"muted\":$muted}";
 
 my @devices = ("Stub Speakers", "Stub AirPods");
