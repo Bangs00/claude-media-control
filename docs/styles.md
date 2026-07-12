@@ -245,52 +245,10 @@ regardless.
 
 ## Recipes
 
-Four looks, ready to paste. Colors don't show on this page — glance at your
-statusline.
-
-**Minimal** — title and elapsed time, nothing else:
-
-```
-/media:config statusline.fields "track,time"
-/media:config style.track.artist off
-/media:config style.time.total off
-```
-```
-▶︎ Karma Police  2:13
-```
-
-**Night drive** — neon dots on cyan:
-
-```
-/media:config style.progressbar.style dots
-/media:config style.progressbar.playing bright-magenta
-/media:config style.track.title "bold bright-cyan"
-```
-```
-▶︎ Karma Police — Radiohead (Spotify)  ●●●●●●●●●●●●○○○○○○○○  2:13/4:24
-```
-
-**Tape deck** — cassette bar, stair volume, note icon:
-
-```
-/media:config statusline.fields "track,app,volume,progressbar,time"
-/media:config style.progressbar.style tape
-/media:config style.volume.style stairs
-/media:config style.volume.icon ♪
-```
-```
-▶︎ Karma Police — Radiohead (Spotify)  ♪ ▁▂▃▄ 45%  ▰▰▰▰▰▰▰▰▰▰▰▰▱▱▱▱▱▱▱▱  2:13/4:24
-```
-
-**Plain terminal** — ASCII bar, no colors:
-
-```
-/media:config style.progressbar.style retro
-/media:config statusline.color off
-```
-```
-▶︎ Karma Police — Radiohead (Spotify)  ============--------  2:13/4:24
-```
+Full ready-to-paste looks — a phosphor terminal, a tape deck, a mixing
+console, synthwave neon, and more — live on their own page now, each with a
+GIF, the exact config block, and a plain-text preview:
+**[docs/recipes.md](recipes.md)**.
 
 ## Back to defaults
 

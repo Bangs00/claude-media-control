@@ -62,7 +62,8 @@ Claude Code 안에서:
   슬라이더 노브, 재생 중 흘러가는 `wave`/`pulse`/`eq`/`notes`까지), 바
   길이(1–60칸), 볼륨 바 모양, 아이콘 — 그리고 `off`로 어떤 부분이든
   숨기기. **전부 예시와 함께
-  [스타일 갤러리](docs/styles.ko.md)에 있습니다.**
+  [스타일 갤러리](docs/styles.ko.md)에 있습니다 — 완성 look은
+  [레시피](docs/recipes.ko.md)에서 통째로 붙여넣으세요.**
 
 ## 대화로 조작하기
 

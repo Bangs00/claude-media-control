@@ -140,8 +140,9 @@ so your terminal's palette decides the shades.
 Every part is individually styleable — colors (names or hex codes like
 `#ff8800`), bold/italic, 22 progress-bar charsets, the bar length (1–60
 cells, default 20), volume bar shapes, icons,
-or `off` to hide any part. **The full catalog, with examples and recipes:
-[docs/styles.md](styles.md).**
+or `off` to hide any part. **The full catalog, with examples:
+[docs/styles.md](styles.md); ready-to-paste looks:
+[docs/recipes.md](recipes.md).**
 
 ```
 /media:config statusline.color off     # plain text (NO_COLOR works too)

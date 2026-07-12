@@ -247,52 +247,10 @@ dash     46%  ━━━━━━━━━╍╌╌╌╌╌╌╌╌╌╌      
 
 ## レシピ
 
-そのまま貼り付けられる 4 つのルックです。色はこのページでは見えないので、
-実際のステータスラインで確かめてください。
-
-**ミニマル** — 曲名と経過時間だけ:
-
-```
-/media:config statusline.fields "track,time"
-/media:config style.track.artist off
-/media:config style.time.total off
-```
-```
-▶︎ Karma Police  2:13
-```
-
-**ナイトドライブ** — ネオンの dots + シアンの曲名:
-
-```
-/media:config style.progressbar.style dots
-/media:config style.progressbar.playing bright-magenta
-/media:config style.track.title "bold bright-cyan"
-```
-```
-▶︎ Karma Police — Radiohead (Spotify)  ●●●●●●●●●●●●○○○○○○○○  2:13/4:24
-```
-
-**テープデッキ** — テープ型バー、階段の音量、音符アイコン:
-
-```
-/media:config statusline.fields "track,app,volume,progressbar,time"
-/media:config style.progressbar.style tape
-/media:config style.volume.style stairs
-/media:config style.volume.icon ♪
-```
-```
-▶︎ Karma Police — Radiohead (Spotify)  ♪ ▁▂▃▄ 45%  ▰▰▰▰▰▰▰▰▰▰▰▰▱▱▱▱▱▱▱▱  2:13/4:24
-```
-
-**素のターミナル** — ASCII バー、色なし:
-
-```
-/media:config style.progressbar.style retro
-/media:config statusline.color off
-```
-```
-▶︎ Karma Police — Radiohead (Spotify)  ============--------  2:13/4:24
-```
+そのまま貼れる完成ルック — 蛍光体ターミナル、テープデッキ、ミキシング
+コンソール、synthwave ネオンなど — は専用ページに移りました。各レシピに
+GIF、正確な config ブロック、プレーンテキストのプレビュー付き:
+**[docs/recipes.ja.md](recipes.ja.md)**。
 
 ## デフォルトに戻す
 

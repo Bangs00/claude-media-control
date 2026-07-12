@@ -129,8 +129,8 @@ Stacked——两行（`123/456`）：
 每个部分都能单独定制——颜色（色名或 `#ff8800` 这样的十六进制色号）、
 粗体/斜体、22 套进度条字符、进度条长度
 （1–60 格，默认 20）、音量条形状、图标，还有 `off` 隐藏任意部分。
-**完整目录、示例和现成搭配：
-[docs/styles.zh-CN.md](styles.zh-CN.md)**
+**完整目录和示例：[docs/styles.zh-CN.md](styles.zh-CN.md)；
+现成搭配：[docs/recipes.zh-CN.md](recipes.zh-CN.md)**
 
 ```
 /media:config statusline.color off     # 纯文本（也支持 NO_COLOR）

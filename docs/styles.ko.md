@@ -244,52 +244,10 @@ dash     46%  ━━━━━━━━━╍╌╌╌╌╌╌╌╌╌╌      
 
 ## 레시피
 
-바로 붙여넣을 수 있는 네 가지 룩입니다. 색은 이 페이지에 안 보이니
-statusline에서 직접 확인하세요.
-
-**미니멀** — 제목과 경과 시간만:
-
-```
-/media:config statusline.fields "track,time"
-/media:config style.track.artist off
-/media:config style.time.total off
-```
-```
-▶︎ Karma Police  2:13
-```
-
-**나이트 드라이브** — 네온 dots + 시안 제목:
-
-```
-/media:config style.progressbar.style dots
-/media:config style.progressbar.playing bright-magenta
-/media:config style.track.title "bold bright-cyan"
-```
-```
-▶︎ Karma Police — Radiohead (Spotify)  ●●●●●●●●●●●●○○○○○○○○  2:13/4:24
-```
-
-**테이프 데크** — 테이프 바, 계단 볼륨, 음표 아이콘:
-
-```
-/media:config statusline.fields "track,app,volume,progressbar,time"
-/media:config style.progressbar.style tape
-/media:config style.volume.style stairs
-/media:config style.volume.icon ♪
-```
-```
-▶︎ Karma Police — Radiohead (Spotify)  ♪ ▁▂▃▄ 45%  ▰▰▰▰▰▰▰▰▰▰▰▰▱▱▱▱▱▱▱▱  2:13/4:24
-```
-
-**순수 터미널** — ASCII 바, 색 없음:
-
-```
-/media:config style.progressbar.style retro
-/media:config statusline.color off
-```
-```
-▶︎ Karma Police — Radiohead (Spotify)  ============--------  2:13/4:24
-```
+바로 붙여넣는 완성 look들 — 인광 터미널, 테이프 덱, 믹싱 콘솔, synthwave
+네온 등 — 은 이제 전용 페이지에 있습니다. 레시피마다 GIF, 정확한 config
+블록, 플레인 텍스트 미리보기가 함께입니다:
+**[docs/recipes.ko.md](recipes.ko.md)**.
 
 ## 기본값으로 되돌리기
 

@@ -150,7 +150,8 @@ Stacked — 2 行（`123/456`）:
 ような hex コード）、太字 / 斜体、22 種類の
 プログレスバー文字、バーの長さ（1〜60 マス、デフォルト 20）、音量バーの
 形、アイコン、そして `off` で非表示まで。
-**カタログ全部と実例、レシピ: [docs/styles.ja.md](styles.ja.md)**
+**カタログ全部と実例: [docs/styles.ja.md](styles.ja.md)、
+レシピ集: [docs/recipes.ja.md](recipes.ja.md)**
 
 ```
 /media:config statusline.color off     # プレーンテキストに（NO_COLOR も有効）

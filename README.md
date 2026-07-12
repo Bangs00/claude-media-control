@@ -60,7 +60,7 @@ Everything below is automatic — the full guide is
   blocks, a `knob` slider head, and animated `wave`/`pulse`/`eq`/`notes`),
   the bar length (1–60 cells), volume bar shapes, icons — or `off` to hide
   any part. **See the [style gallery](docs/styles.md)** for all of them with
-  examples.
+  examples — or paste a whole look from the [recipes](docs/recipes.md).
 
 ## Control it from chat
 

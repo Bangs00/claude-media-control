@@ -231,51 +231,9 @@ dash     46%  ━━━━━━━━━╍╌╌╌╌╌╌╌╌╌╌      
 
 ## 现成搭配
 
-四套即贴即用的外观。颜色在这一页看不出来——改完瞟一眼状态栏就知道了。
-
-**极简**——只留曲名和已播时间：
-
-```
-/media:config statusline.fields "track,time"
-/media:config style.track.artist off
-/media:config style.time.total off
-```
-```
-▶︎ Karma Police  2:13
-```
-
-**夜间行车**——霓虹圆点 + 青色曲名：
-
-```
-/media:config style.progressbar.style dots
-/media:config style.progressbar.playing bright-magenta
-/media:config style.track.title "bold bright-cyan"
-```
-```
-▶︎ Karma Police — Radiohead (Spotify)  ●●●●●●●●●●●●○○○○○○○○  2:13/4:24
-```
-
-**磁带机**——磁带条、台阶音量、音符图标：
-
-```
-/media:config statusline.fields "track,app,volume,progressbar,time"
-/media:config style.progressbar.style tape
-/media:config style.volume.style stairs
-/media:config style.volume.icon ♪
-```
-```
-▶︎ Karma Police — Radiohead (Spotify)  ♪ ▁▂▃▄ 45%  ▰▰▰▰▰▰▰▰▰▰▰▰▱▱▱▱▱▱▱▱  2:13/4:24
-```
-
-**朴素终端**——ASCII 进度条，不带颜色：
-
-```
-/media:config style.progressbar.style retro
-/media:config statusline.color off
-```
-```
-▶︎ Karma Police — Radiohead (Spotify)  ============--------  2:13/4:24
-```
+即贴即用的整套外观——荧光体终端、磁带卡座、调音台、synthwave 霓虹等——
+已移到专门页面，每款附 GIF、精确的 config 块和纯文本预览：
+**[docs/recipes.zh-CN.md](recipes.zh-CN.md)**。
 
 ## 恢复默认
 
