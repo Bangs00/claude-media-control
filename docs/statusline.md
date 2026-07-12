@@ -64,8 +64,8 @@ app (`ClaudeMediaClick.app`, generated into the plugin data directory with
 macOS's bundled `osacompile` — no third-party code) and registers it with
 LaunchServices. A click runs `media.sh open-url`, whose whole surface is
 exactly three benign actions — toggle, activate, seek by percent; anything
-else is rejected. A URL scheme is reachable by any app by nature, so that
-surface is the point: play/pause, bringing the player forward, seeking —
+else is rejected. A URL scheme is by nature reachable from any app, so that
+narrow surface is the point: play/pause, bringing the player forward, seeking —
 nuisance-level at worst, the same class as your keyboard's media keys.
 
 For browser players, activation resolves the web-content helper process to

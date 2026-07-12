@@ -253,8 +253,8 @@ A hot-pink pulse under a chrome-cyan title — the neon-grid sunset palette.
 
 ## Lo-fi
 
-Dusty pastels and a short bar of marching notes — calm, low-contrast,
-study-beats.
+Dusty pastels and a short bar of marching notes — calm, low-contrast
+study beats.
 
 ![The Lo-fi recipe rendered live at one frame per second](recipes/lo-fi.gif)
 

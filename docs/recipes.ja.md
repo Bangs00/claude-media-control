@@ -2,7 +2,7 @@
 
 [English](recipes.md) | [한국어](recipes.ko.md) | **日本語** | [简体中文](recipes.zh-CN.md)
 
-now-playing セグメントにそのまま貼れる完成 look 集です。どれも実際に
+now-playing セグメントにそのまま貼れる完成 look 集です。どれも
 見覚えのあるものに根ざしています — 蛍光体ターミナル、テープデッキ、
 チューナーダイヤル、ミキシングコンソール。以下のコマンドはすべて実際の
 `media.sh config` の検証を通り、GIF はすべてレンダラーの実出力（毎秒
@@ -205,7 +205,7 @@ color のみ。
 ▶︎ Rented Sunsets — Modem Chorus (Aux)  🎚 Bookshelf Speakers
 ```
 
-音量のミニメーターは進行バーの `eq`
+音量のミニメーターはプログレスバーの `eq`
 文字をそのまま借りて、いっしょに跳ねます。
 
 ## Night drive

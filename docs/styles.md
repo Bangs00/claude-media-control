@@ -137,8 +137,8 @@ freeze on pause:
 
 ### Your own characters
 
-Any **exactly two characters** mean "filled + empty" (a space works as the
-empty half; two spaces, tabs, and newlines are refused):
+Any **two characters** — exactly two — mean "filled + empty" (a space works
+as the empty half; two spaces, tabs, and newlines are refused):
 
 ```
 /media:config style.progressbar.style "#-"     →  ############--------
@@ -156,7 +156,7 @@ number from 1 to 60 (default `20`):
 ```
 
 One length drives both bars — the statusline segment and the `/media:now`
-reply. With links on every cell stays ⌘+clickable, so a longer bar simply
+reply. With links on, every cell stays ⌘+clickable, so a longer bar simply
 seeks in finer steps. (The volume mini bar keeps its eight cells — one
 per volume step.) The default grew from 10 to 20 in 0.20.0; set `10`
 to bring back the compact pre-0.20 bar.

@@ -90,8 +90,8 @@ CoreAudio API — no extra permissions.
 
 ## How it works
 
-macOS has no public API for another app's now-playing info; the private
-`MediaRemote` framework answers only Apple-signed processes since 15.4.
+macOS has no public API for another app's now-playing info; since 15.4,
+the private `MediaRemote` framework answers only Apple-signed processes.
 Like [ungive/mediaremote-adapter](https://github.com/ungive/mediaremote-adapter),
 this plugin loads a small Objective-C helper (`native/adapter.m`) through
 `/usr/bin/perl` — an Apple platform binary — which passes the entitlement

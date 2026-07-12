@@ -2,8 +2,8 @@
 
 [English](recipes.md) | **한국어** | [日本語](recipes.ja.md) | [简体中文](recipes.zh-CN.md)
 
-now-playing 세그먼트에 바로 붙여넣는 완성 look 모음입니다. 하나하나 실제로
-알아볼 수 있는 대상에 뿌리를 두었습니다 — 인광 터미널, 테이프 덱, 튜너
+now-playing 세그먼트에 바로 붙여넣는 완성 look 모음입니다. 하나하나
+눈에 익은 실물에 뿌리를 두었습니다 — 인광 터미널, 테이프 덱, 튜너
 다이얼, 믹싱 콘솔. 아래 모든 명령은 실제 `media.sh config` 검증을
 통과했고, 모든 GIF는 렌더러의 실제 출력(초당 1프레임)입니다. (전부 가상의
 트랙 — *Modem Chorus*의 *Rented Sunsets*, 가상의 앱 *Aux*에서 재생 중.)

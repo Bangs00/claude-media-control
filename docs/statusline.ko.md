@@ -50,7 +50,7 @@ Claude Code statusline에 현재 곡이 한 줄 추가됩니다:
   그냥 일반 세그먼트로 보입니다.
 - 클릭 결과는 다음 틱(1초 이내)에 반영됩니다: 아이콘이 바뀌고 바가
   점프합니다.
-- 스위치: `/media:config statusline.links off`는 링크 없는 일반
+- 켜고 끄기: `/media:config statusline.links off`는 링크 없는 일반
   세그먼트로 되돌립니다. 다시 켜면 핸들러 앱을 재생성하는데, 빌드가
   실패하면 거부됩니다(exit 3) — 아무도 받지 않는 링크는 없느니만
   못하니까요.
@@ -129,7 +129,7 @@ Stacked — 2줄(`123/456`):
   on`이면 그룹마다 줄을 나눕니다. 그룹 규칙: `app`은 track에 붙고, 이웃한
   `progressbar`+`time`은 한 쌍이 되고, `output`/`volume`은 이웃한 track
   그룹에 합류합니다(서로 이웃하면 둘이 한 쌍).
-- `output`과 `volume`은 네이티브 helper가 필요합니다. 세그먼트가 원래
+- `output`과 `volume`은 native helper가 필요합니다. 세그먼트가 원래
   하던 조회에 실려 오므로 추가 비용은 없습니다.
 
 ## 꾸미기

@@ -55,7 +55,7 @@ Claude Code 안에서:
   그냥 일반 세그먼트로 보입니다.
 - **숫자 패턴으로 배치** — `/media:statusline`에서: 숫자가 항목이고 —
   1 곡 정보 · 2 앱 · 3 볼륨 · 4 바 · 5 시간 · 6 출력 장치 — `/`가
-  줄바꿈이라, `123/456`이면 곡/앱/볼륨 위에 바/시간/출력이 쌓입니다.
+  줄바꿈이라, `123/456`이면 곡/앱/볼륨 아래에 바/시간/출력이 쌓입니다.
 - **부분별 스타일**: 재생/일시정지 강조색, 부분마다 굵게/기울임/색(이름
   또는 `#ff8800` 같은 헥스 코드),
   진행 바 문자 22종(기본 `line` `━━──`부터 `smooth` 부분 블록, `knob`
@@ -124,7 +124,7 @@ Homebrew도, Node도, Python도, API 키도 필요 없습니다.
 | `DEGRADED — native helper unavailable` | `xcode-select --install` 후 `/media:doctor --rebuild` |
 | macOS 업데이트 후 `PRIMARY READ LIKELY BLOCKED` | `/media:doctor --rebuild`, 계속되면 [이슈를 남겨 주세요](https://github.com/Bangs00/claude-media-control/issues) |
 | AppleScript 조작이 **error -1743**으로 실패 | 시스템 설정 → 개인정보 보호 및 보안 → 자동화에서 터미널 앱 허용 (fallback 모드에서만) |
-| 재생 중이 아닌데 `now`에 곡이 표시됨 | 앱이 낡은 상태를 보고한 것 — `/media:next`를 실행하거나 플레이어 재시작 |
+| 재생 중이 아닌데 `now`에 곡이 표시됨 | 앱이 이전 상태를 그대로 보고한 것 — `/media:next`를 실행하거나 플레이어 재시작 |
 
 빌드 로그: `${CLAUDE_PLUGIN_DATA}/build.log`
 
