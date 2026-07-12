@@ -5,6 +5,21 @@ All notable changes to this project are documented here. The format follows
 [SemVer](https://semver.org/spec/v2.0.0.html), tracked in
 `.claude-plugin/plugin.json`.
 
+## [0.26.0] — 2026-07-12
+
+### Changed
+
+- **`dash` reads like `smooth` now: a dashed track whose boundary
+  thickens and fuses.** The empty side becomes a dashed `╌` track —
+  the preset finally looks dashed at rest — and the boundary cell
+  walks `╍ ┅ ┉` in quarters: the dashes thicken, multiply, and fuse
+  into the `━` fill. The old sevenths ramp spent half its steps on
+  light dashes (`╌ ┄ ┈`) that all but vanished against the `─` track,
+  so the boundary looked stalled, then lurched; now ink only ever
+  grows and every step is visibly distinct, so the boundary cell
+  fills as continuously as `smooth`'s. The volume `progress` shape
+  and the `/media:now` bar follow along, as always.
+
 ## [0.25.0] — 2026-07-12
 
 ### Changed

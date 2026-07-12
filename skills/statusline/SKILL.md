@@ -82,9 +82,9 @@ boundary) · `rise` `█████▅░░░░` (⅛-step boundary rising b
 `fade` `█████▓░░░░` (⅓-step shade boundary) · `corner` `█████▙░░░░`
 (¼-step quadrant boundary) · `glide` `━━━━━╾────` (half-cell steps) ·
 `stipple` `⣿⣿⣿⣿⣿⣶⣀⣀⣀⣀` (⅙-step braille boundary) · `tiles`
-`■■■■■◧□□□□` (half-filled square) · `dash` `━━━━━┉────` (the boundary
-cracks the light line into ever finer dashes, then thickens them back
-into the heavy line — `╌┄┈╍┅┉`, ⅐ steps, every step adds ink) ·
+`■■■■■◧□□□□` (half-filled square) · `dash` `━━━━━┅╌╌╌╌` (a heavy line
+over a dashed track; at the boundary the dashes thicken, multiply, and
+fuse into the line — `╍┅┉`, ¼ steps, ink only ever grows) ·
 `knob` `━━━━━●────` (slider head) · `playhead` `─────╼╾───` (a one-cell
 thick head gliding along a thin track in half-cell steps — aligned it
 draws `━`, straddling it splits into `╼╾`; the elapsed side keeps the

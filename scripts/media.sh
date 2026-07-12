@@ -913,17 +913,17 @@ do_statusline() {
                 glide => ["\x{2501}", "\x{2500}"],
                 stipple => ["\x{28FF}", "\x{28C0}"],
                 tiles => ["\x{25A0}", "\x{25A1}"],
-                dash => ["\x{2501}", "\x{2500}"],
+                dash => ["\x{2501}", "\x{254C}"],
                 line => ["\x{2501}", "\x{2500}"], dots => ["\x{25CF}", "\x{25CB}"]);
       # Sub-cell ramps for the partial-boundary path in $bar; steps per
       # cell = partials + 1. smooth fills left-to-right in eighths (▏..▉),
       # rise climbs bottom-up (▁..▇), fade darkens through the shades
       # (▒▓), corner fills by quadrants (▖▌▙), glide advances half a cell
       # (╾), stipple raises the braille dots row by row (⣄⣤⣦⣶⣷), tiles
-      # half-fills the square (◧), dash cracks the light line into ever
-      # finer dashes, then thickens them back into the heavy line
-      # (─→╌┄┈→╍┅┉→━) — every step adds ink, so the boundary reads as
-      # one continuous thickening.
+      # half-fills the square (◧), dash thickens the dashed track, then
+      # multiplies the dashes until they fuse into the heavy line
+      # (╌→╍┅┉→━) — ink only ever grows, so the boundary cell fills as
+      # continuously as smooth reads.
       my %sub = (smooth => [map { chr(0x2590 - $_) } 1 .. 7],
                  rise => [map { chr(0x2580 + $_) } 1 .. 7],
                  fade => ["\x{2592}", "\x{2593}"],
@@ -931,8 +931,7 @@ do_statusline() {
                  glide => ["\x{257E}"],
                  stipple => ["\x{28C4}", "\x{28E4}", "\x{28E6}", "\x{28F6}", "\x{28F7}"],
                  tiles => ["\x{25E7}"],
-                 dash => ["\x{254C}", "\x{2504}", "\x{2508}",
-                          "\x{254D}", "\x{2505}", "\x{2509}"]);
+                 dash => ["\x{254D}", "\x{2505}", "\x{2509}"]);
       my $csv = $sty{"progressbar.style"} // "line";
       my ($fc, $ec, $hc) = $cs{$csv}      ? @{$cs{$csv}}
                     : length($csv) == 2   ? (substr($csv, 0, 1), substr($csv, 1, 1))

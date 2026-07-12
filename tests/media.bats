@@ -1156,7 +1156,7 @@ setup() {
   # Stub position 75.4/200 at length 10, measured in steps-per-cell
   # (partials + 1): fade thirds → 11 → 3 cells + ▓ (2/3); corner
   # quarters → 15 → 3 cells + ▙ (3/4); stipple sixths → 23 → 3 cells
-  # + ⣷ (5/6); dash sevenths → 26 → 3 cells + ┅ (5/7); glide and
+  # + ⣷ (5/6); dash quarters → 15 → 3 cells + ┉ (3/4); glide and
   # tiles halves → 8 → 4 cells, no partial.
   local cases=(
     "fade|███▓░░░░░░"
@@ -1164,7 +1164,7 @@ setup() {
     "stipple|⣿⣿⣿⣷⣀⣀⣀⣀⣀⣀"
     "glide|━━━━──────"
     "tiles|■■■■□□□□□□"
-    "dash|━━━┅──────"
+    "dash|━━━┉╌╌╌╌╌╌"
   )
   for c in "${cases[@]}"; do
     rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
@@ -1219,21 +1219,25 @@ setup() {
   [ "$output" = "■■■◧□□□□□□" ]
 }
 
-@test "statusline: progressbar dash preset — the boundary cracks, then thickens" {
+@test "statusline: progressbar dash preset — the boundary thickens, then fuses" {
   mkdir -p "$CLAUDE_PLUGIN_DATA"
-  # Sevenths at length 10 (S=7): the boundary cell cracks the light line
-  # into ever finer dashes (╌ ┄ ┈), then thickens them back into the
-  # heavy line (╍ ┅ ┉ → ━) — every step adds ink. Elapsed 65 → 23
-  # sevenths → 3 cells + ┄; 70 → 25 → ╍; 79 → 28 — the cell completes.
+  # Quarters at length 10 (S=4): the boundary cell thickens the dashed
+  # track (╌ → ╍), then multiplies the dashes until they fuse into the
+  # heavy line (┅ ┉ → ━) — ink only ever grows. Elapsed 65 → 13
+  # quarters → 3 cells + ╍; 70 → 14 → ┅; 73 → 15 → ┉; 79 → 16 — the
+  # cell completes.
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["progressbar"],"style.progressbar.style":"dash","style.progressbar.length":"10"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   STUB_ELAPSED=65 run "$MEDIA" statusline
-  [ "$output" = "━━━┄──────" ]              # 23 sevenths → ┄ (2/7)
+  [ "$output" = "━━━╍╌╌╌╌╌╌" ]              # 13 quarters → ╍ (1/4)
   rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
   STUB_ELAPSED=70 run "$MEDIA" statusline
-  [ "$output" = "━━━╍──────" ]              # 25 sevenths → ╍ (4/7)
+  [ "$output" = "━━━┅╌╌╌╌╌╌" ]              # 14 quarters → ┅ (2/4)
+  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  STUB_ELAPSED=73 run "$MEDIA" statusline
+  [ "$output" = "━━━┉╌╌╌╌╌╌" ]              # 15 quarters → ┉ (3/4)
   rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
   STUB_ELAPSED=79 run "$MEDIA" statusline
-  [ "$output" = "━━━━──────" ]              # 28 sevenths — the cell fuses
+  [ "$output" = "━━━━╌╌╌╌╌╌" ]              # 16 quarters — the cell fuses
 }
 
 @test "statusline: progressbar fade preset — accent run and per-cell links" {
