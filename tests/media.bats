@@ -19,6 +19,8 @@ setup() {
   cp "$PROJECT_ROOT/tests/stubs/build-native.sh" "$PLUGIN/scripts/build-native.sh"
   cp "$PROJECT_ROOT/tests/stubs/build-click-handler.sh" "$PLUGIN/scripts/build-click-handler.sh"
   cp "$PROJECT_ROOT/tests/stubs/read-jxa.js" "$PLUGIN/scripts/read-jxa.js"
+  # The real file: inert unless its target app is already running.
+  cp "$PROJECT_ROOT/scripts/focus-tab.js" "$PLUGIN/scripts/focus-tab.js"
   cp "$PROJECT_ROOT/tests/stubs/loader.pl" "$PLUGIN/native/loader.pl"
   chmod +x "$PLUGIN/scripts/media.sh" "$PLUGIN/scripts/build-native.sh" \
            "$PLUGIN/scripts/build-click-handler.sh"
@@ -1877,6 +1879,22 @@ setup() {
   run "$MEDIA" open-url claude-media://toggle
   [ "$status" -eq 0 ]
   [ ! -f "$CLAUDE_PLUGIN_DATA/statusline.cache" ]
+}
+
+# The tab-jump helper is best-effort by contract: whatever goes wrong (and a
+# bundle nothing has launched), it must exit 0, print nothing, and launch
+# nothing — activation already happened when it runs.
+@test "focus-tab.js: a never-running bundle id is a clean, silent no-op" {
+  run /usr/bin/osascript -l JavaScript "$PLUGIN/scripts/focus-tab.js" \
+    com.example.claude-media-no-such-app "Verify Song"
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+}
+
+@test "focus-tab.js: missing arguments are a clean, silent no-op" {
+  run /usr/bin/osascript -l JavaScript "$PLUGIN/scripts/focus-tab.js"
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
 }
 
 # ---- removed features ------------------------------------------------------------

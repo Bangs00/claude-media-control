@@ -5,6 +5,55 @@ All notable changes to this project are documented here. The format follows
 [SemVer](https://semver.org/spec/v2.0.0.html), tracked in
 `.claude-plugin/plugin.json`.
 
+## [0.28.0] — 2026-07-13
+
+### Fixed
+
+- **The ⌘+click tab jump actually reaches the tab now.** Since it shipped
+  (v0.18.0), the Chromium side of the jump compiled its AppleScript
+  against a bundle id held in a variable — and AppleScript resolves
+  terminology like `active tab index` at compile time, so the script died
+  with a syntax error (-2740) on every single click, and the silent
+  best-effort swallow made that look like plain activation was all there
+  was. Chrome, Edge, Brave, Vivaldi, and Opera clicks never got past
+  bringing the app forward. The branch is now JXA
+  (`scripts/focus-tab.js`), which resolves terminology at run time: same
+  window+tab title match, same one-time Automation consent, and a hung
+  browser is cut off after 30 s — long enough that the watchdog never
+  tears down the consent dialog mid-answer. (Safari and Music compile
+  against a fixed dictionary, so their scripts always ran — but read on.)
+- **The first tab-jump completes when you approve the consent.** The
+  click applet used to background the handler and quit immediately, so
+  the jump's AppleEvent — the send that pops the one-time Automation
+  dialog — raced its own timeout with its responsible process
+  (`ClaudeMediaClick.app`) already gone: the send was cut down before
+  anyone could realistically answer, the approval landed on a dead
+  click, and the jump never happened even once the grant was recorded.
+  The applet now waits for the handler (wrapped in `try`, so a refused
+  click can't raise its error dialog): the dialog is attributed to a
+  live applet, and the first click jumps the moment you hit Allow. The
+  applet is rebuilt automatically on update (`APPLET_FORMAT` 2).
+
+### Added
+
+- **ChatGPT Atlas: the track click lands on the playing tab.** Atlas was
+  listed as having no scripting interface — true of its native shell
+  (`com.openai.atlas`), but the embedded Chromium engine
+  (`com.openai.atlas.web`, the very bundle that plays the media) ships
+  the full Chromium AppleScript suite. A title/artist ⌘+click now
+  activates the shell and scripts the engine, selecting the window+tab
+  that plays the track. First use asks the usual one-time Automation
+  consent for `ClaudeMediaClick.app`; Spotify remains activation-only
+  (nothing scriptable to land on).
+- **The jump finds the player even while the tab title lags.** Web
+  players update `document.title` lazily in background-throttled tabs —
+  YouTube Music can sit on a bare "YouTube Music" for minutes after a
+  track change — so when no tab title contains the track, the jump now
+  falls back to the first tab on a dedicated player site
+  (music.youtube.com, open.spotify.com, music.apple.com, soundcloud.com,
+  tidal.com, deezer.com). Titles and URLs are read locally, only to
+  locate the player.
+
 ## [0.27.0] — 2026-07-12
 
 ### Added

@@ -442,14 +442,19 @@ activate_app() {
 # Move the app's UI to the playing media itself, best effort — called with
 # the OWNING app id activate_app resolved: browsers with AppleScript tab
 # control select the window+tab whose name contains the track title (the
-# Safari dialect / the Chromium suite — only known-scriptable bundles, so no
-# consent prompt is ever triggered for an app that could not honor it
-# anyway), and Music reveals the current track. Everything else (e.g.
-# ChatGPT Atlas — no scripting interface) keeps plain activation. The first
-# use shows a one-time Automation consent attributed to the click-handler
-# app; a denial or any script error just leaves activation-only behavior.
-# The title travels via the environment (system attribute), so no user data
-# is ever spliced into the script source.
+# Safari dialect inline; the Chromium suite via focus-tab.js — JXA, because
+# AppleScript cannot compile Chromium terminology like `active tab index`
+# against a variable bundle id), and Music reveals the current track.
+# ChatGPT Atlas is a native shell (com.openai.atlas — what activation
+# resolves) around an embedded Chromium engine app that carries the
+# scripting interface (com.openai.atlas.web), so its case scripts the
+# engine. Only known-scriptable bundles are ever scripted — no consent
+# prompt is triggered for an app that could not honor it anyway; everything
+# else (e.g. Spotify — no scriptable tab/track UI) keeps plain activation.
+# The first use shows a one-time Automation consent attributed to the
+# click-handler app; a denial or any script error just leaves
+# activation-only behavior. The title travels via the environment / argv,
+# so no user data is ever spliced into the script source.
 focus_media() {
   local bundle="$1" title="$2"
   [ -n "$title" ] || return 0
@@ -475,25 +480,17 @@ focus_media() {
       ;;
     com.google.Chrome | com.google.Chrome.canary | com.google.Chrome.beta | \
     com.microsoft.edgemac | com.brave.Browser | com.vivaldi.Vivaldi | \
-    com.operasoftware.Opera)
-      MEDIA_FOCUS_TITLE="$title" MEDIA_FOCUS_BUNDLE="$bundle" /usr/bin/osascript -e '
-        set t to system attribute "MEDIA_FOCUS_TITLE"
-        set b to system attribute "MEDIA_FOCUS_BUNDLE"
-        with timeout of 3 seconds
-          tell application id b
-            repeat with w in windows
-              set i to 0
-              repeat with tb in tabs of w
-                set i to i + 1
-                if title of tb contains t then
-                  set active tab index of w to i
-                  set index of w to 1
-                  return
-                end if
-              end repeat
-            end repeat
-          end tell
-        end timeout' >/dev/null 2>&1 || true
+    com.operasoftware.Opera | com.openai.atlas)
+      local target="$bundle"
+      [ "$bundle" = com.openai.atlas ] && target="com.openai.atlas.web"
+      # alarm survives the exec and caps a hung target — the JXA equivalent
+      # of the AppleScript branches' `with timeout`. Generous on purpose:
+      # the first click blocks in this osascript while the one-time
+      # Automation consent dialog is up, and killing that wait would tear
+      # the dialog down before the user can answer it.
+      /usr/bin/perl -e 'alarm 30; exec @ARGV' -- /usr/bin/osascript \
+        -l JavaScript "$SCRIPT_DIR/focus-tab.js" "$target" "$title" \
+        >/dev/null 2>&1 || true
       ;;
     com.apple.Music)
       /usr/bin/osascript -e '
