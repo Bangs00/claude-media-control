@@ -18,8 +18,10 @@
 #   doctor [--rebuild]           full diagnosis (+ optional cache rebuild)
 #   detect                       SessionStart hook probe: silent when healthy
 #   warmup                       SessionStart async hook: pre-build the dylib
-#   open-url <url>               claude-media:// click-action dispatch (used
-#                                by the statusline's cmd+click handler app)
+#   open-url <url>               claude-media-control:// click-action dispatch
+#                                (used by the statusline's cmd+click handler
+#                                app; the legacy claude-media:// scheme is
+#                                still accepted)
 #
 # Backend order: perl+dylib primary -> JXA read fallback -> per-app
 # AppleScript control fallback (Spotify / Apple Music only). All errors point
@@ -61,7 +63,7 @@ usage: media.sh <subcommand>
   statusline [install | uninstall | status]
   history [count | clear | --json [count]]
   test | config [key] [on|off|value] | doctor [--rebuild] | detect | warmup
-  open-url <claude-media://toggle|activate|seek/<pct>>   (statusline clicks)
+  open-url <claude-media-control://toggle|activate|seek/<pct>>   (statusline clicks)
 EOF
   exit 2
 }
@@ -502,12 +504,15 @@ focus_media() {
   return 0
 }
 
-# Dispatch one clicked claude-media:// URL from the statusline. The applet
-# accepts URLs from anywhere (any app can open a URL scheme), so the surface
-# stays deliberately tiny and benign: toggle, activate, and seek by percent —
-# nothing else, no free-form parameters.
+# Dispatch one clicked claude-media-control:// URL from the statusline. The
+# applet accepts URLs from anywhere (any app can open a URL scheme), so the
+# surface stays deliberately tiny and benign: toggle, activate, and seek by
+# percent — nothing else, no free-form parameters. The legacy claude-media://
+# scheme (what pre-0.29 statuslines rendered; the Claude Desktop app declares
+# that name as an internal Electron scheme, which is why it was retired) is
+# still accepted so old links keep working through the same applet.
 do_open_url() {
-  local url="${1:-}" pct=""
+  local url="${1:-}" action="" pct=""
   # Self-heal before dispatching: a warmup fired from a still-open
   # pre-update Claude Code session re-runs THAT version's installer and can
   # rebuild the applet back to an older format whose backgrounded handler
@@ -517,10 +522,14 @@ do_open_url() {
   # the format already matches it is one plutil read + a handler rewrite.
   "$SCRIPT_DIR/build-click-handler.sh" >/dev/null 2>&1 || true
   case "$url" in
-    claude-media://toggle | claude-media://toggle/)
+    claude-media-control://*) action="${url#claude-media-control://}" ;;
+    claude-media://*)         action="${url#claude-media://}" ;;
+  esac
+  case "$action" in
+    toggle | toggle/)
       do_control toggle 2
       ;;
-    claude-media://activate | claude-media://activate/)
+    activate | activate/)
       local json bundle pid
       json="$(do_now 2>/dev/null || echo null)"
       if [ -z "$json" ] || [ "$json" = "null" ]; then
@@ -539,8 +548,8 @@ do_open_url() {
       owner="$(activate_app "$pid" "$bundle")" || exit 1
       focus_media "$owner" "$(printf '%s' "$json" | json_field title)"
       ;;
-    claude-media://seek/*)
-      pct="${url#claude-media://seek/}"
+    seek/*)
+      pct="${action#seek/}"
       pct="${pct%/}"
       case "$pct" in
         '' | *[!0-9]*)
@@ -563,7 +572,7 @@ do_open_url() {
       do_seek "$secs"
       ;;
     *)
-      echo "media: open-url: unsupported URL: ${url:-<empty>} (expected claude-media://toggle | activate | seek/<0-100>)." >&2
+      echo "media: open-url: unsupported URL: ${url:-<empty>} (expected claude-media-control://toggle | activate | seek/<0-100>)." >&2
       exit 2
       ;;
   esac
@@ -694,7 +703,7 @@ do_statusline() {
       return 0
     fi
   fi
-  local fields json line="" multiline color marquee styles links
+  local fields json line="" multiline color marquee styles links applet_fmt
   fields="$(config_get_statusline_fields)"
   multiline="$(config_get statusline.multiline)"
   marquee="$(config_get statusline.marquee)"
@@ -703,10 +712,29 @@ do_statusline() {
   # a line rendered under the other setting for at most one TTL second.
   color="$(config_get statusline.color)"
   [ -n "${NO_COLOR:-}" ] && color=off
-  # cmd+click links render only while the claude-media:// handler app exists
-  # — a link nothing answers is worse than no link. Independent of colors.
+  # cmd+click links render only while the handler applet claims the
+  # claude-media-control: scheme (CFBundleVersion >= 3, kept in sync with
+  # APPLET_FORMAT in build-click-handler.sh) — a link nothing answers is
+  # worse than no link. Independent of colors. An older applet (pre-0.29
+  # install right after an update, or one a still-open old session's warmup
+  # rebuilt back) only claims the legacy scheme these links no longer use,
+  # so links pause for a tick or two while a background rebuild re-arms
+  # them — clicks on dead links never reach open-url, so its self-heal
+  # cannot. No bundle at all never builds one here (manual setups stay
+  # untouched); the 60s build.log throttle keeps a persistently failing
+  # build from re-spawning every tick.
   links="$(config_get statusline.links)"
-  [ -d "$DATA_DIR/ClaudeMediaClick.app" ] || links=off
+  applet_fmt="$(/usr/bin/plutil -extract CFBundleVersion raw \
+    "$DATA_DIR/ClaudeMediaClick.app/Contents/Info.plist" 2>/dev/null || true)"
+  case "$applet_fmt" in *[!0-9]* | "") applet_fmt=0 ;; esac
+  if [ "$applet_fmt" -lt 3 ]; then
+    if [ "$links" = "on" ] && [ -d "$DATA_DIR/ClaudeMediaClick.app" ] \
+      && ! /usr/bin/perl -e 'exit(((stat($ARGV[0]))[9] // 0) > time() - 60 ? 0 : 1)' \
+           "$DATA_DIR/build.log" 2>/dev/null; then
+      ("$SCRIPT_DIR/build-click-handler.sh" >/dev/null 2>&1 &)
+    fi
+    links=off
+  fi
   json="$(do_now 2>/dev/null || echo null)"
   if [ -n "$json" ] && [ "$json" != "null" ]; then
     # Render the chosen fields as groups in their stored order (arrange with
@@ -753,7 +781,7 @@ do_statusline() {
     # never restyled. statusline.marquee scrolls titles wider than 30 display
     # cells through a fixed window, one character per second (offset derives
     # from the epoch, so each 1s cache refresh advances it — no state file
-    # needed). With statusline.links on and the claude-media:// handler app
+    # needed). With statusline.links on and the claude-media-control:// handler app
     # present, the segment is cmd+clickable via OSC 8 hyperlinks: the ▶︎/⏸
     # icon toggles playback, title/artist/app activate the playing app, and
     # each progress-bar cell seeks to its position (see do_open_url).
@@ -860,7 +888,7 @@ do_statusline() {
         my $icon = $d->{playing} ? "\x{25B6}\x{FE0E}" : "\x{23F8}";
         # cmd+click targets: the icon toggles play/pause; the title/artist
         # (and the app name below) bring the playing app to the front.
-        my $t = $href->("claude-media://toggle", $st->($iconsgr, $icon));
+        my $t = $href->("claude-media-control://toggle", $st->($iconsgr, $icon));
         my $body = "";
         unless ($hid->("track.title")) {
           my $title = $mq ? marquee($d->{title}) : $d->{title};
@@ -871,15 +899,15 @@ do_statusline() {
         $body .= ($hid->("track.title") ? "" : " " . $st->(2, "\x{2014}") . " ")
             . $st->(sgr($sty{"track.artist"}), $d->{artist})
           if defined $d->{artist} && !$hid->("track.artist");
-        $t .= " " . $href->("claude-media://activate", $body) if length $body;
-        $t .= " " . $href->("claude-media://activate", $st->($appsgr, "($app)"))
+        $t .= " " . $href->("claude-media-control://activate", $body) if length $body;
+        $t .= " " . $href->("claude-media-control://activate", $st->($appsgr, "($app)"))
           if !$explicit && $w{app} && defined $app && !$hid->("app");
         $tok{track} = $t;
       }
       # Standalone app token: always in the explicit layout (folding happens
       # per line during assembly), only without a track in the grouped one.
       if ($w{app} && defined $app && !$hid->("app") && ($explicit || !$w{track})) {
-        $tok{app} = $href->("claude-media://activate", $st->($appsgr, $app));
+        $tok{app} = $href->("claude-media-control://activate", $st->($appsgr, $app));
       }
       my $pos = $d->{elapsedTimeNow} // $d->{elapsedTime};
       my $dur = $d->{duration};
@@ -960,7 +988,7 @@ do_statusline() {
         my $link = $seek && $lk;
         my $cell = sub {
           my ($i, $t) = @_;
-          $href->("claude-media://seek/" . int((($i + 0.5) * 100) / $cells), $t);
+          $href->("claude-media-control://seek/" . int((($i + 0.5) * 100) / $cells), $t);
         };
         if ($csv eq "playhead") {
           # A one-cell thick head gliding along the thin track in
@@ -1129,7 +1157,7 @@ do_statusline() {
           my @parts;
           for my $k (0 .. $#fs) {
             if ($fs[$k] eq "app" && $k > 0 && $fs[$k - 1] eq "track") {
-              $parts[-1] .= " " . $href->("claude-media://activate",
+              $parts[-1] .= " " . $href->("claude-media-control://activate",
                                           $st->($appsgr, "($app)"));
               next;
             }
@@ -1490,13 +1518,13 @@ statusline_install() {
 }
 
 # Best-effort cmd+click support next to the wiring: build + register the
-# claude-media:// handler app while statusline.links is on. A failed build
+# claude-media-control:// handler app while statusline.links is on. A failed build
 # never blocks the statusline itself — the segment just renders without
 # links (the renderer gates on the app's presence).
 statusline_click_handler_setup() {
   [ "$(config_get statusline.links)" = "on" ] || return 0
   if "$SCRIPT_DIR/build-click-handler.sh" >/dev/null; then
-    echo "statusline: cmd+click enabled — the claude-media:// handler app is registered (disable with /media:config statusline.links off)."
+    echo "statusline: cmd+click enabled — the claude-media-control:// handler app is registered (disable with /media:config statusline.links off)."
   else
     echo "statusline: click-handler build failed — the segment stays plain (no cmd+click). Retry with /media:config statusline.links on." >&2
   fi
@@ -1956,12 +1984,12 @@ config_preflight() {
       return 3
       ;;
     statusline.links)
-      # Links are useless without the claude-media:// handler app — build
+      # Links are useless without the claude-media-control:// handler app — build
       # (or refresh) it now and refuse the enable when that fails.
       if "$SCRIPT_DIR/build-click-handler.sh" >/dev/null; then
         return 0
       fi
-      echo "media: cannot enable statusline.links — building the claude-media:// click-handler app failed. Run /media:doctor." >&2
+      echo "media: cannot enable statusline.links — building the claude-media-control:// click-handler app failed. Run /media:doctor." >&2
       return 3
       ;;
   esac
@@ -2061,7 +2089,7 @@ do_config() {
         statusline.multiline) note="statusline layout: on = each group on its own line, off = one line (unused when statusline.fields has / breaks)" ;;
         statusline.color)    note="ANSI colors/bold/italic in the statusline segment (honors NO_COLOR)" ;;
         statusline.marquee)  note="scroll statusline titles wider than 30 cells (1 char/second)" ;;
-        statusline.links)    note="cmd+click actions in the statusline: icon toggles, track jumps to the playing media (tab/track), bar seeks (OSC 8 + claude-media:// handler)" ;;
+        statusline.links)    note="cmd+click actions in the statusline: icon toggles, track jumps to the playing media (tab/track), bar seeks (OSC 8 + claude-media-control:// handler)" ;;
         history.record)      note="log played tracks to history.jsonl (view with /media:history)" ;;
       esac
       printf '%-21s %-6s %s\n' "$k" "$(config_get "$k")" "$note"
@@ -2201,15 +2229,15 @@ do_doctor() {
   echo "[7] Output dev  : $outdev"
   echo "[8] Statusline  : $(do_statusline_status)"
 
-  # cmd+click actions: the claude-media:// handler app must exist for the
-  # segment to render OSC 8 links at all.
+  # cmd+click actions: the claude-media-control:// handler app must exist (at
+  # the current applet format) for the segment to render OSC 8 links at all.
   local clicks clickapp
   if [ "$(config_get statusline.links)" != "on" ]; then
     clicks="off (statusline.links) — the segment renders without cmd+click links"
   elif clickapp="$("$SCRIPT_DIR/build-click-handler.sh" --check-only 2>/dev/null)"; then
     clicks="on — handler app registered ($clickapp)"
   else
-    clicks="on but the handler app is MISSING — links render plain; rebuild with /media:config statusline.links on"
+    clicks="on but the handler app is MISSING or OUTDATED — links pause until it rebuilds (automatic); force it with /media:config statusline.links on"
   fi
   echo "[9] Click links : $clicks"
   echo "[10] Config     : progressbar=$(config_get display.progressbar) statusline=$(config_get display.statusline) color=$(config_get statusline.color) marquee=$(config_get statusline.marquee)"

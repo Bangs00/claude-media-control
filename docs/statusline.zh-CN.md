@@ -53,7 +53,7 @@
 <details>
 <summary>点击的原理（以及为什么安全）</summary>
 
-可点击的部分是指向本地 `claude-media://` URL scheme 的 OSC 8 超链接。
+可点击的部分是指向本地 `claude-media-control://` URL scheme 的 OSC 8 超链接。
 开启状态栏时会顺带生成一个小处理器应用（`ClaudeMediaClick.app`——用
 macOS 自带的 `osacompile` 生成到插件数据目录，零第三方代码），并注册进
 LaunchServices。点击后运行 `media.sh open-url`，它接受的操作恰好只有

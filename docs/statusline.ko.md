@@ -60,7 +60,7 @@ Claude Code statusline에 현재 곡이 한 줄 추가됩니다:
 <details>
 <summary>클릭이 동작하는 원리 (그리고 안전한 이유)</summary>
 
-클릭 가능한 부분은 로컬 `claude-media://` URL 스킴을 가리키는 OSC 8
+클릭 가능한 부분은 로컬 `claude-media-control://` URL 스킴을 가리키는 OSC 8
 하이퍼링크입니다. statusline을 켜면 작은 핸들러 앱(`ClaudeMediaClick.app`
 — macOS 기본 도구 `osacompile`로 플러그인 데이터 디렉터리에 생성, 서드파티
 코드 없음)이 만들어져 LaunchServices에 등록됩니다. 클릭하면 `media.sh

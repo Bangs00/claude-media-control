@@ -5,6 +5,29 @@ All notable changes to this project are documented here. The format follows
 [SemVer](https://semver.org/spec/v2.0.0.html), tracked in
 `.claude-plugin/plugin.json`.
 
+## [0.29.0] — 2026-07-13
+
+### Changed
+
+- **Statusline clicks moved to the `claude-media-control://` scheme.**
+  The Claude Desktop app declares `claude-media` as one of its internal
+  Electron schemes, so a future version could claim the system-wide URL
+  binding out from under the plugin — and ⌘+clicks would open the Claude
+  app instead of controlling playback. The links, the handler applet, and
+  `open-url` now use the plugin's own name as the scheme. The applet
+  still claims the old scheme and `open-url` still accepts it, so links
+  rendered by still-open pre-0.29 sessions keep working; the applet
+  rebuilds itself automatically (`APPLET_FORMAT` 3) with the same bundle
+  id, so the Automation approval you already gave carries over — no new
+  consent dialog.
+- **Links pause instead of going dead while the applet is stale.** Right
+  after a plugin update — or after a still-open older session's warmup
+  rebuilds the old applet (the v0.28.1 flip-flop) — the old applet
+  doesn't claim the scheme the new links use, and a dead link can't
+  trigger the click-time self-heal. The statusline now renders those
+  ticks without links and rebuilds the applet in the background; links
+  return a tick or two later, no click or new session needed.
+
 ## [0.28.1] — 2026-07-13
 
 ### Fixed

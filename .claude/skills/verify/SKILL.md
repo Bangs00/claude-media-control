@@ -58,8 +58,11 @@ Two gotchas:
   changing the published title first, then the artist one read later —
   the transitional entry must be replaced, not kept
 - **cmd+click round-trip** — `build-click-handler.sh` in the scratch data
-  dir, then `open "claude-media://seek/50"` etc. and assert on the fake
-  publisher's command log. Two gotchas: LaunchServices launches the applet
+  dir, then `open "claude-media-control://seek/50"` etc. and assert on the
+  fake publisher's command log. (The legacy `claude-media://` scheme is also
+  claimed and accepted, but the user's REAL install claims it too — `open`
+  routing for it is ambiguous on this machine, so exercise legacy URLs by
+  calling the scratch `click-handler.sh` directly instead of via `open`.) Two gotchas: LaunchServices launches the applet
   WITHOUT `CLAUDE_PLUGIN_DATA`, so rewrite the scratch `click-handler.sh`
   to export it (and to exec THIS checkout's `media.sh` — the resolution
   block prefers the marketplace cache, which may hold an older version

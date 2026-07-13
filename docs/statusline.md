@@ -59,7 +59,7 @@ In terminals with hyperlink support, the segment is **cmd+clickable**:
 <summary>How clicks work (and why they're safe)</summary>
 
 The clickable parts are OSC 8 hyperlinks pointing at a local
-`claude-media://` URL scheme. Enabling the statusline builds a tiny handler
+`claude-media-control://` URL scheme. Enabling the statusline builds a tiny handler
 app (`ClaudeMediaClick.app`, generated into the plugin data directory with
 macOS's bundled `osacompile` — no third-party code) and registers it with
 LaunchServices. A click runs `media.sh open-url`, whose whole surface is

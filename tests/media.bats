@@ -33,6 +33,16 @@ setup() {
   MEDIA="$PLUGIN/scripts/media.sh"
 }
 
+# Materialize a fake handler applet the way the stub build does — the
+# renderer gates links on its CFBundleVersion (= APPLET_FORMAT, currently 3);
+# pass an older number to fake a stale (pre-0.29) applet.
+fake_click_app() {
+  local fmt="${1:-3}"
+  mkdir -p "$CLAUDE_PLUGIN_DATA/ClaudeMediaClick.app/Contents"
+  printf '<?xml version="1.0" encoding="UTF-8"?>\n<plist version="1.0"><dict>\n  <key>CFBundleVersion</key><string>%s</string>\n</dict></plist>\n' "$fmt" \
+    > "$CLAUDE_PLUGIN_DATA/ClaudeMediaClick.app/Contents/Info.plist"
+}
+
 # ---- dispatch / usage -------------------------------------------------------
 
 @test "no subcommand: usage on stderr, exit 2" {
@@ -1106,7 +1116,7 @@ setup() {
   [[ "$output" == *$'\e[32m███▆\e[0m\e[2m░░░░░░\e[0m'* ]]
   # With the handler app present every cell (boundary included) is its own
   # seek link, and stripping the links leaves the plain glyphs.
-  mkdir -p "$CLAUDE_PLUGIN_DATA/ClaudeMediaClick.app"
+  fake_click_app
   rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["progressbar"],"style.progressbar.style":"rise","style.progressbar.length":"10"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
@@ -1144,7 +1154,7 @@ setup() {
   [[ "$output" == *$'\e[32m───╼\e[0m\e[2m╾─────\e[0m'* ]]
   # With the handler app present every cell is its own seek link, and
   # stripping the links leaves the plain glyphs.
-  mkdir -p "$CLAUDE_PLUGIN_DATA/ClaudeMediaClick.app"
+  fake_click_app
   rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["progressbar"],"style.progressbar.style":"playhead","style.progressbar.length":"10"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
@@ -1250,7 +1260,7 @@ setup() {
   [[ "$output" == *$'\e[32m███▓\e[0m\e[2m░░░░░░\e[0m'* ]]
   # With the handler app present every cell (boundary included) is its own
   # seek link, and stripping the links leaves the plain glyphs.
-  mkdir -p "$CLAUDE_PLUGIN_DATA/ClaudeMediaClick.app"
+  fake_click_app
   rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["progressbar"],"style.progressbar.style":"fade","style.progressbar.length":"10"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
@@ -1717,7 +1727,7 @@ setup() {
   [[ "$output" == *"usage: media.sh"* ]]
 }
 
-# ---- statusline cmd+click links (OSC 8 + claude-media:// handler) --------------
+# ---- statusline cmd+click links (OSC 8 + claude-media-control:// handler) ------
 
 @test "config: statusline.links defaults on and round-trips; enable builds the handler" {
   run "$MEDIA" config statusline.links
@@ -1729,6 +1739,9 @@ setup() {
   run "$MEDIA" config statusline.links on
   [ "$status" -eq 0 ]
   [ -d "$CLAUDE_PLUGIN_DATA/ClaudeMediaClick.app" ]    # preflight built + registered
+  # The built applet is at the current format (claims the current scheme).
+  [ "$(/usr/bin/plutil -extract CFBundleVersion raw \
+       "$CLAUDE_PLUGIN_DATA/ClaudeMediaClick.app/Contents/Info.plist")" = "3" ]
 }
 
 @test "config statusline.links on: refused (exit 3) when the handler build fails" {
@@ -1738,25 +1751,26 @@ setup() {
 }
 
 @test "statusline: cmd+click links render when the handler app is present" {
-  mkdir -p "$CLAUDE_PLUGIN_DATA/ClaudeMediaClick.app"
+  fake_click_app
   echo '{"display.statusline":true}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
   [ "$status" -eq 0 ]
-  [[ "$output" == *$'\e]8;;claude-media://toggle\a'* ]]      # ▶︎/⏸ icon
-  [[ "$output" == *$'\e]8;;claude-media://activate\a'* ]]    # title — artist (+ app)
-  [[ "$output" == *"claude-media://seek/2"* ]]               # first of 20 bar cells
-  [[ "$output" == *"claude-media://seek/97"* ]]              # last bar cell
+  [[ "$output" == *$'\e]8;;claude-media-control://toggle\a'* ]]   # ▶︎/⏸ icon
+  [[ "$output" == *$'\e]8;;claude-media-control://activate\a'* ]] # title — artist (+ app)
+  [[ "$output" == *"claude-media-control://seek/2"* ]]            # first of 20 bar cells
+  [[ "$output" == *"claude-media-control://seek/97"* ]]           # last bar cell
+  [[ "$output" != *']8;;claude-media://'* ]]                      # legacy scheme retired
   [[ "$output" == *"Stub Song"* ]]
 }
 
 @test "statusline: every bar cell is its own seek link, glyphs unchanged" {
-  mkdir -p "$CLAUDE_PLUGIN_DATA/ClaudeMediaClick.app"
+  fake_click_app
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["progressbar"]}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
   [ "$status" -eq 0 ]
   # Cell i of the default 20 jumps to int((i+0.5)*100/20) percent.
   for pct in 2 7 12 17 22 27 32 37 42 47 52 57 62 67 72 77 82 87 92 97; do
-    [[ "$output" == *"claude-media://seek/$pct"* ]]
+    [[ "$output" == *"claude-media-control://seek/$pct"* ]]
   done
   # 20 cells x (open + close) = 40 OSC 8 sequences, nothing more.
   [ "$(printf '%s' "$output" | /usr/bin/grep -o ']8;;' | wc -l | tr -d ' ')" -eq 40 ]
@@ -1768,20 +1782,22 @@ setup() {
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["progressbar"],"style.progressbar.length":"4"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
   for pct in 12 37 62 87; do
-    [[ "$output" == *"claude-media://seek/$pct"* ]]
+    [[ "$output" == *"claude-media-control://seek/$pct"* ]]
   done
   [ "$(printf '%s' "$output" | /usr/bin/grep -o ']8;;' | wc -l | tr -d ' ')" -eq 8 ]
 }
 
 @test "statusline: no links without the handler app, with links off, and in the volume bar" {
-  # Handler missing: statusline.links defaults on but nothing would answer.
+  # Handler missing: statusline.links defaults on but nothing would answer
+  # (and nothing may be built from the render path — never-created stays so).
   mkdir -p "$CLAUDE_PLUGIN_DATA"
   echo '{"display.statusline":true}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
   [ "$status" -eq 0 ]
   [[ "$output" != *']8;;'* ]]
+  [ ! -d "$CLAUDE_PLUGIN_DATA/ClaudeMediaClick.app" ]
   # Handler present but the key off.
-  mkdir -p "$CLAUDE_PLUGIN_DATA/ClaudeMediaClick.app"
+  fake_click_app
   rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
   echo '{"display.statusline":true,"statusline.links":false}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
@@ -1796,12 +1812,48 @@ setup() {
 }
 
 @test "statusline: NO_COLOR strips styling but keeps the links" {
-  mkdir -p "$CLAUDE_PLUGIN_DATA/ClaudeMediaClick.app"
+  fake_click_app
   echo '{"display.statusline":true}' > "$CLAUDE_PLUGIN_DATA/config.json"
   NO_COLOR=1 run "$MEDIA" statusline
   [ "$status" -eq 0 ]
-  [[ "$output" != *$'\e['* ]]                                # no SGR
-  [[ "$output" == *$'\e]8;;claude-media://toggle\a'* ]]      # links intact
+  [[ "$output" != *$'\e['* ]]                                        # no SGR
+  [[ "$output" == *$'\e]8;;claude-media-control://toggle\a'* ]]      # links intact
+}
+
+@test "statusline: a stale (pre-0.29) applet pauses links and rebuilds itself" {
+  # A format-2 applet only claims the legacy scheme — links it cannot answer
+  # must not render; the render path kicks a background rebuild instead.
+  fake_click_app 2
+  echo '{"display.statusline":true}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$status" -eq 0 ]
+  [[ "$output" != *']8;;'* ]]
+  # The kick re-ran the (stub) builder in the background — poll briefly.
+  fmt=""
+  for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+    fmt="$(/usr/bin/plutil -extract CFBundleVersion raw \
+      "$CLAUDE_PLUGIN_DATA/ClaudeMediaClick.app/Contents/Info.plist" 2>/dev/null || true)"
+    [ "$fmt" = "3" ] && break
+    sleep 0.2
+  done
+  [ "$fmt" = "3" ]
+  # Next tick renders the current-scheme links again.
+  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  run "$MEDIA" statusline
+  [ "$status" -eq 0 ]
+  [[ "$output" == *$'\e]8;;claude-media-control://toggle\a'* ]]
+}
+
+@test "statusline: a recent build attempt throttles the stale-applet rebuild kick" {
+  fake_click_app 2
+  touch "$CLAUDE_PLUGIN_DATA/build.log"    # "a build just ran"
+  echo '{"display.statusline":true}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$status" -eq 0 ]
+  [[ "$output" != *']8;;'* ]]              # links still pause…
+  sleep 1
+  [ "$(/usr/bin/plutil -extract CFBundleVersion raw \
+    "$CLAUDE_PLUGIN_DATA/ClaudeMediaClick.app/Contents/Info.plist")" = "2" ]  # …but no rebuild fired
 }
 
 @test "statusline install: builds the click handler; uninstall removes it" {
@@ -1827,28 +1879,39 @@ setup() {
 # ---- open-url (click-action dispatch) -------------------------------------------
 
 @test "open-url: toggle sends the command and prints the re-read state" {
-  run "$MEDIA" open-url claude-media://toggle
+  run "$MEDIA" open-url claude-media-control://toggle
   [ "$status" -eq 0 ]
   [[ "$output" == *'"title":"Stub Song"'* ]]
 }
 
 @test "open-url: seek/<pct> converts the percent to seconds via the duration" {
-  run "$MEDIA" open-url claude-media://seek/50
+  run "$MEDIA" open-url claude-media-control://seek/50
   [ "$status" -eq 0 ]
   [[ "$output" == *'"title":"Stub Song"'* ]]
   [ "$(/bin/cat "$CLAUDE_PLUGIN_DATA/stub-last-seek")" = "100.0" ]   # 50% of 200s
 }
 
+@test "open-url: the legacy claude-media:// scheme still dispatches" {
+  # Links rendered by still-open pre-0.29 sessions keep working: the applet
+  # claims both schemes and open-url accepts both.
+  run "$MEDIA" open-url claude-media://toggle
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'"title":"Stub Song"'* ]]
+  run "$MEDIA" open-url claude-media://seek/50
+  [ "$status" -eq 0 ]
+  [ "$(/bin/cat "$CLAUDE_PLUGIN_DATA/stub-last-seek")" = "100.0" ]
+}
+
 @test "open-url: seek without a known duration fails cleanly" {
   STUB_PRIMARY=null STUB_JXA_JSON='{"degraded":true,"title":"X","playing":true}' \
-    run "$MEDIA" open-url claude-media://seek/50
+    run "$MEDIA" open-url claude-media-control://seek/50
   [ "$status" -eq 1 ]
   [[ "$output" == *"duration"* ]]
 }
 
 @test "open-url: activate without an identified app fails cleanly" {
   STUB_PRIMARY=null STUB_JXA_JSON='{"degraded":true,"title":"X"}' \
-    run "$MEDIA" open-url claude-media://activate
+    run "$MEDIA" open-url claude-media-control://activate
   [ "$status" -eq 1 ]
   [[ "$output" == *"cannot activate"* ]]
 }
@@ -1857,15 +1920,17 @@ setup() {
   # The stub app (com.stub.player, pid 1) is neither a running regular app
   # nor an installed bundle — the chain must fail with a clear message, not
   # hang or launch anything.
-  run "$MEDIA" open-url claude-media://activate
+  run "$MEDIA" open-url claude-media-control://activate
   [ "$status" -eq 1 ]
   [[ "$output" == *"could not bring"* ]]
 }
 
 @test "open-url: anything but the three actions is rejected, exit 2" {
-  for bad in "claude-media://volume/50" "claude-media://seek/" \
-             "claude-media://seek/101" "claude-media://seek/1x" \
-             "claude-media://seek/5%20" "http://example.com" "" \
+  for bad in "claude-media-control://volume/50" "claude-media-control://seek/" \
+             "claude-media-control://seek/101" "claude-media-control://seek/1x" \
+             "claude-media-control://seek/5%20" "http://example.com" "" \
+             "claude-media-control://toggle/../seek/5" \
+             "claude-media://volume/50" "claude-media://seek/" \
              "claude-media://toggle/../seek/5"; do
     run "$MEDIA" open-url "$bad"
     [ "$status" -eq 2 ]
@@ -1876,17 +1941,20 @@ setup() {
 @test "open-url: control clicks drop the statusline cache" {
   mkdir -p "$CLAUDE_PLUGIN_DATA"
   printf 'stale' > "$CLAUDE_PLUGIN_DATA/statusline.cache"
-  run "$MEDIA" open-url claude-media://toggle
+  run "$MEDIA" open-url claude-media-control://toggle
   [ "$status" -eq 0 ]
   [ ! -f "$CLAUDE_PLUGIN_DATA/statusline.cache" ]
 }
 
 @test "open-url: self-heals the click handler before dispatching" {
   [ ! -d "$CLAUDE_PLUGIN_DATA/ClaudeMediaClick.app" ]
-  run "$MEDIA" open-url claude-media://toggle
+  run "$MEDIA" open-url claude-media-control://toggle
   [ "$status" -eq 0 ]
   [ -d "$CLAUDE_PLUGIN_DATA/ClaudeMediaClick.app" ]
   [ -x "$CLAUDE_PLUGIN_DATA/click-handler.sh" ]
+  # The heal leaves a current-format applet behind (stub mirrors the real one).
+  [ "$(/usr/bin/plutil -extract CFBundleVersion raw \
+       "$CLAUDE_PLUGIN_DATA/ClaudeMediaClick.app/Contents/Info.plist")" = "3" ]
 }
 
 # The tab-jump helper is best-effort by contract: whatever goes wrong (and a
