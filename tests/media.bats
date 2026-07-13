@@ -1881,6 +1881,14 @@ setup() {
   [ ! -f "$CLAUDE_PLUGIN_DATA/statusline.cache" ]
 }
 
+@test "open-url: self-heals the click handler before dispatching" {
+  [ ! -d "$CLAUDE_PLUGIN_DATA/ClaudeMediaClick.app" ]
+  run "$MEDIA" open-url claude-media://toggle
+  [ "$status" -eq 0 ]
+  [ -d "$CLAUDE_PLUGIN_DATA/ClaudeMediaClick.app" ]
+  [ -x "$CLAUDE_PLUGIN_DATA/click-handler.sh" ]
+}
+
 # The tab-jump helper is best-effort by contract: whatever goes wrong (and a
 # bundle nothing has launched), it must exit 0, print nothing, and launch
 # nothing — activation already happened when it runs.

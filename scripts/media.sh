@@ -508,6 +508,14 @@ focus_media() {
 # nothing else, no free-form parameters.
 do_open_url() {
   local url="${1:-}" pct=""
+  # Self-heal before dispatching: a warmup fired from a still-open
+  # pre-update Claude Code session re-runs THAT version's installer and can
+  # rebuild the applet back to an older format whose backgrounded handler
+  # breaks TCC attribution — clicks then activate the app but the jump
+  # silently dies. Re-ensuring here re-arms the NEXT click after any such
+  # downgrade (this click already rode whatever applet spawned it); when
+  # the format already matches it is one plutil read + a handler rewrite.
+  "$SCRIPT_DIR/build-click-handler.sh" >/dev/null 2>&1 || true
   case "$url" in
     claude-media://toggle | claude-media://toggle/)
       do_control toggle 2

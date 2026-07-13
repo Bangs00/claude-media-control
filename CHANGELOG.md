@@ -5,6 +5,21 @@ All notable changes to this project are documented here. The format follows
 [SemVer](https://semver.org/spec/v2.0.0.html), tracked in
 `.claude-plugin/plugin.json`.
 
+## [0.28.1] — 2026-07-13
+
+### Fixed
+
+- **Clicks self-heal the handler applet.** Updating the plugin while
+  older Claude Code sessions stay open leaves those sessions re-running
+  *their* bundled installer on warmup — rebuilding the click applet back
+  to the pre-0.28.0 format whose backgrounded handler breaks Automation
+  attribution: clicks activate the app but the tab jump silently dies
+  (measured live: a 0.27.0 warmup downgraded the applet 48 minutes after
+  the 0.28.0 update). `open-url` now re-ensures the applet before
+  dispatching, so the first click after any downgrade repairs it and the
+  next one jumps again; the flip-flop ends for good once every
+  pre-update session is closed.
+
 ## [0.28.0] — 2026-07-13
 
 ### Fixed
