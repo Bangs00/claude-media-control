@@ -5,7 +5,7 @@ All notable changes to this project are documented here. The format follows
 [SemVer](https://semver.org/spec/v2.0.0.html), tracked in
 `.claude-plugin/plugin.json`.
 
-## [Unreleased]
+## [0.31.1] — 2026-07-14
 
 ### Fixed
 
