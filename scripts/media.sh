@@ -992,15 +992,35 @@ do_statusline() {
         eq => sub { my ($i, $n, $pc) = @_; my $wl = $n / 3.0; $wl = 5 if $wl < 5;
           my $x = ($i - $pc) / $wl;
           3.5 + (sin(2*$WPI*$x) + 0.55*sin(2*$WPI*$x*2.3 + 1) + 0.75*sin(2*$WPI*$x*0.5 + 2)) * (3.5/2.3) },
-        pulse => sub { my ($i, $n, $pc) = @_; my $pd = $n / 2.5; $pd = 6 if $pd < 6;
+        # pulse: an ECG lead trace. A flat isoelectric baseline, then a
+        # narrow spike-tall QRS complex (rise / one-cell peak / fall) and a
+        # low rounded T wave a beat later. Two beats fill a length-20 bar.
+        pulse => sub { my ($i, $n, $pc) = @_; my $pd = $n / 2; $pd = 6 if $pd < 6;
           my $p = $i - $pc; my $m = $p - $pd * $flr->($p / $pd);
-          $m < 1 ? 1.0 + 6.0 * $m : $m < 2 ? 7 - 6.0 * ($m - 1) : 1.0 },
+            $m < 0.4 ? 7 * $m / 0.4
+          : $m < 1.4 ? 7
+          : $m < 1.8 ? 7 * (1.8 - $m) / 0.4
+          : ($m >= 2.8 && $m < 4.8) ? 2.7 * sin($WPI * ($m - 2.8) / 2)
+          : 0 },
+        # ekg: the same ECG beat tuned for braille density. The baseline
+        # holds one sub-dot (not zero) so the isoelectric line stays drawn,
+        # and the QRS packs into a needle barely a cell wide. Units are
+        # sub-columns ($n = 2 * cells), so the beat lands where pulse does.
+        ekg => sub { my ($i, $n, $pc) = @_; my $pd = $n / 2; $pd = 12 if $pd < 12;
+          my $p = $i - $pc; my $m = $p - $pd * $flr->($p / $pd);
+            $m < 0.4 ? 1 + 6 * $m / 0.4
+          : $m < 1.2 ? 7
+          : $m < 1.6 ? 1 + 6 * (1.6 - $m) / 0.4
+          : ($m >= 3.2 && $m < 7.2) ? 1 + 2.4 * sin($WPI * ($m - 3.2) / 4)
+          : 1 },
         spectrum => sub { my ($i, $n, $t) = @_; my $e = 0.55 + 0.45 * (1 - $i / $n);
           3.5 + 3.5 * $e * (0.55*sin($i*1.73 + $t*2.1) + 0.45*sin($i*0.91 + 2 + $t*3.3)) },
         mirror => sub { my ($i, $n, $t) = @_; my $m = ($n - 1) / 2;
           3.5 + 3.5 * sin(2 * $WPI * (abs($i - $m) / ($n / 2)) * 1.5 - $t * 1.4) },
       );
-      # preset -> [draw, height-fn]; cava/ripple reuse spectrum/mirror.
+      # preset -> [draw, height-fn]. cava/ripple/swell/bars reuse a block
+      # height fn in braille; ekg has its own braille-tuned ECG fn so the
+      # isoelectric line and needle QRS survive the sub-column packing.
       my %wf = (
         wave     => ["block",   "wave"],
         eq       => ["block",   "eq"],
@@ -1012,7 +1032,7 @@ do_statusline() {
         ripple   => ["braille", "mirror"],
         swell    => ["braille", "wave"],
         bars     => ["braille", "eq"],
-        ekg      => ["braille", "pulse"],
+        ekg      => ["braille", "ekg"],
       );
       my $csv = $sty{"progressbar.style"} // "line";
       my ($fc, $ec, $hc) = $cs{$csv}      ? @{$cs{$csv}}

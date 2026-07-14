@@ -95,11 +95,11 @@ accent) · `braille` `⣿⣿⣿⣿⣿⣿⣀⣀⣀⣀` · `chevron` `▸▸▸▸
 visualizers span the whole bar (colors on: the accent/dim split marks
 progress; colors off: the unplayed tail dims in height, `notes` to `·`
 rests): `wave` `▅▂▂▆█▅▂▂▆█` (a length-adaptive sine swell) · `pulse`
-`▂▂▄▆▂▂▂▂▄▆` (an ECG impulse) · `eq` `▅▂▃▄▆▅▄▅▅▇` (multi-frequency) ·
+`▁▁█▁▁▄▁▁█▁` (an ECG trace) · `eq` `▅▂▃▄▆▅▄▅▅▇` (multi-frequency) ·
 `notes` `♪··♫♪♫··♪♫` (a ♪♫ note density) · `spectrum` `▂▂▅▅▄▆▆▃▃▅` ·
 `mirror` `▃█▄▁▇▇▁▄█▃` · `cava` `⢀⣦⣴⣆⣠⣦⣴⣀⣴⣤` · `ripple` `⢠⣿⣆⢀⣾⣷⡀⣰⣿⡄` (braille);
-`swell` `⢀⣼⣷⡄⢀⣼⣷⡄⢀⣼` · `bars` `⣦⣤⣴⣦⡄⢠⣴⣦⣴⣴` · `ekg` `⣀⣴⣀⣀⣀⣴⣀⣀⣀⣴` are
-braille twins of wave/eq/pulse. The waveforms and visualizers drift
+`swell` `⢀⣼⣷⡄⢀⣼⣷⡄⢀⣼` · `bars` `⣦⣤⣴⣦⡄⢠⣴⣦⣴⣴` · `ekg` `⣀⣇⣀⣤⣀⣀⣀⣇⣀⣤` —
+`swell`/`bars` are braille twins of wave/eq, `ekg` draws `pulse`'s ECG in braille. The waveforms and visualizers drift
 forward while playing and freeze on pause. **Bar length** (`style.progressbar.length`): any whole
 number of cells from 1 to 60 (default `20`); the `/media:now` bar follows
 it too. **Volume bar shape** (`style.volume.style`): `block` (one ▄

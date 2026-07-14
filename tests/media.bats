@@ -1042,7 +1042,7 @@ setup() {
   rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["progressbar"],"style.progressbar.style":"pulse","style.progressbar.length":"10"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
-  [ "$output" = "▂▂▄▆▁▁▁▁▂▃" ]              # ECG impulse over the baseline ▂
+  [ "$output" = "▃▁▆█▁▂▂▁▃▃" ]              # ECG trace: a QRS spike over a flat baseline
   rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["progressbar"],"style.progressbar.style":"#.","style.progressbar.length":"10"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
@@ -1098,12 +1098,13 @@ setup() {
 
 @test "statusline: progressbar braille field presets — swell/bars/ekg span the bar" {
   mkdir -p "$CLAUDE_PLUGIN_DATA"
-  # Braille twins of wave/eq/pulse: two sub-columns per cell; field presets,
-  # so the tail past 4/10 renders attenuated instead of blank.
+  # swell/bars mirror wave/eq in braille; ekg is a braille-tuned ECG. Two
+  # sub-columns per cell; field presets, so the tail past 4/10 renders
+  # attenuated instead of blank.
   local cases=(
     "swell|⣷⡄⢀⣼⣀⠀⠀⣀⣀⠀"
     "bars|⣦⢀⣠⣦⣀⢀⣀⡀⠀⣀"
-    "ekg|⣀⣀⣀⣴⠀⠀⠀⢀⠀⠀"
+    "ekg|⣀⣶⣀⣤⠀⠀⠀⣀⠀⢀"
   )
   for c in "${cases[@]}"; do
     rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"

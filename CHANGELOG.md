@@ -5,6 +5,24 @@ All notable changes to this project are documented here. The format follows
 [SemVer](https://semver.org/spec/v2.0.0.html), tracked in
 `.claude-plugin/plugin.json`.
 
+## [0.34.0] — 2026-07-14
+
+### Changed
+
+- **`pulse` and `ekg` redraw as a real ECG trace.** Both now render the
+  heartbeat as an ECG lead — a flat isoelectric baseline, a narrow
+  spike-tall QRS complex, then a low rounded T wave a beat later — instead
+  of the former single triangular blip. `ekg` gains its own braille-tuned
+  shape: the baseline holds one sub-dot so the isoelectric line stays
+  visible, and the QRS packs into a needle barely a cell wide. **This
+  changes how `pulse` and `ekg` look.** The `/media:now` bar spec, the
+  style galleries, and the demo GIFs follow the new rendering.
+- **The style gallery keeps each waveform beside its braille twin.**
+  `swell`, `bars`, and `ekg` — the braille twins of `wave`, `eq`, and
+  `pulse` — now sit with their block originals under Animated presets, and
+  the Audio visualizers section lists only the spectrum-analyzer presets
+  `spectrum`/`mirror`/`cava`/`ripple`.
+
 ## [0.33.0] — 2026-07-14
 
 ### Changed
