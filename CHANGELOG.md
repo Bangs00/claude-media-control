@@ -5,6 +5,30 @@ All notable changes to this project are documented here. The format follows
 [SemVer](https://semver.org/spec/v2.0.0.html), tracked in
 `.claude-plugin/plugin.json`.
 
+## [0.31.0] — 2026-07-14
+
+### Added
+
+- **Audio-visualizer progress-bar presets.** Seven new
+  `style.progressbar.style` values turn the bar into a music visualizer:
+  `spectrum` (independent bass-weighted bars) and `mirror` (a wave mirrored
+  from the centre) in eighth-block heights, plus braille twins with double
+  horizontal density — `cava` (spectrum), `ripple` (mirror), and
+  `swell`/`bars`/`ekg` (braille `wave`/`eq`/`pulse`).
+  `spectrum`/`mirror`/`cava`/`ripple` span the whole bar; with
+  `statusline.color` on the accent/dim split marks progress, and with it off
+  the unplayed tail is dimmed in height so progress still reads.
+
+### Changed
+
+- **`wave`, `pulse`, `eq`, and `notes` are now length-adaptive waveforms.**
+  Instead of repeating a fixed handful of glyphs, each is computed from the
+  bar width and drawn across eight block levels (`▁`..`█`), so a longer bar
+  shows a bigger, smoother shape: `wave` a sine swell, `pulse` an ECG
+  impulse, `eq` a multi-frequency equalizer, `notes` a `♪♫` density. They
+  scroll sub-cell while playing and freeze on pause. **This changes how the
+  four presets look** — there is no flag to restore the old fixed pattern.
+
 ## [0.30.0] — 2026-07-14
 
 ### Changed

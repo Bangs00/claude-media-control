@@ -885,7 +885,8 @@ setup() {
   run "$MEDIA" config style.progressbar.style pulse
   [ "$status" -eq 0 ]
   for p in eq notes braille chevron tape cassette retro knob playhead \
-           smooth rise fade corner glide stipple tiles dash; do
+           smooth rise fade corner glide stipple tiles dash \
+           spectrum mirror cava ripple swell bars ekg; do
     run "$MEDIA" config style.progressbar.style "$p"
     [ "$status" -eq 0 ]
   done
@@ -1030,16 +1031,17 @@ setup() {
   # default width has its own test.
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["progressbar"],"style.progressbar.style":"wave","style.progressbar.length":"10"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
-  # Fill cycles ▂▄▆▄ over ▁ water, phased by the position (75 % 4 = 3);
-  # charset applies even with color off.
-  [ "$output" = "▄▆▄▂▁▁▁▁▁▁" ]
+  # wave is a length-adaptive sine sampled to 8 block levels (▁..█), filled
+  # to the boundary (75.4/200 = 4 of 10 cells); the phase drifts with the
+  # position. Charset applies even with color off.
+  [ "$output" = "▅▂▂▆▁▁▁▁▁▁" ]
   rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
   STUB_ELAPSED=76 run "$MEDIA" statusline
-  [ "$output" = "▂▄▆▄▁▁▁▁▁▁" ]              # one second on — the swell rolls right
+  [ "$output" = "▇▃▁▄▁▁▁▁▁▁" ]              # one second on — the wave drifts
   rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["progressbar"],"style.progressbar.style":"pulse","style.progressbar.length":"10"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
-  [ "$output" = "▂▂█▁▁▁▁▁▁▁" ]              # ECG beat ▂▂█▁▄, phase 75 % 5 = 0
+  [ "$output" = "▂▂▄▆▁▁▁▁▁▁" ]              # ECG impulse over the baseline ▂
   rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["progressbar"],"style.progressbar.style":"#.","style.progressbar.length":"10"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
@@ -1049,11 +1051,12 @@ setup() {
 @test "statusline: progressbar charsets — every 0.16.0 preset renders" {
   mkdir -p "$CLAUDE_PLUGIN_DATA"
   # Length pinned to 10 (compact expectations): stub position 75.4/200 →
-  # 4 of 10 cells; rolling fills phase by int(75). knob spends one filled
-  # cell on its ● head; smooth measures 30 eighths → 3 full blocks + ▊ (6/8).
+  # 4 of 10 cells. eq/notes are Phase 19 length-adaptive waveforms (eq =
+  # multi-frequency, notes = ♪♫ density); knob spends one filled cell on its
+  # ● head; smooth measures 30 eighths → 3 full blocks + ▊ (6/8).
   local cases=(
-    "eq|█▅▆▂▁▁▁▁▁▁"
-    "notes|♫♪♫♪······"
+    "eq|▄▃▁▅▁▁▁▁▁▁"
+    "notes|♪··♫······"
     "braille|⣿⣿⣿⣿⣀⣀⣀⣀⣀⣀"
     "chevron|▸▸▸▸▹▹▹▹▹▹"
     "tape|▰▰▰▰▱▱▱▱▱▱"
@@ -1069,6 +1072,62 @@ setup() {
     echo "preset ${c%%|*}: got '$output', want '${c#*|}'"
     [ "$output" = "${c#*|}" ]
   done
+}
+
+@test "statusline: progressbar visualizers — spectrum/mirror/cava/ripple span the bar" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  # Field presets (Phase 19) fill the whole bar; with colors off the unplayed
+  # tail (past 75.4/200 = 4/10) is attenuated so progress still reads by height.
+  local cases=(
+    "spectrum|▄▅▇▅▁▂▂▂▂▂"
+    "mirror|▃▂▇▆▁▁▂▃▁▂"
+    "cava|⣤⣦⢀⣦⣀⡀⢀⣀⣀⠀"
+    "ripple|⣄⢀⣾⣦⠀⠀⣀⣀⠀⢀"
+  )
+  for c in "${cases[@]}"; do
+    rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+    echo "{\"display.statusline\":true,\"statusline.color\":false,\"statusline.fields\":[\"progressbar\"],\"style.progressbar.style\":\"${c%%|*}\",\"style.progressbar.length\":\"10\"}" > "$CLAUDE_PLUGIN_DATA/config.json"
+    run "$MEDIA" statusline
+    echo "preset ${c%%|*}: got '$output', want '${c#*|}'"
+    [ "$output" = "${c#*|}" ]
+  done
+}
+
+@test "statusline: progressbar braille space presets — swell/bars/ekg fill to boundary" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  # Braille twins of wave/eq/pulse: two sub-columns per cell, empty tail = ⠀.
+  local cases=(
+    "swell|⣷⡄⢀⣼⠀⠀⠀⠀⠀⠀"
+    "bars|⣦⢀⣠⣦⠀⠀⠀⠀⠀⠀"
+    "ekg|⣀⣀⣀⣴⠀⠀⠀⠀⠀⠀"
+  )
+  for c in "${cases[@]}"; do
+    rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+    echo "{\"display.statusline\":true,\"statusline.color\":false,\"statusline.fields\":[\"progressbar\"],\"style.progressbar.style\":\"${c%%|*}\",\"style.progressbar.length\":\"10\"}" > "$CLAUDE_PLUGIN_DATA/config.json"
+    run "$MEDIA" statusline
+    echo "preset ${c%%|*}: got '$output', want '${c#*|}'"
+    [ "$output" = "${c#*|}" ]
+  done
+}
+
+@test "statusline: progressbar field preset — colors split accent/dim without attenuation" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  # With colors ON a field preset spans the whole bar at full amplitude; the
+  # accent/dim split (not attenuation) marks progress at 4 of 10 cells.
+  echo '{"display.statusline":true,"statusline.fields":["progressbar"],"style.progressbar.style":"spectrum","style.progressbar.length":"10"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [[ "$output" == *$'\e[32m▄▅▇▅\e[0m\e[2m▂▃▆▅▄▅\e[0m'* ]]
+}
+
+@test "statusline: progressbar spectrum — per-cell seek links, plain glyphs match" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA/ClaudeMediaClick.app"
+  # A field preset stays fully seekable: 10 cells, each its own link; strip
+  # the OSC 8 wrappers and the plain glyphs match the unlinked render.
+  echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["progressbar"],"style.progressbar.style":"spectrum","style.progressbar.length":"10"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$(printf '%s' "$output" | /usr/bin/grep -o ']8;;' | wc -l | tr -d ' ')" -eq 20 ]
+  plain="$(printf '%s' "$output" | /usr/bin/perl -pe 's/\e\]8;;[^\a]*\a//g')"
+  [ "$plain" = "▄▅▇▅▁▂▂▂▂▂" ]
 }
 
 @test "statusline: progressbar rise preset — boundary cell climbs bottom-up" {

@@ -88,14 +88,17 @@ fuse into the line — `╍┅┉`, ¼ steps, ink only ever grows) ·
 `knob` `━━━━━●────` (slider head) · `playhead` `─────╼╾───` (a one-cell
 thick head gliding along a thin track in half-cell steps — aligned it
 draws `━`, straddling it splits into `╼╾`; the elapsed side keeps the
-accent) · `wave` `▂▄▆▄▂▄▁▁▁▁` (a
-rolling swell) · `pulse` `▂▂█▁▄▂▁▁▁▁` (an ECG beat) · `eq` `▂▇▃█▅▆▁▁▁▁`
-(equalizer) · `notes` `♪♫♪♫♪♫····` (marching notes) · `braille`
-`⣿⣿⣿⣿⣿⣿⣀⣀⣀⣀` · `chevron` `▸▸▸▸▸▸▹▹▹▹` · `tape` `▰▰▰▰▰▰▱▱▱▱` ·
+accent) · `wave` `▅▂▂▆█▅▂▂▆█` (a
+length-adaptive sine swell) · `pulse` `▂▂▄▆▂▂▂▂▄▆` (an ECG impulse) · `eq`
+`▅▂▃▄▆▅▄▅▅▇` (multi-frequency) · `notes` `♪··♫♪♫··♪♫` (♪♫ density) ·
+`braille` `⣿⣿⣿⣿⣿⣿⣀⣀⣀⣀` · `chevron` `▸▸▸▸▸▸▹▹▹▹` · `tape` `▰▰▰▰▰▰▱▱▱▱` ·
 `cassette` `▮▮▮▮▮▮▯▯▯▯` · `retro` `======----` · `dots` `●●●●●●○○○○` — or
-any two characters meaning "filled + empty" (`"#-"` → `######----`).
-`wave`, `pulse`, `eq`, and `notes` roll forward each second while playing
-and freeze on pause. **Bar length** (`style.progressbar.length`): any whole
+any two characters meaning "filled + empty" (`"#-"` → `######----`). Audio
+visualizers span the whole bar: `spectrum` `▂▂▅▅▄▆▆▃▃▅` · `mirror`
+`▃█▄▁▇▇▁▄█▃` · `cava` `⢀⣦⣴⣆⣠⣦⣴⣀⣴⣤` · `ripple` `⢠⣿⣆⢀⣾⣷⡀⣰⣿⡄` (braille);
+`swell` `⢀⣼⣷⡄⢀⣼⣷⡄⢀⣼` · `bars` `⣦⣤⣴⣦⡄⢠⣴⣦⣴⣴` · `ekg` `⣀⣴⣀⣀⣀⣴⣀⣀⣀⣴` are
+braille twins of wave/eq/pulse. `wave`, `pulse`, `eq`, and `notes` drift
+forward while playing and freeze on pause. **Bar length** (`style.progressbar.length`): any whole
 number of cells from 1 to 60 (default `20`); the `/media:now` bar follows
 it too. **Volume bar shape** (`style.volume.style`): `block` (one ▄
 whose height tracks the level, default) · `progress` (an eight-cell mini

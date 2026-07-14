@@ -125,15 +125,41 @@ reads at a glance (with colors off the head alone carries it):
 
 ### Animated presets
 
-These four roll toward the empty end once per second while playing, and
-freeze on pause:
+`wave` `pulse` `eq` `notes` are **length-adaptive waveforms** — the shape is
+computed from the bar width, so a longer bar shows a bigger, smoother wave
+instead of the same few glyphs repeated. They drift while playing and freeze
+on pause. Shown full at length 20 and 10:
 
-| Value | t | t+1s | t+2s | |
-| --- | --- | --- | --- | --- |
-| `wave` | `▂▄▆▄▂▄▆▄▂▄▆▄▁▁▁▁▁▁▁▁` | `▄▂▄▆▄▂▄▆▄▂▄▆▁▁▁▁▁▁▁▁` | `▆▄▂▄▆▄▂▄▆▄▂▄▁▁▁▁▁▁▁▁` | a rolling swell |
-| `pulse` | `▂▂█▁▄▂▂█▁▄▂▂▁▁▁▁▁▁▁▁` | `▄▂▂█▁▄▂▂█▁▄▂▁▁▁▁▁▁▁▁` | `▁▄▂▂█▁▄▂▂█▁▄▁▁▁▁▁▁▁▁` | an ECG beat |
-| `eq` | `▂▇▃█▅▆▂▇▃█▅▆▁▁▁▁▁▁▁▁` | `▆▂▇▃█▅▆▂▇▃█▅▁▁▁▁▁▁▁▁` | `▅▆▂▇▃█▅▆▂▇▃█▁▁▁▁▁▁▁▁` | equalizer bars |
-| `notes` | `♪♫♪♫♪♫♪♫♪♫♪♫········` | `♫♪♫♪♫♪♫♪♫♪♫♪········` | `♪♫♪♫♪♫♪♫♪♫♪♫········` | marching notes |
+| Value | length 20 | length 10 | |
+| --- | --- | --- | --- |
+| `wave` | `▁▃▅▇█▆▄▂▁▃▅▇█▆▄▂▁▃▅▇` | `▅▂▂▆█▅▂▂▆█` | a rolling sine swell |
+| `pulse` | `▂▂▄▆▂▂▂▂▂▂▄▆▂▂▂▂▂▂▄▆` | `▂▂▄▆▂▂▂▂▄▆` | an ECG impulse |
+| `eq` | `▆▄▅▄▄▇▆▅▄▂▂▄▅▅▆▄▄▅▅▇` | `▅▂▃▄▆▅▄▅▅▇` | a multi-frequency equalizer |
+| `notes` | `··♪♫♪♫♪···♪♫♪♫♪···♪♫` | `♪··♫♪♫··♪♫` | ♪♫ note density |
+
+Each has a **braille twin** with double density: `swell` (wave), `bars`
+(eq), `ekg` (pulse) — see [Audio visualizers](#audio-visualizers) below.
+
+### Audio visualizers
+
+Seven presets turn the bar into a music visualizer. **Block** ones use
+eighth-block heights (`▁`..`█`); **braille** ones pack two sub-columns per
+cell for double horizontal density. Shown full at length 20:
+
+| Value | length 20 | |
+| --- | --- | --- |
+| `spectrum` | `▂▂▆▅▄▆▆▃▂▅▆▄▅▆▄▂▅▆▅▄` | independent bars, bass-weighted |
+| `mirror` | `▂▄▇█▆▃▁▂▅██▅▂▁▃▆█▇▄▂` | a wave mirrored from the centre |
+| `cava` | `⢀⣦⣴⣆⢠⣦⣴⡀⣴⣤⣦⣠⣦⣤⣄⣴⣦⣤⣀⣶` | `spectrum` in braille dots |
+| `ripple` | `⢀⣠⣾⣿⣦⣀⠀⢀⣴⣿⣿⣦⡀⠀⣀⣴⣿⣷⣄⡀` | `mirror` in braille dots |
+| `swell` | `⣀⣴⣿⣿⣶⣄⠀⠀⣀⣴⣿⣿⣶⣄⠀⠀⣀⣴⣿⣿` | `wave` in braille dots |
+| `bars` | `⣀⠀⣠⣦⣤⣶⣤⣠⣴⣶⣶⣶⣄⢀⣀⣀⣠⣶⣦⣤` | `eq` in braille dots |
+| `ekg` | `⣀⣴⣀⣀⣀⣀⣀⣀⣀⣴⣀⣀⣀⣀⣀⣀⣀⣴⣀⣀` | `pulse` in braille dots |
+
+`spectrum` `mirror` `cava` `ripple` span the **whole bar**, not just the
+played part. With colors on, the accent/dim split marks progress; with colors
+off, the unplayed tail is dimmed in height so progress still reads by shape.
+`swell` `bars` `ekg` fill to the boundary like the waveforms above.
 
 ### Your own characters
 

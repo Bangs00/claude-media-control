@@ -55,9 +55,10 @@ Everything below is automatic — the full guide is
   1 track · 2 app · 3 volume · 4 bar · 5 time · 6 output — and `/` starts a
   new line, so `123/456` stacks track/app/volume over bar/time/output.
 - **Style every part**: playing/paused accent colors, bold/italic/color per
-  part (named colors or hex codes like `#ff8800`), 22 progress-bar charsets
-  (from `line` `━━──` to `smooth` partial
-  blocks, a `knob` slider head, and animated `wave`/`pulse`/`eq`/`notes`),
+  part (named colors or hex codes like `#ff8800`), 29 progress-bar charsets
+  (from `line` `━━──` to `smooth` partial blocks, a `knob` slider head,
+  length-adaptive `wave`/`pulse`/`eq`/`notes` waveforms, and audio
+  visualizers `spectrum`/`mirror`/`cava`/`ripple`),
   the bar length (1–60 cells), volume bar shapes, icons — or `off` to hide
   any part. **See the [style gallery](docs/styles.md)** for all of them with
   examples — or paste a whole look from the [recipes](docs/recipes.md).

@@ -930,10 +930,6 @@ do_statusline() {
       # remainder — left-to-right for smooth, bottom-up for rise, and per
       # the ramps below for the rest.
       my %cs = (blocks => ["\x{2588}", "\x{2591}"],
-                wave => ["\x{2582}\x{2584}\x{2586}\x{2584}", "\x{2581}"],
-                pulse => ["\x{2582}\x{2582}\x{2588}\x{2581}\x{2584}", "\x{2581}"],
-                eq => ["\x{2582}\x{2587}\x{2583}\x{2588}\x{2585}\x{2586}", "\x{2581}"],
-                notes => ["\x{266A}\x{266B}", "\x{B7}"],
                 braille => ["\x{28FF}", "\x{28C0}"],
                 chevron => ["\x{25B8}", "\x{25B9}"],
                 tape => ["\x{25B0}", "\x{25B1}"],
@@ -967,6 +963,58 @@ do_statusline() {
                  stipple => ["\x{28C4}", "\x{28E4}", "\x{28E6}", "\x{28F6}", "\x{28F7}"],
                  tiles => ["\x{25E7}"],
                  dash => ["\x{254D}", "\x{2505}", "\x{2509}"]);
+      # Waveform presets (Phase 19). wave/pulse/eq/notes render as
+      # length-adaptive functions (below); spectrum/mirror/cava/ripple are
+      # whole-bar visualizers. Height fns return 0..7: $blk maps that to ▁..█;
+      # $brl packs two sub-columns (0..4 each) into one U+2800 braille cell for
+      # double horizontal density. "space" presets stop at the fill boundary;
+      # "field" presets span the bar and, when colors are off ($c false),
+      # attenuate the unplayed tail so progress still reads by height.
+      my $WPI = 3.14159265358979;
+      my $WSHIFT = 0.5;   # sub-cell scroll: cells/sec drift (Phase 19), tuned in aliasing pass
+      my $blk = sub { my $h = $_[0]; $h = 0 if $h < 0; $h = 7 if $h > 7;
+                      chr(0x2581 + int($h + 0.5)) };
+      my @BLZ = (0x40, 0x04, 0x02, 0x01);
+      my @BRZ = (0x80, 0x20, 0x10, 0x08);
+      my $brl = sub {
+        my ($l, $r) = @_;
+        $l = 0 if $l < 0; $l = 4 if $l > 4; $r = 0 if $r < 0; $r = 4 if $r > 4;
+        my $b = 0; $b |= $BLZ[$_] for 0 .. int($l + 0.5) - 1;
+        $b |= $BRZ[$_] for 0 .. int($r + 0.5) - 1;
+        chr(0x2800 + $b);
+      };
+      my $flr = sub { my $x = $_[0]; my $i = int($x); $i-- if $i > $x; $i };
+      # height fns: ($i, $cells, $phase) -> 0..7
+      # height fns: ($i, $cells, $phase) -> 0..7. $phase is cells of drift for
+      # space presets, a time-ish argument for field presets (both = pos*WSHIFT).
+      my %wfh = (
+        wave => sub { my ($i, $n, $pc) = @_; my $wl = $n / 2.5; $wl = 5 if $wl < 5;
+          3.5 + 3.5 * sin(2 * $WPI * ($i - $pc) / $wl) },
+        eq => sub { my ($i, $n, $pc) = @_; my $wl = $n / 3.0; $wl = 5 if $wl < 5;
+          my $x = ($i - $pc) / $wl;
+          3.5 + (sin(2*$WPI*$x) + 0.55*sin(2*$WPI*$x*2.3 + 1) + 0.75*sin(2*$WPI*$x*0.5 + 2)) * (3.5/2.3) },
+        pulse => sub { my ($i, $n, $pc) = @_; my $pd = $n / 2.5; $pd = 6 if $pd < 6;
+          my $p = $i - $pc; my $m = $p - $pd * $flr->($p / $pd);
+          $m < 1 ? 1.0 + 6.0 * $m : $m < 2 ? 7 - 6.0 * ($m - 1) : 1.0 },
+        spectrum => sub { my ($i, $n, $t) = @_; my $e = 0.55 + 0.45 * (1 - $i / $n);
+          3.5 + 3.5 * $e * (0.55*sin($i*1.73 + $t*2.1) + 0.45*sin($i*0.91 + 2 + $t*3.3)) },
+        mirror => sub { my ($i, $n, $t) = @_; my $m = ($n - 1) / 2;
+          3.5 + 3.5 * sin(2 * $WPI * (abs($i - $m) / ($n / 2)) * 1.5 - $t * 1.4) },
+      );
+      # preset -> [kind, draw, height-fn]; cava/ripple reuse spectrum/mirror.
+      my %wf = (
+        wave     => ["space", "block",   "wave"],
+        eq       => ["space", "block",   "eq"],
+        pulse    => ["space", "block",   "pulse"],
+        notes    => ["space", "notes",   "wave"],
+        spectrum => ["field", "block",   "spectrum"],
+        mirror   => ["field", "block",   "mirror"],
+        cava     => ["field", "braille", "spectrum"],
+        ripple   => ["field", "braille", "mirror"],
+        swell    => ["space", "braille", "wave"],
+        bars     => ["space", "braille", "eq"],
+        ekg      => ["space", "braille", "pulse"],
+      );
       my $csv = $sty{"progressbar.style"} // "line";
       my ($fc, $ec, $hc) = $cs{$csv}      ? @{$cs{$csv}}
                     : length($csv) == 2   ? (substr($csv, 0, 1), substr($csv, 1, 1))
@@ -992,6 +1040,54 @@ do_statusline() {
           my ($i, $t) = @_;
           $href->("claude-media-control://seek/" . int((($i + 0.5) * 100) / $cells), $t);
         };
+        if (my $wdef = $wf{$csv}) {
+          # Waveform / visualizer presets (Phase 19). A "space" preset
+          # (wave/eq/pulse/notes + braille twins swell/bars/ekg) fills to the
+          # boundary like a normal bar. A "field" one (spectrum/mirror/cava/
+          # ripple) spans the whole bar: with colors on the accent/dim split
+          # marks progress, with colors off the unplayed tail is attenuated so
+          # progress still reads by height. Height fns give 0..7, drawn as a
+          # block glyph, a braille pair (2x density), or a density note.
+          my ($kind, $draw, $hn) = @$wdef;
+          my $hf = $wfh{$hn};
+          my $filled = int($r * $cells + 0.5);
+          my $pc = (defined $pos ? $pos : 0) * $WSHIFT;
+          my $glyph = sub {
+            my ($i, $lit) = @_;
+            my $att = (!$lit && $kind eq "field" && !$c) ? 0.30 : 1;
+            if ($draw eq "braille") {
+              my $m = 2 * $cells;
+              return $brl->($hf->(2 * $i, $m, $pc) / 7 * 4 * $att,
+                            $hf->(2 * $i + 1, $m, $pc) / 7 * 4 * $att);
+            }
+            if ($draw eq "notes") {
+              my $wl = $cells / 2.5; $wl = 5 if $wl < 5;
+              return sin(2 * $WPI * ($i - $pc) / $wl) > -0.3
+                ? ($i % 2 ? "\x{266B}" : "\x{266A}") : "\x{00B7}";
+            }
+            return $blk->($hf->($i, $cells, $pc) * $att);
+          };
+          my $empty = $draw eq "braille" ? "\x{2800}"
+                    : $draw eq "notes"   ? "\x{00B7}" : "\x{2581}";
+          if ($kind eq "space") {
+            unless ($link) {
+              return $st->($accsgr, join "", map { $glyph->($_, 1) } 0 .. $filled - 1)
+                   . $st->(2, $empty x ($cells - $filled));
+            }
+            return join "", map {
+              $_ < $filled ? $cell->($_, $st->($accsgr, $glyph->($_, 1)))
+                           : $cell->($_, $st->(2, $empty))
+            } 0 .. $cells - 1;
+          }
+          unless ($link) {
+            return $st->($accsgr, join "", map { $glyph->($_, 1) } 0 .. $filled - 1)
+                 . $st->(2, join "", map { $glyph->($_, 0) } $filled .. $cells - 1);
+          }
+          return join "", map {
+            my $lit = $_ < $filled;
+            $cell->($_, $st->($lit ? $accsgr : 2, $glyph->($_, $lit)))
+          } 0 .. $cells - 1;
+        }
         if ($csv eq "playhead") {
           # A one-cell thick head gliding along the thin track in
           # half-cell steps: parked on a cell it renders ━, straddling
@@ -1810,9 +1906,9 @@ style_validate() {
       my %preset = map { $_ => 1 }
         qw(blocks wave pulse eq notes braille chevron tape cassette retro
            knob playhead smooth rise fade corner glide stipple tiles dash
-           line dots);
+           line dots spectrum mirror cava ripple swell bars ekg);
       if ($preset{lc $val}) { print lc $val; exit 0 }
-      fail("progressbar style must be blocks|wave|pulse|eq|notes|braille|chevron|tape|cassette|retro|knob|playhead|smooth|rise|fade|corner|glide|stipple|tiles|dash|line|dots or exactly two characters (filled+empty, e.g. \"~-\"); got: $val")
+      fail("progressbar style must be blocks|wave|pulse|eq|notes|braille|chevron|tape|cassette|retro|knob|playhead|smooth|rise|fade|corner|glide|stipple|tiles|dash|line|dots|spectrum|mirror|cava|ripple|swell|bars|ekg or exactly two characters (filled+empty, e.g. \"~-\"); got: $val")
         unless length($val) == 2 && $val !~ /[\t\n]/ && $val ne "  ";
       print $val; exit 0;
     }
@@ -1937,8 +2033,8 @@ style_list() {
   echo " magenta cyan white, bright-<color>, or a hex code like #ff8800 — or none;"
   echo " text parts also take off = hide that part; style.progressbar.style:"
   echo " blocks|wave|pulse|eq|notes|braille|chevron|tape|cassette|retro|knob|"
-  echo " playhead|smooth|rise|fade|corner|glide|stipple|tiles|dash|line|dots"
-  echo " or two glyphs"
+  echo " playhead|smooth|rise|fade|corner|glide|stipple|tiles|dash|line|dots|"
+  echo " spectrum|mirror|cava|ripple|swell|bars|ekg or two glyphs"
   echo " like \"~-\"; style.progressbar.length: 1-60 cells (also sizes the"
   echo " /media:now bar); style.volume.style: block|progress|stairs;"
   echo " style.volume.bar: on|off — the bar draws in the progress-bar accent;"
