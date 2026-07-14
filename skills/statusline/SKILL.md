@@ -88,14 +88,15 @@ fuse into the line — `╍┅┉`, ¼ steps, ink only ever grows) ·
 `knob` `━━━━━●────` (slider head) · `playhead` `─────╼╾───` (a one-cell
 thick head gliding along a thin track in half-cell steps — aligned it
 draws `━`, straddling it splits into `╼╾`; the elapsed side keeps the
-accent) · `notes` `♪··♫♪♫··♪♫` (a length-adaptive ♪♫ density) ·
-`braille` `⣿⣿⣿⣿⣿⣿⣀⣀⣀⣀` · `chevron` `▸▸▸▸▸▸▹▹▹▹` · `tape` `▰▰▰▰▰▰▱▱▱▱` ·
-`cassette` `▮▮▮▮▮▮▯▯▯▯` · `retro` `======----` · `dots` `●●●●●●○○○○` — or
-any two characters meaning "filled + empty" (`"#-"` → `######----`). Audio
+accent) · `braille` `⣿⣿⣿⣿⣿⣿⣀⣀⣀⣀` · `chevron` `▸▸▸▸▸▸▹▹▹▹` ·
+`tape` `▰▰▰▰▰▰▱▱▱▱` · `cassette` `▮▮▮▮▮▮▯▯▯▯` · `retro` `======----` ·
+`dots` `●●●●●●○○○○` — or any two characters meaning "filled + empty"
+(`"#-"` → `######----`). Audio
 visualizers span the whole bar (colors on: the accent/dim split marks
-progress; colors off: the unplayed tail dims in height): `wave`
-`▅▂▂▆█▅▂▂▆█` (a length-adaptive sine swell) · `pulse` `▂▂▄▆▂▂▂▂▄▆` (an ECG
-impulse) · `eq` `▅▂▃▄▆▅▄▅▅▇` (multi-frequency) · `spectrum` `▂▂▅▅▄▆▆▃▃▅` ·
+progress; colors off: the unplayed tail dims in height, `notes` to `·`
+rests): `wave` `▅▂▂▆█▅▂▂▆█` (a length-adaptive sine swell) · `pulse`
+`▂▂▄▆▂▂▂▂▄▆` (an ECG impulse) · `eq` `▅▂▃▄▆▅▄▅▅▇` (multi-frequency) ·
+`notes` `♪··♫♪♫··♪♫` (a ♪♫ note density) · `spectrum` `▂▂▅▅▄▆▆▃▃▅` ·
 `mirror` `▃█▄▁▇▇▁▄█▃` · `cava` `⢀⣦⣴⣆⣠⣦⣴⣀⣴⣤` · `ripple` `⢠⣿⣆⢀⣾⣷⡀⣰⣿⡄` (braille);
 `swell` `⢀⣼⣷⡄⢀⣼⣷⡄⢀⣼` · `bars` `⣦⣤⣴⣦⡄⢠⣴⣦⣴⣴` · `ekg` `⣀⣴⣀⣀⣀⣴⣀⣀⣀⣴` are
 braille twins of wave/eq/pulse. The waveforms and visualizers drift

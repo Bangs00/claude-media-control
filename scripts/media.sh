@@ -964,11 +964,11 @@ do_statusline() {
       # length-adaptive functions (below); spectrum/mirror/cava/ripple are
       # whole-bar visualizers. Height fns return 0..7: $blk maps that to ▁..█;
       # $brl packs two sub-columns (0..4 each) into one U+2800 braille cell for
-      # double horizontal density. notes — the one "space" preset — stops at
-      # the fill boundary; every other waveform/visualizer is a "field"
+      # double horizontal density. Every waveform/visualizer is a "field"
       # preset: it spans the whole bar, colors on marks progress by the
       # accent/dim split, and colors off ($c false) attenuates the
-      # unplayed tail so progress still reads by height.
+      # unplayed tail so progress still reads — by height, or for notes
+      # by note density (the tail thins to rest dots).
       my $WPI = 3.14159265358979;
       my $WSHIFT = 0.5;   # sub-cell scroll: cells/sec drift (Phase 19), tuned in aliasing pass
       my $blk = sub { my $h = $_[0]; $h = 0 if $h < 0; $h = 7 if $h > 7;
@@ -1000,19 +1000,19 @@ do_statusline() {
         mirror => sub { my ($i, $n, $t) = @_; my $m = ($n - 1) / 2;
           3.5 + 3.5 * sin(2 * $WPI * (abs($i - $m) / ($n / 2)) * 1.5 - $t * 1.4) },
       );
-      # preset -> [kind, draw, height-fn]; cava/ripple reuse spectrum/mirror.
+      # preset -> [draw, height-fn]; cava/ripple reuse spectrum/mirror.
       my %wf = (
-        wave     => ["field", "block",   "wave"],
-        eq       => ["field", "block",   "eq"],
-        pulse    => ["field", "block",   "pulse"],
-        notes    => ["space", "notes",   "wave"],
-        spectrum => ["field", "block",   "spectrum"],
-        mirror   => ["field", "block",   "mirror"],
-        cava     => ["field", "braille", "spectrum"],
-        ripple   => ["field", "braille", "mirror"],
-        swell    => ["field", "braille", "wave"],
-        bars     => ["field", "braille", "eq"],
-        ekg      => ["field", "braille", "pulse"],
+        wave     => ["block",   "wave"],
+        eq       => ["block",   "eq"],
+        pulse    => ["block",   "pulse"],
+        notes    => ["notes",   "wave"],
+        spectrum => ["block",   "spectrum"],
+        mirror   => ["block",   "mirror"],
+        cava     => ["braille", "spectrum"],
+        ripple   => ["braille", "mirror"],
+        swell    => ["braille", "wave"],
+        bars     => ["braille", "eq"],
+        ekg      => ["braille", "pulse"],
       );
       my $csv = $sty{"progressbar.style"} // "line";
       my ($fc, $ec, $hc) = $cs{$csv}      ? @{$cs{$csv}}
@@ -1040,21 +1040,21 @@ do_statusline() {
           $href->("claude-media-control://seek/" . int((($i + 0.5) * 100) / $cells), $t);
         };
         if (my $wdef = $wf{$csv}) {
-          # Waveform / visualizer presets (Phase 19). notes — the one
-          # "space" preset — fills to the boundary like a normal bar. A
-          # "field" one (wave/eq/pulse, spectrum/mirror/cava/ripple, and
-          # the braille twins swell/bars/ekg) spans the whole bar: with
-          # colors on the accent/dim split marks progress, with colors off
-          # the unplayed tail is attenuated so progress still reads by
-          # height. Height fns give 0..7, drawn as a block glyph, a braille
-          # pair (2x density), or a density note.
-          my ($kind, $draw, $hn) = @$wdef;
+          # Waveform / visualizer presets (Phase 19): every one is a
+          # "field" preset — wave/eq/pulse, notes, spectrum/mirror/cava/
+          # ripple, and the braille twins swell/bars/ekg all span the
+          # whole bar. With colors on the accent/dim split marks progress,
+          # with colors off the unplayed tail is attenuated so progress
+          # still reads: heights shrink, and the notes density thins to
+          # rest dots. Height fns give 0..7, drawn as a block glyph, a
+          # braille pair (2x density), or a density note.
+          my ($draw, $hn) = @$wdef;
           my $hf = $wfh{$hn};
           my $filled = int($r * $cells + 0.5);
           my $pc = (defined $pos ? $pos : 0) * $WSHIFT;
           my $glyph = sub {
             my ($i, $lit) = @_;
-            my $att = (!$lit && $kind eq "field" && !$c) ? 0.30 : 1;
+            my $att = (!$lit && !$c) ? 0.30 : 1;
             if ($draw eq "braille") {
               my $m = 2 * $cells;
               return $brl->($hf->(2 * $i, $m, $pc) / 7 * 4 * $att,
@@ -1062,23 +1062,11 @@ do_statusline() {
             }
             if ($draw eq "notes") {
               my $wl = $cells / 2.5; $wl = 5 if $wl < 5;
-              return sin(2 * $WPI * ($i - $pc) / $wl) > -0.3
+              return (sin(2 * $WPI * ($i - $pc) / $wl) + 1) / 2 * $att > 0.35
                 ? ($i % 2 ? "\x{266B}" : "\x{266A}") : "\x{00B7}";
             }
             return $blk->($hf->($i, $cells, $pc) * $att);
           };
-          my $empty = $draw eq "braille" ? "\x{2800}"
-                    : $draw eq "notes"   ? "\x{00B7}" : "\x{2581}";
-          if ($kind eq "space") {
-            unless ($link) {
-              return $st->($accsgr, join "", map { $glyph->($_, 1) } 0 .. $filled - 1)
-                   . $st->(2, $empty x ($cells - $filled));
-            }
-            return join "", map {
-              $_ < $filled ? $cell->($_, $st->($accsgr, $glyph->($_, 1)))
-                           : $cell->($_, $st->(2, $empty))
-            } 0 .. $cells - 1;
-          }
           unless ($link) {
             return $st->($accsgr, join "", map { $glyph->($_, 1) } 0 .. $filled - 1)
                  . $st->(2, join "", map { $glyph->($_, 0) } $filled .. $cells - 1);

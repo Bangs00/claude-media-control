@@ -1052,9 +1052,10 @@ setup() {
 @test "statusline: progressbar charsets — every 0.16.0 preset renders" {
   mkdir -p "$CLAUDE_PLUGIN_DATA"
   # Length pinned to 10 (compact expectations): stub position 75.4/200 →
-  # 4 of 10 cells. eq/notes are Phase 19 length-adaptive waveforms (eq =
-  # multi-frequency, a field preset spanning the bar with an attenuated
-  # tail; notes = ♪♫ density); knob spends one filled cell on its
+  # 4 of 10 cells. eq/notes are Phase 19 length-adaptive waveforms — field
+  # presets spanning the bar with an attenuated tail (eq = multi-frequency
+  # heights; notes = ♪♫ density, whose colors-off tail thins to rest
+  # dots); knob spends one filled cell on its
   # ● head; smooth measures 30 eighths → 3 full blocks + ▊ (6/8).
   local cases=(
     "eq|▄▃▁▅▂▂▂▂▃▃"
@@ -1125,6 +1126,12 @@ setup() {
   echo '{"display.statusline":true,"statusline.fields":["progressbar"],"style.progressbar.style":"wave","style.progressbar.length":"10"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
   [[ "$output" == *$'\e[32m▅▂▂▆\e[0m\e[2m█▅▂▂▆█\e[0m'* ]]
+  # notes as well: the dim tail keeps the full ♪♫ density, so only the
+  # accent/dim split marks progress (colors off thins it to rest dots).
+  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  echo '{"display.statusline":true,"statusline.fields":["progressbar"],"style.progressbar.style":"notes","style.progressbar.length":"10"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [[ "$output" == *$'\e[32m♪··♫\e[0m\e[2m♪♫··♪♫\e[0m'* ]]
 }
 
 @test "statusline: progressbar spectrum — per-cell seek links, plain glyphs match" {

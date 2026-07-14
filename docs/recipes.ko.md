@@ -266,7 +266,7 @@ Apple Terminal은 아닙니다. [Twilight](#twilight) 끝에 어느 레시피에
 ```
 
 ```
-▶︎ Rented Sunsets — Modem Chorus  ·♫♪♫········  1:32/4:07
+▶︎ Rented Sunsets — Modem Chorus  ·♫♪♫··♪♫♪··♫  1:32/4:07
 ```
 
 ## Twilight

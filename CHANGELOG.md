@@ -5,6 +5,19 @@ All notable changes to this project are documented here. The format follows
 [SemVer](https://semver.org/spec/v2.0.0.html), tracked in
 `.claude-plugin/plugin.json`.
 
+## [Unreleased]
+
+### Changed
+
+- **`notes` joins the whole-bar visualizers.** The last fill-to-boundary
+  preset now draws its ♪♫ note density across the full bar width like every
+  other waveform and visualizer: with `statusline.color` on, the accent/dim
+  split marks progress, and with it off the unplayed tail drops to `·`
+  rests so progress still reads by density. **This changes how `notes`
+  looks** — there is no flag to restore the boundary fill. The `/media:now`
+  bar spec, the style galleries, and the Lo-fi recipe GIF follow the new
+  rendering.
+
 ## [0.32.0] — 2026-07-14
 
 ### Changed

@@ -271,7 +271,7 @@ study beats.
 ```
 
 ```
-▶︎ Rented Sunsets — Modem Chorus  ·♫♪♫········  1:32/4:07
+▶︎ Rented Sunsets — Modem Chorus  ·♫♪♫··♪♫♪··♫  1:32/4:07
 ```
 
 ## Twilight
