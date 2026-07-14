@@ -88,16 +88,17 @@ fuse into the line — `╍┅┉`, ¼ steps, ink only ever grows) ·
 `knob` `━━━━━●────` (slider head) · `playhead` `─────╼╾───` (a one-cell
 thick head gliding along a thin track in half-cell steps — aligned it
 draws `━`, straddling it splits into `╼╾`; the elapsed side keeps the
-accent) · `wave` `▅▂▂▆█▅▂▂▆█` (a
-length-adaptive sine swell) · `pulse` `▂▂▄▆▂▂▂▂▄▆` (an ECG impulse) · `eq`
-`▅▂▃▄▆▅▄▅▅▇` (multi-frequency) · `notes` `♪··♫♪♫··♪♫` (♪♫ density) ·
+accent) · `notes` `♪··♫♪♫··♪♫` (a length-adaptive ♪♫ density) ·
 `braille` `⣿⣿⣿⣿⣿⣿⣀⣀⣀⣀` · `chevron` `▸▸▸▸▸▸▹▹▹▹` · `tape` `▰▰▰▰▰▰▱▱▱▱` ·
 `cassette` `▮▮▮▮▮▮▯▯▯▯` · `retro` `======----` · `dots` `●●●●●●○○○○` — or
 any two characters meaning "filled + empty" (`"#-"` → `######----`). Audio
-visualizers span the whole bar: `spectrum` `▂▂▅▅▄▆▆▃▃▅` · `mirror`
-`▃█▄▁▇▇▁▄█▃` · `cava` `⢀⣦⣴⣆⣠⣦⣴⣀⣴⣤` · `ripple` `⢠⣿⣆⢀⣾⣷⡀⣰⣿⡄` (braille);
+visualizers span the whole bar (colors on: the accent/dim split marks
+progress; colors off: the unplayed tail dims in height): `wave`
+`▅▂▂▆█▅▂▂▆█` (a length-adaptive sine swell) · `pulse` `▂▂▄▆▂▂▂▂▄▆` (an ECG
+impulse) · `eq` `▅▂▃▄▆▅▄▅▅▇` (multi-frequency) · `spectrum` `▂▂▅▅▄▆▆▃▃▅` ·
+`mirror` `▃█▄▁▇▇▁▄█▃` · `cava` `⢀⣦⣴⣆⣠⣦⣴⣀⣴⣤` · `ripple` `⢠⣿⣆⢀⣾⣷⡀⣰⣿⡄` (braille);
 `swell` `⢀⣼⣷⡄⢀⣼⣷⡄⢀⣼` · `bars` `⣦⣤⣴⣦⡄⢠⣴⣦⣴⣴` · `ekg` `⣀⣴⣀⣀⣀⣴⣀⣀⣀⣴` are
-braille twins of wave/eq/pulse. `wave`, `pulse`, `eq`, and `notes` drift
+braille twins of wave/eq/pulse. The waveforms and visualizers drift
 forward while playing and freeze on pause. **Bar length** (`style.progressbar.length`): any whole
 number of cells from 1 to 60 (default `20`); the `/media:now` bar follows
 it too. **Volume bar shape** (`style.volume.style`): `block` (one ▄
@@ -281,7 +282,8 @@ value in each question text.
   - "Bar characters" (`style.progressbar.style`): Keep current /
     `Line ━━━━━━──── (default)` / `Blocks ██████░░░░` / Other → `smooth`,
     `rise`, `fade`, `corner`, `glide`, `stipple`, `tiles`, `dash`,
-    `knob`, `playhead`, `wave`, `pulse`, `eq`, `notes`,
+    `knob`, `playhead`, `wave`, `pulse`, `eq`, `notes`, `spectrum`,
+    `mirror`, `cava`, `ripple`, `swell`, `bars`, `ekg`,
     `braille`, `chevron`, `tape`, `cassette`, `retro`, `dots`, or any
     two glyphs like `#-`
   - "Bar length" (`style.progressbar.length`): Keep current /

@@ -916,10 +916,7 @@ do_statusline() {
       # Bar characters by style.progressbar.style: a named charset or any
       # two glyphs "filled+empty" — character choices show even with colors
       # off. Resolved up front: the volume "progress" shape draws with the
-      # same charset through the same $bar builder. A multi-glyph fill
-      # (wave, pulse, eq, notes) repeats cell by cell; its phase follows
-      # the playback position, so the trace rolls toward the empty end each
-      # second while playing and freezes on pause. A third charset glyph
+      # same charset through the same $bar builder. A third charset glyph
       # (knob) caps the last filled cell. playhead skips the fill/empty
       # split entirely — a dedicated branch in $bar glides a one-cell
       # thick head along a thin ─ track in half-cell steps (╼╾ when it
@@ -967,9 +964,11 @@ do_statusline() {
       # length-adaptive functions (below); spectrum/mirror/cava/ripple are
       # whole-bar visualizers. Height fns return 0..7: $blk maps that to ▁..█;
       # $brl packs two sub-columns (0..4 each) into one U+2800 braille cell for
-      # double horizontal density. "space" presets stop at the fill boundary;
-      # "field" presets span the bar and, when colors are off ($c false),
-      # attenuate the unplayed tail so progress still reads by height.
+      # double horizontal density. notes — the one "space" preset — stops at
+      # the fill boundary; every other waveform/visualizer is a "field"
+      # preset: it spans the whole bar, colors on marks progress by the
+      # accent/dim split, and colors off ($c false) attenuates the
+      # unplayed tail so progress still reads by height.
       my $WPI = 3.14159265358979;
       my $WSHIFT = 0.5;   # sub-cell scroll: cells/sec drift (Phase 19), tuned in aliasing pass
       my $blk = sub { my $h = $_[0]; $h = 0 if $h < 0; $h = 7 if $h > 7;
@@ -1003,17 +1002,17 @@ do_statusline() {
       );
       # preset -> [kind, draw, height-fn]; cava/ripple reuse spectrum/mirror.
       my %wf = (
-        wave     => ["space", "block",   "wave"],
-        eq       => ["space", "block",   "eq"],
-        pulse    => ["space", "block",   "pulse"],
+        wave     => ["field", "block",   "wave"],
+        eq       => ["field", "block",   "eq"],
+        pulse    => ["field", "block",   "pulse"],
         notes    => ["space", "notes",   "wave"],
         spectrum => ["field", "block",   "spectrum"],
         mirror   => ["field", "block",   "mirror"],
         cava     => ["field", "braille", "spectrum"],
         ripple   => ["field", "braille", "mirror"],
-        swell    => ["space", "braille", "wave"],
-        bars     => ["space", "braille", "eq"],
-        ekg      => ["space", "braille", "pulse"],
+        swell    => ["field", "braille", "wave"],
+        bars     => ["field", "braille", "eq"],
+        ekg      => ["field", "braille", "pulse"],
       );
       my $csv = $sty{"progressbar.style"} // "line";
       my ($fc, $ec, $hc) = $cs{$csv}      ? @{$cs{$csv}}
@@ -1041,13 +1040,14 @@ do_statusline() {
           $href->("claude-media-control://seek/" . int((($i + 0.5) * 100) / $cells), $t);
         };
         if (my $wdef = $wf{$csv}) {
-          # Waveform / visualizer presets (Phase 19). A "space" preset
-          # (wave/eq/pulse/notes + braille twins swell/bars/ekg) fills to the
-          # boundary like a normal bar. A "field" one (spectrum/mirror/cava/
-          # ripple) spans the whole bar: with colors on the accent/dim split
-          # marks progress, with colors off the unplayed tail is attenuated so
-          # progress still reads by height. Height fns give 0..7, drawn as a
-          # block glyph, a braille pair (2x density), or a density note.
+          # Waveform / visualizer presets (Phase 19). notes — the one
+          # "space" preset — fills to the boundary like a normal bar. A
+          # "field" one (wave/eq/pulse, spectrum/mirror/cava/ripple, and
+          # the braille twins swell/bars/ekg) spans the whole bar: with
+          # colors on the accent/dim split marks progress, with colors off
+          # the unplayed tail is attenuated so progress still reads by
+          # height. Height fns give 0..7, drawn as a block glyph, a braille
+          # pair (2x density), or a density note.
           my ($kind, $draw, $hn) = @$wdef;
           my $hf = $wfh{$hn};
           my $filled = int($r * $cells + 0.5);

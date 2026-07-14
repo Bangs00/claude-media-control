@@ -128,7 +128,9 @@ reads at a glance (with colors off the head alone carries it):
 `wave` `pulse` `eq` `notes` are **length-adaptive waveforms** — the shape is
 computed from the bar width, so a longer bar shows a bigger, smoother wave
 instead of the same few glyphs repeated. They drift while playing and freeze
-on pause. Shown full at length 20 and 10:
+on pause. `wave` `pulse` `eq` span the **whole bar** like the visualizers
+below and mark progress by color; `notes` fills to the boundary. Shown full
+at length 20 and 10:
 
 | Value | length 20 | length 10 | |
 | --- | --- | --- | --- |
@@ -156,10 +158,10 @@ cell for double horizontal density. Shown full at length 20:
 | `bars` | `⣀⠀⣠⣦⣤⣶⣤⣠⣴⣶⣶⣶⣄⢀⣀⣀⣠⣶⣦⣤` | `eq` in braille dots |
 | `ekg` | `⣀⣴⣀⣀⣀⣀⣀⣀⣀⣴⣀⣀⣀⣀⣀⣀⣀⣴⣀⣀` | `pulse` in braille dots |
 
-`spectrum` `mirror` `cava` `ripple` span the **whole bar**, not just the
-played part. With colors on, the accent/dim split marks progress; with colors
-off, the unplayed tail is dimmed in height so progress still reads by shape.
-`swell` `bars` `ekg` fill to the boundary like the waveforms above.
+All seven span the **whole bar**, not just the played part — and so do
+`wave` `pulse` `eq` above. With colors on, the accent/dim split marks
+progress; with colors off, the unplayed tail is dimmed in height so
+progress still reads by shape.
 
 ### Your own characters
 

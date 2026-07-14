@@ -191,7 +191,7 @@
 ```
 
 ```
-🔉 ▁▄▄▁▁▁▁▁ 35%  ▅▅▅▆▄▄▆▁▁▁▁▁▁▁▁▁▁▁▁▁  1:32/4:07
+🔉 ▁▄▄▆▄▅▄▇ 35%  ▅▅▅▆▄▄▆▆▆▆▂▂▃▃▅▆▄▅▄▄  1:32/4:07
 ▶︎ Rented Sunsets — Modem Chorus (Aux)  🎚 Bookshelf Speakers
 ```
 
@@ -236,7 +236,7 @@
 ```
 
 ```
-▶︎ Rented Sunsets — Modem Chorus  ▃▂▂▂▂▂▂▁▁▁▁▁▁▁▁▁▁▁▁▁  1:32/4:07
+▶︎ Rented Sunsets — Modem Chorus  ▃▂▂▂▂▂▂▇▃▂▂▂▂▂▂▇▃▂▂▂  1:32/4:07
 ```
 
 ## Lo-fi

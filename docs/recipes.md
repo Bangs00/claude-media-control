@@ -201,7 +201,7 @@ below — LED green, record red.
 ```
 
 ```
-🔉 ▁▄▄▁▁▁▁▁ 35%  ▅▅▅▆▄▄▆▁▁▁▁▁▁▁▁▁▁▁▁▁  1:32/4:07
+🔉 ▁▄▄▆▄▅▄▇ 35%  ▅▅▅▆▄▄▆▆▆▆▂▂▃▃▅▆▄▅▄▄  1:32/4:07
 ▶︎ Rented Sunsets — Modem Chorus (Aux)  🎚 Bookshelf Speakers
 ```
 
@@ -248,7 +248,7 @@ A hot-pink pulse under a chrome-cyan title — the neon-grid sunset palette.
 ```
 
 ```
-▶︎ Rented Sunsets — Modem Chorus  ▃▂▂▂▂▂▂▁▁▁▁▁▁▁▁▁▁▁▁▁  1:32/4:07
+▶︎ Rented Sunsets — Modem Chorus  ▃▂▂▂▂▂▂▇▃▂▂▂▂▂▂▇▃▂▂▂  1:32/4:07
 ```
 
 ## Lo-fi

@@ -5,6 +5,20 @@ All notable changes to this project are documented here. The format follows
 [SemVer](https://semver.org/spec/v2.0.0.html), tracked in
 `.claude-plugin/plugin.json`.
 
+## [Unreleased]
+
+### Changed
+
+- **`wave`, `pulse`, `eq` and their braille twins `swell`, `bars`, `ekg` are
+  now whole-bar visualizers.** Like `spectrum`/`mirror`/`cava`/`ripple`, the
+  six presets draw across the full bar width instead of stopping at the
+  played-position boundary: with `statusline.color` on, the accent/dim split
+  marks progress, and with it off the unplayed tail is dimmed in height so
+  progress still reads by shape. `notes` keeps its fill-to-boundary
+  behavior. **This changes how the six presets look** — there is no flag to
+  restore the boundary fill. The `/media:now` bar spec, the style galleries,
+  and the demo/recipe GIFs follow the new rendering.
+
 ## [0.31.1] — 2026-07-14
 
 ### Fixed
