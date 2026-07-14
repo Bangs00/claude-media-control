@@ -5,6 +5,16 @@ All notable changes to this project are documented here. The format follows
 [SemVer](https://semver.org/spec/v2.0.0.html), tracked in
 `.claude-plugin/plugin.json`.
 
+## [Unreleased]
+
+### Fixed
+
+- **`/media:now` draws the 0.31.0 bar presets.** The skill's bar spec still
+  described the pre-0.31.0 fixed-glyph `wave`/`pulse`/`eq`/`notes` and did
+  not know the seven visualizer presets, so the `/media:now` bar could
+  contradict the statusline. It now mirrors the length-adaptive shapes and
+  the whole-bar visualizers (unplayed tail flattened to ~30% height).
+
 ## [0.31.0] — 2026-07-14
 
 ### Added
