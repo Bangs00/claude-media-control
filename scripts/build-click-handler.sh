@@ -53,16 +53,15 @@ HANDLER_SH="$DATA_DIR/click-handler.sh"
 LOG_FILE="$DATA_DIR/build.log"
 BUNDLE_ID="com.claude-media-control.click-handler"
 # Bumped when the applet source/plist changes — a mismatch forces a rebuild.
-# Keep in sync with the format gate in media.sh's do_statusline and the test
-# stub. 3 = the applet claims the claude-media-control: scheme.
-APPLET_FORMAT="3"
+# 4 = the 0.28.0–0.29.0 waiting applet is retired (fire-and-forget dispatch
+# again) while both schemes stay claimed.
+APPLET_FORMAT="4"
 LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
 
 mode="${1:-}"
 
 if [ "$mode" = "--check-only" ]; then
-  if [ -d "$APP" ] && [ -x "$HANDLER_SH" ] && [ "$(/usr/bin/plutil -extract \
-       CFBundleVersion raw "$APP/Contents/Info.plist" 2>/dev/null)" = "$APPLET_FORMAT" ]; then
+  if [ -d "$APP" ] && [ -x "$HANDLER_SH" ]; then
     echo "$APP"
     exit 0
   fi
@@ -132,16 +131,8 @@ tmp_app="$DATA_DIR/.ClaudeMediaClick.$$.app"
 tmp_src="$DATA_DIR/.click-handler.$$.applescript"
 trap 'rm -rf "$tmp_app" "$tmp_src"' EXIT
 
-# The applet forwards the URL to click-handler.sh and WAITS for it: the
-# handler's osascript sends AppleEvents whose Automation consent tccd
-# attributes to the applet. Backgrounding the handler let the applet quit
-# first, so the one-time consent dialog raced a send whose responsible
-# process was already gone — the send died before anyone could answer, and
-# the approval landed on a dead click (measured: grant recorded 18 s after
-# the send was cut down). Waiting keeps the applet alive for attribution
-# and lets the FIRST click finish its jump the moment consent is granted.
-# `try` keeps a nonzero handler exit (nothing playing, refused URL) from
-# raising the applet's error dialog. The literal path is escaped for the
+# The applet only forwards the URL to click-handler.sh (quoted, backgrounded
+# so the applet quits immediately). The literal path is escaped for the
 # AppleScript string; `quoted form of` shell-quotes it at click time.
 MEDIA_CLICK_HANDLER="$HANDLER_SH" /usr/bin/perl -e '
   my $h = $ENV{MEDIA_CLICK_HANDLER};
@@ -154,9 +145,7 @@ on run
 end run
 
 on open location theURL
-	try
-		do shell script "/bin/bash " & quoted form of "@HANDLER@" & " " & quoted form of theURL & " > /dev/null 2>&1"
-	end try
+	do shell script "/bin/bash " & quoted form of "@HANDLER@" & " " & quoted form of theURL & " > /dev/null 2>&1 &"
 end open location
 SRC_EOF
 

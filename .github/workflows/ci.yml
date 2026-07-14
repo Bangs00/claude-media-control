@@ -57,14 +57,6 @@ jobs:
           echo "read-jxa output: $out"
           test -n "$out"
 
-      # focus-tab.js resolves terminology at run time, so it parses and runs
-      # anywhere; against a bundle nothing has launched it must be a silent,
-      # zero-exit no-op (its best-effort contract).
-      - name: JXA focus-tab smoke (parses; non-target run is a no-op)
-        run: |
-          out="$(osascript -l JavaScript scripts/focus-tab.js com.example.no-such-app 'Smoke Title')"
-          test -z "$out"
-
       - name: bats tests
         run: bats tests/media.bats
 

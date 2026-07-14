@@ -41,7 +41,7 @@ In terminals with hyperlink support, the segment is **cmd+clickable**:
 | Target | ⌘+click does |
 | --- | --- |
 | `▶︎` / `⏸` icon | toggle play/pause |
-| title — artist, `(App)` | jump to the playing media: the playing browser tab (Safari, Chrome, Edge, Brave, Vivaldi, Opera, ChatGPT Atlas) or the current track in Music; other apps just come to the front |
+| title — artist, `(App)` | jump to the playing media: the playing browser tab (Safari, Chrome, Edge, Brave, Vivaldi, Opera) or the current track in Music; other apps just come to the front |
 | progress bar | seek — every cell jumps to its position (at the default 20 cells: 2.5%, 7.5%, … 97.5%; a longer bar seeks in finer steps) |
 
 - **Works in**: iTerm2, Ghostty, WezTerm, Kitty, VS Code, Alacritty ≥ 0.11
@@ -71,12 +71,10 @@ nuisance-level at worst, the same class as your keyboard's media keys.
 For browser players, activation resolves the web-content helper process to
 its owning app (e.g. `com.openai.atlas.web` → ChatGPT Atlas), then lands on
 the media itself where the app is scriptable: the window+tab whose title
-matches the track (falling back to the first tab on a known music-player
-site while a background tab's title still lags the track change), or
-Music's current track. (ChatGPT Atlas is a native
-shell around an embedded Chromium engine — the tab jump scripts the
-engine.) Apps with nothing scriptable to land on (e.g. Spotify) stop at
-coming to the front.
+matches the track (in Safari, falling back to the first tab on a known
+music-player site while a background tab's title still lags the track
+change), or Music's current track. Other apps (e.g. ChatGPT Atlas,
+Spotify) stop at coming to the front.
 Uninstalling the plugin (or `media.sh statusline uninstall`) unregisters
 and deletes the handler app. `/media:doctor` reports its state
 (`Click links`).

@@ -5,6 +5,40 @@ All notable changes to this project are documented here. The format follows
 [SemVer](https://semver.org/spec/v2.0.0.html), tracked in
 `.claude-plugin/plugin.json`.
 
+## [0.30.0] — 2026-07-14
+
+### Changed
+
+- **The 0.28.0–0.29.0 click overhaul is rolled back to the 0.27.0
+  dispatch.** The machinery those releases grew around the ⌘+click tab
+  jump — the JXA jump helper (`focus-tab.js`) behind the Chromium
+  browsers, the handler applet that waited on the click for TCC
+  attribution, ChatGPT Atlas engine scripting, the per-dispatch applet
+  self-heal (0.28.1), and the renderer's applet-format link gate with its
+  background rebuild kick (0.29.0) — is removed. The applet hands a click
+  to its handler in the background and quits, links render whenever the
+  handler app exists, and Chrome, Edge, Brave, Vivaldi, Opera, and
+  ChatGPT Atlas return to the pre-0.28 click: the playing app comes to
+  the front. The applet rebuilds itself on the next session start
+  (`APPLET_FORMAT` 4, same bundle id — an Automation approval you already
+  gave carries over). Updating while older sessions stay open can flip
+  the applet between formats again (the 0.28.1 flip-flop); it settles for
+  good once those sessions close.
+- **Kept: clicks stay on the `claude-media-control://` scheme.** The
+  0.29.0 rename does not roll back — the Claude Desktop app still
+  declares `claude-media` as an internal Electron scheme, so the links,
+  the applet, and `open-url` keep using the plugin's own name. The applet
+  still claims the legacy scheme and `open-url` still accepts it, so
+  links rendered by still-open pre-0.29 sessions keep working.
+- **Kept: the jump finds the player even while the tab title lags — now
+  in Safari's tab jump.** Web players update `document.title` lazily in
+  background-throttled tabs, so when no Safari tab name contains the
+  track, the jump falls back to the first tab on a dedicated player site
+  (music.youtube.com, open.spotify.com, music.apple.com, soundcloud.com,
+  tidal.com, deezer.com). Titles and URLs are read locally, only to
+  locate the player. (0.28.0 shipped this fallback inside the Chromium
+  JXA helper; with that helper gone, the Safari branch carries it.)
+
 ## [0.29.0] — 2026-07-13
 
 ### Changed

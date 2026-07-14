@@ -444,19 +444,17 @@ activate_app() {
 # Move the app's UI to the playing media itself, best effort — called with
 # the OWNING app id activate_app resolved: browsers with AppleScript tab
 # control select the window+tab whose name contains the track title (the
-# Safari dialect inline; the Chromium suite via focus-tab.js — JXA, because
-# AppleScript cannot compile Chromium terminology like `active tab index`
-# against a variable bundle id), and Music reveals the current track.
-# ChatGPT Atlas is a native shell (com.openai.atlas — what activation
-# resolves) around an embedded Chromium engine app that carries the
-# scripting interface (com.openai.atlas.web), so its case scripts the
-# engine. Only known-scriptable bundles are ever scripted — no consent
-# prompt is triggered for an app that could not honor it anyway; everything
-# else (e.g. Spotify — no scriptable tab/track UI) keeps plain activation.
-# The first use shows a one-time Automation consent attributed to the
-# click-handler app; a denial or any script error just leaves
-# activation-only behavior. The title travels via the environment / argv,
-# so no user data is ever spliced into the script source.
+# Safari dialect / the Chromium suite — only known-scriptable bundles, so no
+# consent prompt is ever triggered for an app that could not honor it
+# anyway), and Music reveals the current track. Everything else (e.g.
+# Spotify — no scriptable tab/track UI) keeps plain activation. Web players
+# update tab titles lazily in background-throttled tabs, so when no Safari
+# tab name contains the track the jump falls back to the first tab on a
+# dedicated player site — titles and URLs are read locally, only to locate
+# the player. The first use shows a one-time Automation consent attributed
+# to the click-handler app; a denial or any script error just leaves
+# activation-only behavior. The title travels via the environment (system
+# attribute), so no user data is ever spliced into the script source.
 focus_media() {
   local bundle="$1" title="$2"
   [ -n "$title" ] || return 0
@@ -464,6 +462,7 @@ focus_media() {
     com.apple.Safari)
       MEDIA_FOCUS_TITLE="$title" /usr/bin/osascript -e '
         set t to system attribute "MEDIA_FOCUS_TITLE"
+        set playerHosts to {"music.youtube.com", "open.spotify.com", "music.apple.com", "soundcloud.com", "tidal.com", "deezer.com"}
         with timeout of 3 seconds
           tell application "Safari"
             repeat with w in windows
@@ -477,22 +476,51 @@ focus_media() {
                 end if
               end repeat
             end repeat
+            repeat with w in windows
+              set i to 0
+              repeat with tb in tabs of w
+                set i to i + 1
+                set u to ""
+                try
+                  set u to URL of tb
+                end try
+                if u is not missing value and u is not "" then
+                  set u to u & "/"
+                  repeat with d in playerHosts
+                    set dd to contents of d
+                    if u contains ("://" & dd & "/") or u contains ("." & dd & "/") then
+                      set current tab of w to tab i of w
+                      set index of w to 1
+                      return
+                    end if
+                  end repeat
+                end if
+              end repeat
+            end repeat
           end tell
         end timeout' >/dev/null 2>&1 || true
       ;;
     com.google.Chrome | com.google.Chrome.canary | com.google.Chrome.beta | \
     com.microsoft.edgemac | com.brave.Browser | com.vivaldi.Vivaldi | \
-    com.operasoftware.Opera | com.openai.atlas)
-      local target="$bundle"
-      [ "$bundle" = com.openai.atlas ] && target="com.openai.atlas.web"
-      # alarm survives the exec and caps a hung target — the JXA equivalent
-      # of the AppleScript branches' `with timeout`. Generous on purpose:
-      # the first click blocks in this osascript while the one-time
-      # Automation consent dialog is up, and killing that wait would tear
-      # the dialog down before the user can answer it.
-      /usr/bin/perl -e 'alarm 30; exec @ARGV' -- /usr/bin/osascript \
-        -l JavaScript "$SCRIPT_DIR/focus-tab.js" "$target" "$title" \
-        >/dev/null 2>&1 || true
+    com.operasoftware.Opera)
+      MEDIA_FOCUS_TITLE="$title" MEDIA_FOCUS_BUNDLE="$bundle" /usr/bin/osascript -e '
+        set t to system attribute "MEDIA_FOCUS_TITLE"
+        set b to system attribute "MEDIA_FOCUS_BUNDLE"
+        with timeout of 3 seconds
+          tell application id b
+            repeat with w in windows
+              set i to 0
+              repeat with tb in tabs of w
+                set i to i + 1
+                if title of tb contains t then
+                  set active tab index of w to i
+                  set index of w to 1
+                  return
+                end if
+              end repeat
+            end repeat
+          end tell
+        end timeout' >/dev/null 2>&1 || true
       ;;
     com.apple.Music)
       /usr/bin/osascript -e '
@@ -513,14 +541,6 @@ focus_media() {
 # still accepted so old links keep working through the same applet.
 do_open_url() {
   local url="${1:-}" action="" pct=""
-  # Self-heal before dispatching: a warmup fired from a still-open
-  # pre-update Claude Code session re-runs THAT version's installer and can
-  # rebuild the applet back to an older format whose backgrounded handler
-  # breaks TCC attribution — clicks then activate the app but the jump
-  # silently dies. Re-ensuring here re-arms the NEXT click after any such
-  # downgrade (this click already rode whatever applet spawned it); when
-  # the format already matches it is one plutil read + a handler rewrite.
-  "$SCRIPT_DIR/build-click-handler.sh" >/dev/null 2>&1 || true
   case "$url" in
     claude-media-control://*) action="${url#claude-media-control://}" ;;
     claude-media://*)         action="${url#claude-media://}" ;;
@@ -703,7 +723,7 @@ do_statusline() {
       return 0
     fi
   fi
-  local fields json line="" multiline color marquee styles links applet_fmt
+  local fields json line="" multiline color marquee styles links
   fields="$(config_get_statusline_fields)"
   multiline="$(config_get statusline.multiline)"
   marquee="$(config_get statusline.marquee)"
@@ -712,29 +732,11 @@ do_statusline() {
   # a line rendered under the other setting for at most one TTL second.
   color="$(config_get statusline.color)"
   [ -n "${NO_COLOR:-}" ] && color=off
-  # cmd+click links render only while the handler applet claims the
-  # claude-media-control: scheme (CFBundleVersion >= 3, kept in sync with
-  # APPLET_FORMAT in build-click-handler.sh) — a link nothing answers is
-  # worse than no link. Independent of colors. An older applet (pre-0.29
-  # install right after an update, or one a still-open old session's warmup
-  # rebuilt back) only claims the legacy scheme these links no longer use,
-  # so links pause for a tick or two while a background rebuild re-arms
-  # them — clicks on dead links never reach open-url, so its self-heal
-  # cannot. No bundle at all never builds one here (manual setups stay
-  # untouched); the 60s build.log throttle keeps a persistently failing
-  # build from re-spawning every tick.
+  # cmd+click links render only while the claude-media-control:// handler
+  # app exists — a link nothing answers is worse than no link. Independent
+  # of colors.
   links="$(config_get statusline.links)"
-  applet_fmt="$(/usr/bin/plutil -extract CFBundleVersion raw \
-    "$DATA_DIR/ClaudeMediaClick.app/Contents/Info.plist" 2>/dev/null || true)"
-  case "$applet_fmt" in *[!0-9]* | "") applet_fmt=0 ;; esac
-  if [ "$applet_fmt" -lt 3 ]; then
-    if [ "$links" = "on" ] && [ -d "$DATA_DIR/ClaudeMediaClick.app" ] \
-      && ! /usr/bin/perl -e 'exit(((stat($ARGV[0]))[9] // 0) > time() - 60 ? 0 : 1)' \
-           "$DATA_DIR/build.log" 2>/dev/null; then
-      ("$SCRIPT_DIR/build-click-handler.sh" >/dev/null 2>&1 &)
-    fi
-    links=off
-  fi
+  [ -d "$DATA_DIR/ClaudeMediaClick.app" ] || links=off
   json="$(do_now 2>/dev/null || echo null)"
   if [ -n "$json" ] && [ "$json" != "null" ]; then
     # Render the chosen fields as groups in their stored order (arrange with
@@ -2229,15 +2231,15 @@ do_doctor() {
   echo "[7] Output dev  : $outdev"
   echo "[8] Statusline  : $(do_statusline_status)"
 
-  # cmd+click actions: the claude-media-control:// handler app must exist (at
-  # the current applet format) for the segment to render OSC 8 links at all.
+  # cmd+click actions: the claude-media-control:// handler app must exist for
+  # the segment to render OSC 8 links at all.
   local clicks clickapp
   if [ "$(config_get statusline.links)" != "on" ]; then
     clicks="off (statusline.links) — the segment renders without cmd+click links"
   elif clickapp="$("$SCRIPT_DIR/build-click-handler.sh" --check-only 2>/dev/null)"; then
     clicks="on — handler app registered ($clickapp)"
   else
-    clicks="on but the handler app is MISSING or OUTDATED — links pause until it rebuilds (automatic); force it with /media:config statusline.links on"
+    clicks="on but the handler app is MISSING — links render plain; rebuild with /media:config statusline.links on"
   fi
   echo "[9] Click links : $clicks"
   echo "[10] Config     : progressbar=$(config_get display.progressbar) statusline=$(config_get display.statusline) color=$(config_get statusline.color) marquee=$(config_get statusline.marquee)"
