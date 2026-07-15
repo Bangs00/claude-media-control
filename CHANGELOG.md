@@ -5,6 +5,44 @@ All notable changes to this project are documented here. The format follows
 [SemVer](https://semver.org/spec/v2.0.0.html), tracked in
 `.claude-plugin/plugin.json`.
 
+## [0.35.0] — 2026-07-15
+
+### Added
+
+- **`heartbeat` and `monitor` progress-bar presets — an ECG around a centre
+  baseline.** `pulse` and `ekg` draw their ECG up from a floor, so their QRS
+  can only rise; these two ride a centre line, which buys the move the other
+  pair cannot make — the S wave carries straight through the line and spikes
+  *below* it: `━━━━┻┳━━━━━━━━┻┳━━━━`. Twins, like the existing pairs —
+  `heartbeat` draws with box-drawing stems, `monitor` with a braille trace
+  (`⠤⠤⠤⠴⠼⡦⠤⠶⠤⠤`) — over one shared beat. Alone among the waveforms their
+  shape does **not** follow the bar width: the beat stays 10 cells apart at
+  any length, so a longer bar shows more beats rather than one stretched
+  beat. Both span the whole bar; with `statusline.color` off the unplayed
+  tail settles onto the baseline — it flatlines.
+- **`media.sh bar`** prints the progress bar on its own, without colors or
+  click links.
+
+### Fixed
+
+- **`/media:now` and the statusline can no longer disagree about the bar.**
+  The skill carried a preset → glyphs table for Claude to draw from, and it
+  drifted every time the presets moved — 0.31.1, 0.32.0, 0.33.0 and 0.34.0
+  each had to rewrite it. The table was never going to hold: it can say
+  `line` → `━`/`─`, but the waveforms are computed from the playback position
+  and the bar width, and no prose can produce `eq` or `heartbeat`.
+  `/media:now` now injects `media.sh bar`, which renders through the same
+  builder as the statusline segment, so the two agree by construction and
+  future presets need no skill change.
+
+### Changed
+
+- The style picker in `/media:statusline` offers the new `heartbeat` and
+  `monitor`.
+- `docs/statusline.md` said 29 progress-bar charsets; it and the README now
+  say 31. The README also still described the waveforms as length-adaptive
+  and fill-to-boundary, which 0.32.0–0.34.0 changed.
+
 ## [0.34.0] — 2026-07-14
 
 ### Changed

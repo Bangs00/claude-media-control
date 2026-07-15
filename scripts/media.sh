@@ -9,6 +9,7 @@
 #   volume [0-100]               system output volume get/set, one JSON line
 #   output [device]              audio output device list / switch, JSON
 #   history [n|clear|--json]     recently played tracks (passive local log)
+#   bar                          the progress bar alone, unstyled (for /media:now)
 #   statusline                   one-line segment for a statusline (TTL cache)
 #   statusline install           wire the segment into ~/.claude/settings.json
 #   statusline uninstall         unwire it and restore the previous statusLine
@@ -60,7 +61,7 @@ usage() {
 usage: media.sh <subcommand>
   now | play | pause | toggle | next | prev | seek <seconds>
   artwork [path-prefix] | volume [0-100] | output [device]
-  statusline [install | uninstall | status]
+  statusline [install | uninstall | status] | bar
   history [count | clear | --json [count]]
   test | config [key] [on|off|value] | doctor [--rebuild] | detect | warmup
   open-url <claude-media-control://toggle|activate|seek/<pct>>   (statusline clicks)
@@ -738,6 +739,43 @@ do_statusline() {
   links="$(config_get statusline.links)"
   [ -d "$DATA_DIR/ClaudeMediaClick.app" ] || links=off
   json="$(do_now 2>/dev/null || echo null)"
+  line="$(statusline_render "$json" "$fields" "$multiline" "$color" "$marquee" "$styles" "$links")"
+  mkdir -p "$DATA_DIR" 2>/dev/null || true
+  printf '%s' "$line" > "$cache" 2>/dev/null || true
+  printf '%s' "$line"
+  return 0
+}
+
+# `bar` prints the progress bar ALONE: no colors, no click links, just the
+# glyphs. /media:now injects it so that the bar Claude shows in chat is drawn by
+# the same builder as the statusline segment, which is the only thing that can
+# keep the two in agreement. The skill used to carry a preset -> glyphs table
+# for Claude to draw from, and it drifted every single time the presets moved
+# (0.31.1, 0.32.0, 0.33.0, 0.34.0 each had to re-write it): a prose table can
+# say "line -> ━/─", but no table can produce `eq` or `heartbeat`, whose glyphs
+# are computed from the playback position and the bar width. A skill's !
+# command takes no arguments, so this reads now-playing itself, as do_statusline
+# does.
+#
+# Honors display.progressbar and prints nothing (exit 0) when it is off, when
+# nothing is playing, or when the track has no duration (a live stream) — so
+# /media:now just omits the line when the output is empty.
+do_bar() {
+  [ "$(config_get display.progressbar)" = "on" ] || return 0
+  local json styles out
+  json="$(do_now 2>/dev/null || echo null)"
+  styles="$(style_resolve)"
+  out="$(statusline_render "$json" "progressbar" "off" "off" "off" "$styles" "off")"
+  [ -n "$out" ] || return 0
+  printf '%s\n' "$out"
+}
+
+# Renders <fields> for one now-playing JSON and prints the segment. Pure: no
+# config reads, no cache, no display gate — do_statusline supplies the live
+# settings, do_bar pins colors and links off to get bare glyphs.
+statusline_render() {
+  local json="$1" fields="$2" multiline="$3" color="$4" marquee="$5" styles="$6" links="$7"
+  local line=""
   if [ -n "$json" ] && [ "$json" != "null" ]; then
     # Render the chosen fields as groups in their stored order (arrange with
     # /media:statusline), joined by two spaces inline or a newline in multiline
@@ -982,10 +1020,63 @@ do_statusline() {
         $b |= $BRZ[$_] for 0 .. int($r + 0.5) - 1;
         chr(0x2800 + $b);
       };
+      # $brc packs braille by ROW (0=top..3=bottom) instead of by height. The
+      # monitor trace crosses its own baseline, so it has to light an arbitrary
+      # row span — $brl only fills bottom-up and can never dip below the line.
+      my @BLR = (0x01, 0x02, 0x04, 0x40);
+      my @BRR = (0x08, 0x10, 0x20, 0x80);
+      my $brc = sub {
+        my ($lr, $rr) = @_;
+        my $b = 0;
+        $b |= $BLR[$_] for @$lr;
+        $b |= $BRR[$_] for @$rr;
+        chr(0x2800 + $b);
+      };
+      # Height 0..7 -> braille row, for the centre-baseline trace: baseline 2.0
+      # -> row 2, R peak 7 -> row 0, S trough 0 -> row 3.
+      my $trow = sub { my $r = int(3 - $_[0] * 3 / 7 + 0.5);
+                       $r = 0 if $r < 0; $r = 3 if $r > 3; $r };
       my $flr = sub { my $x = $_[0]; my $i = int($x); $i-- if $i > $x; $i };
-      # height fns: ($i, $cells, $phase) -> 0..7
-      # height fns: ($i, $cells, $phase) -> 0..7. $phase is cells of drift for
-      # space presets, a time-ish argument for field presets (both = pos*WSHIFT).
+      # The beat behind heartbeat/monitor, measured in sub-columns. Where pulse
+      # and ekg draw an ECG from a floor baseline — so their QRS can only rise —
+      # this one rides a CENTRE baseline (2.0 of 0..7), which buys the shape the
+      # other two cannot have: the S wave carries straight through the line and
+      # spikes below it. P (a small bump) -> R (a spike to the top) -> S (down
+      # through the baseline to the bottom) -> T (a second bump).
+      #
+      # There is deliberately no Q wave: in four braille rows Q lands on the same
+      # row as S, and the beat then reads "down-up-down" instead of the sharp
+      # up-then-down this preset exists for.
+      #
+      # Unlike every other waveform the beat does NOT scale with the bar: $PD is
+      # fixed, so the spacing holds at 10 cells and a longer bar simply shows
+      # more beats. A stretched beat leaves ~20 cells of dead line at length 60.
+      # The height fns below therefore ignore their $n argument.
+      #
+      # $q anchors the R rise; the twins share it so their beats line up, but
+      # they must NOT share $w — widening the QRS for the box glyphs smears the
+      # braille R peak across two dots and blunts the very spike this is for.
+      # Hence a factory over one shared fn.
+      my $PD = 20;
+      my $QANCHOR = 9.35;
+      my $mkecg = sub {
+        my ($w) = @_;
+        my $q = $QANCHOR;
+        return sub {
+          my ($i, $n, $pc) = @_;
+          my $p = $i - 2 * $pc;                       # drift, in sub-columns
+          my $m = $p - $PD * $flr->($p / $PD);        # position within the beat
+          my $f = $m / $PD;
+          return 2.0 + 5.0 * ($m - $q) / $w      if $m >= $q        && $m < $q + $w;
+          return 7.0 - 7.0 * ($m - $q - $w) / $w if $m >= $q + $w   && $m < $q + 2*$w;
+          return 2.0 * ($m - $q - 2*$w) / $w     if $m >= $q + 2*$w && $m < $q + 3*$w;
+          return 2.0 + 2.0 * sin($WPI * ($f - 0.34) / 0.06) if $f >= 0.34 && $f < 0.40;
+          return 2.0 + 2.4 * sin($WPI * ($f - 0.70) / 0.12) if $f >= 0.70 && $f < 0.82;
+          return 2.0;
+        };
+      };
+      # height fns: ($i, $cells, $phase) -> 0..7. $phase = pos * WSHIFT. Braille
+      # draws pass sub-column indices, so $n is 2 * cells there.
       my %wfh = (
         wave => sub { my ($i, $n, $pc) = @_; my $wl = $n / 2.5; $wl = 5 if $wl < 5;
           3.5 + 3.5 * sin(2 * $WPI * ($i - $pc) / $wl) },
@@ -1017,11 +1108,17 @@ do_statusline() {
           3.5 + 3.5 * $e * (0.55*sin($i*1.73 + $t*2.1) + 0.45*sin($i*0.91 + 2 + $t*3.3)) },
         mirror => sub { my ($i, $n, $t) = @_; my $m = ($n - 1) / 2;
           3.5 + 3.5 * sin(2 * $WPI * (abs($i - $m) / ($n / 2)) * 1.5 - $t * 1.4) },
+        heartbeat => $mkecg->(1.5),
+        monitor   => $mkecg->(0.5),
       );
       # preset -> [draw, height-fn]. cava/ripple/swell/bars reuse a block
       # height fn in braille; ekg has its own braille-tuned ECG fn so the
       # isoelectric line and needle QRS survive the sub-column packing.
+      # heartbeat/monitor are twins over one centre-baseline beat: box-drawing
+      # stems and a braille trace.
       my %wf = (
+        heartbeat => ["ecgbox", "heartbeat"],
+        monitor   => ["trace",  "monitor"],
         wave     => ["block",   "wave"],
         eq       => ["block",   "eq"],
         pulse    => ["block",   "pulse"],
@@ -1075,6 +1172,43 @@ do_statusline() {
           my $glyph = sub {
             my ($i, $lit) = @_;
             my $att = (!$lit && !$c) ? 0.30 : 1;
+            if ($draw eq "trace" || $draw eq "ecgbox") {
+              my $m = 2 * $cells;
+              # min/max of the trace across a CLOSED sub-column span. Two things
+              # need it: a narrow QRS peaks BETWEEN integer sub-columns, so
+              # sampling only the ends drops the R spike and the beat decays to
+              # a wobble; and closing the span on the next sub-column sample
+              # joins the two, so a steep edge draws as one continuous line
+              # instead of disconnected dots. The attenuated tail scales the
+              # excursion AROUND the baseline — these two ride a centre line, so
+              # scaling the raw height (what every other preset here does) would
+              # drag the baseline itself down instead of flattening the trace.
+              my $span = sub {
+                my ($a, $b, $steps) = @_;
+                my ($lo, $hi) = (99, -99);
+                for my $k (0 .. $steps) {
+                  my $h = $hf->($a + ($b - $a) * $k / $steps, $m, $pc);
+                  $h = 2.0 + ($h - 2.0) * $att;
+                  $lo = $h if $h < $lo; $hi = $h if $h > $hi;
+                }
+                ($lo, $hi);
+              };
+              if ($draw eq "trace") {
+                my @col;
+                for my $s (0, 1) {
+                  my ($lo, $hi) = $span->(2 * $i + $s, 2 * $i + $s + 1, 8);
+                  push @col, [$trow->($hi) .. $trow->($lo)];
+                }
+                return $brc->($col[0], $col[1]);
+              }
+              # A box cell spans the two sub-columns a braille cell would, so the
+              # twins beat in step. P and T top out at 4.4, under the stem
+              # threshold, so the box render shows the QRS alone.
+              my ($lo, $hi) = $span->(2 * $i, 2 * $i + 2, 4);
+              return ($hi >= 5.5 && $lo <= 1.0) ? "\x{254B}"
+                   : $hi >= 5.5                 ? "\x{253B}"
+                   : $lo <= 1.0                 ? "\x{2533}" : "\x{2501}";
+            }
             if ($draw eq "braille") {
               my $m = 2 * $cells;
               return $brl->($hf->(2 * $i, $m, $pc) / 7 * 4 * $att,
@@ -1294,10 +1428,7 @@ do_statusline() {
       print join($ml ? "\n" : "  ", @groups);
     ' "$fields" "$multiline" "$color" "$marquee" "$styles" "$links" 2>/dev/null || true)"
   fi
-  mkdir -p "$DATA_DIR" 2>/dev/null || true
-  printf '%s' "$line" > "$cache" 2>/dev/null || true
   printf '%s' "$line"
-  return 0
 }
 
 # ---- statusline wiring (settings.json install / uninstall) --------------------
@@ -1911,12 +2042,15 @@ style_validate() {
       # Keep exactly-two-character values raw so a space can be a bar glyph
       # ("x " = filled x, empty space); only longer input is trimmed.
       $val =~ s/^\s+|\s+$//g if length($val) != 2;
+      # Keep this list, the fail() text below and the `config style` help in
+      # style_list in sync — tests/media.bats cross-checks the three.
       my %preset = map { $_ => 1 }
         qw(blocks wave pulse eq notes braille chevron tape cassette retro
            knob playhead smooth rise fade corner glide stipple tiles dash
-           line dots spectrum mirror cava ripple swell bars ekg);
+           line dots spectrum mirror cava ripple swell bars ekg
+           heartbeat monitor);
       if ($preset{lc $val}) { print lc $val; exit 0 }
-      fail("progressbar style must be blocks|wave|pulse|eq|notes|braille|chevron|tape|cassette|retro|knob|playhead|smooth|rise|fade|corner|glide|stipple|tiles|dash|line|dots|spectrum|mirror|cava|ripple|swell|bars|ekg or exactly two characters (filled+empty, e.g. \"~-\"); got: $val")
+      fail("progressbar style must be blocks|wave|pulse|eq|notes|braille|chevron|tape|cassette|retro|knob|playhead|smooth|rise|fade|corner|glide|stipple|tiles|dash|line|dots|spectrum|mirror|cava|ripple|swell|bars|ekg|heartbeat|monitor or exactly two characters (filled+empty, e.g. \"~-\"); got: $val")
         unless length($val) == 2 && $val !~ /[\t\n]/ && $val ne "  ";
       print $val; exit 0;
     }
@@ -2042,7 +2176,7 @@ style_list() {
   echo " text parts also take off = hide that part; style.progressbar.style:"
   echo " blocks|wave|pulse|eq|notes|braille|chevron|tape|cassette|retro|knob|"
   echo " playhead|smooth|rise|fade|corner|glide|stipple|tiles|dash|line|dots|"
-  echo " spectrum|mirror|cava|ripple|swell|bars|ekg or two glyphs"
+  echo " spectrum|mirror|cava|ripple|swell|bars|ekg|heartbeat|monitor or two glyphs"
   echo " like \"~-\"; style.progressbar.length: 1-60 cells (also sizes the"
   echo " /media:now bar); style.volume.style: block|progress|stairs;"
   echo " style.volume.bar: on|off — the bar draws in the progress-bar accent;"
@@ -2411,6 +2545,7 @@ case "$cmd" in
   volume)     do_volume "${2:-}" ;;
   output)     do_output "${2:-}" ;;
   history)    do_history "${2:-}" "${3:-}" ;;
+  bar)        do_bar ;;
   statusline)
     case "${2:-}" in
       "")        do_statusline ;;

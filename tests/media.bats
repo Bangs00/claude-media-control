@@ -886,15 +886,40 @@ setup() {
   [ "$status" -eq 0 ]
   for p in eq notes braille chevron tape cassette retro knob playhead \
            smooth rise fade corner glide stipple tiles dash \
-           spectrum mirror cava ripple swell bars ekg; do
+           spectrum mirror cava ripple swell bars ekg heartbeat monitor; do
     run "$MEDIA" config style.progressbar.style "$p"
     [ "$status" -eq 0 ]
   done
+  run "$MEDIA" config style.progressbar.style HEARTBEAT
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"= heartbeat"* ]]
   run "$MEDIA" config style.progressbar.style "#."
   [ "$status" -eq 0 ]
   run "$MEDIA" config style.progressbar.style "~~~"
   [ "$status" -eq 2 ]
   [[ "$output" == *"blocks|wave|pulse|eq|notes|braille|chevron|tape|cassette|retro|knob|playhead|smooth|rise|fade|corner|glide|stipple|tiles|dash|line|dots"* ]]
+}
+
+@test "config style.progressbar.style: validator, error text and help list the same presets" {
+  # The roster is spelled out three times in media.sh — the qw() list that
+  # validates, the fail() message, and the `config style` help — and nothing in
+  # the code keeps them in step. Adding a preset to one and not the others makes
+  # a preset that works but is never mentioned, or vice versa.
+  local validator errtext helptext
+  validator="$(/usr/bin/perl -0777 -ne 'print $1 if /qw\((blocks.*?)\)/s' \
+    "$PLUGIN/scripts/media.sh" | tr -s " \n" "\n" | grep . | sort | tr "\n" " ")"
+  [ -n "$validator" ]
+  run "$MEDIA" config style.progressbar.style "~~~"
+  errtext="$(printf '%s' "$output" | /usr/bin/perl -ne \
+    'print $1 if /style must be (\S+) or exactly/' | tr "|" "\n" | sort | tr "\n" " ")"
+  run "$MEDIA" config style
+  helptext="$(printf '%s' "$output" | tr -d " \n" | /usr/bin/perl -ne \
+    'print $1 if /style\.progressbar\.style:(.*?)ortwoglyphs/' | tr "|" "\n" | sort | tr "\n" " ")"
+  echo "validator: $validator"
+  echo "errtext  : $errtext"
+  echo "helptext : $helptext"
+  [ "$validator" = "$errtext" ]
+  [ "$validator" = "$helptext" ]
 }
 
 @test "config style.progressbar.length: whole number of cells 1-60, default 20" {
@@ -1105,6 +1130,47 @@ setup() {
     "swell|⣷⡄⢀⣼⣀⠀⠀⣀⣀⠀"
     "bars|⣦⢀⣠⣦⣀⢀⣀⡀⠀⣀"
     "ekg|⣀⣶⣀⣤⠀⠀⠀⣀⠀⢀"
+  )
+  for c in "${cases[@]}"; do
+    rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+    echo "{\"display.statusline\":true,\"statusline.color\":false,\"statusline.fields\":[\"progressbar\"],\"style.progressbar.style\":\"${c%%|*}\",\"style.progressbar.length\":\"10\"}" > "$CLAUDE_PLUGIN_DATA/config.json"
+    run "$MEDIA" statusline
+    echo "preset ${c%%|*}: got '$output', want '${c#*|}'"
+    [ "$output" = "${c#*|}" ]
+  done
+}
+
+@test "statusline: progressbar ECG twins — the beat spacing does not follow the bar length" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  # heartbeat/monitor are the only waveforms whose shape does NOT scale with the
+  # bar: the beat stays 10 cells apart, so a longer bar shows MORE beats rather
+  # than a wider one (a stretched beat leaves ~20 dead cells at length 60).
+  # Colors on, so the whole bar renders at full amplitude and every beat shows.
+  echo '{"display.statusline":true,"statusline.fields":["progressbar"],"style.progressbar.style":"heartbeat","style.progressbar.length":"20"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$output" = $'\e[32m━━┻╋┳━━━\e[0m\e[2m━━━━┻╋┳━━━━━\e[0m' ]
+  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  echo '{"display.statusline":true,"statusline.fields":["progressbar"],"style.progressbar.style":"heartbeat","style.progressbar.length":"40"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  # Twice the bar, twice the beats, same spacing.
+  [ "$output" = $'\e[32m━━┻╋┳━━━━━━━┻╋┳\e[0m\e[2m━━━━━━━┻╋┳━━━━━━━┻╋┳━━━━━\e[0m' ]
+  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  echo '{"display.statusline":true,"statusline.fields":["progressbar"],"style.progressbar.style":"monitor","style.progressbar.length":"20"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$output" = $'\e[32m⠤⠶⢾⡤⠴⠲⠤⠤\e[0m\e[2m⠤⠤⠤⠶⢾⡤⠴⠲⠤⠤⠤⠤\e[0m' ]
+}
+
+@test "statusline: progressbar ECG twins — colors off flatline the unplayed tail" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  # Unlike pulse/ekg, which draw their ECG up from a floor baseline, these two
+  # ride a centre line — so the field attenuation has to scale the excursion
+  # AROUND that line. Scaling the raw height, as every other preset here does,
+  # would drag the baseline itself down. Past 75.4/200 = 4/10 the trace settles
+  # flat instead of sagging: an unplayed tail reads as a flatline, which is both
+  # the right metaphor and still legible as progress.
+  local cases=(
+    "heartbeat|━━┻╋━━━━━━"
+    "monitor|⠤⠶⢾⡤⠤⠤⠤⠤⠤⠤"
   )
   for c in "${cases[@]}"; do
     rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
@@ -1869,6 +1935,60 @@ setup() {
   run "$MEDIA" statusline
   [ "$status" -eq 0 ]
   [[ "$output" != *"seek/"* ]]
+}
+
+# ---- bar (the /media:now progress bar) --------------------------------------
+
+@test "bar: the progress bar alone — no colors, no links, honors the charset" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"style.progressbar.style":"line","style.progressbar.length":"10"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" bar
+  [ "$status" -eq 0 ]
+  [ "$output" = "━━━━──────" ]
+}
+
+@test "bar: byte-identical to the statusline progressbar token, for every preset" {
+  # The whole point of the subcommand: /media:now and the statusline draw the
+  # bar with one builder, so they cannot disagree about what a preset looks
+  # like. Presets that are computed waveforms could never be kept in step by a
+  # prose table in the skill — which is exactly how they drifted before.
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  local seg bar p
+  for p in line blocks heartbeat monitor wave pulse eq notes spectrum mirror \
+           cava ripple swell bars ekg playhead smooth rise fade corner glide \
+           stipple tiles dash knob braille chevron tape cassette retro dots "#-"; do
+    rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+    echo "{\"display.statusline\":true,\"statusline.color\":false,\"statusline.links\":false,\"statusline.fields\":[\"progressbar\"],\"style.progressbar.style\":\"$p\",\"style.progressbar.length\":\"20\"}" > "$CLAUDE_PLUGIN_DATA/config.json"
+    seg="$("$MEDIA" statusline)"
+    bar="$("$MEDIA" bar)"
+    echo "preset $p: statusline='$seg' bar='$bar'"
+    [ -n "$bar" ]
+    [ "$seg" = "$bar" ]
+  done
+}
+
+@test "bar: display.progressbar off prints nothing" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.progressbar":false}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" bar
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+}
+
+@test "bar: nothing playing prints nothing" {
+  STUB_PRIMARY=null run "$MEDIA" bar
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+}
+
+@test "bar: a track with no duration prints nothing" {
+  # A live stream has no duration to measure against, so /media:now drops the
+  # bar line and shows "m:ss / LIVE" instead.
+  STUB_PRIMARY=fail \
+    STUB_JXA_JSON='{"degraded":true,"title":"Live Set","artist":"Radio","playing":true,"elapsedTimeNow":42.0}' \
+    run "$MEDIA" bar
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
 }
 
 @test "statusline: NO_COLOR strips styling but keeps the links" {

@@ -165,6 +165,39 @@ part. With colors on, the accent/dim split marks progress; with colors off,
 the unplayed tail is dimmed in height (`notes` drops its tail to `·` rests)
 so progress still reads by shape.
 
+### Heartbeat
+
+`heartbeat` and `monitor` also trace an ECG, but around a **centre baseline**
+rather than up from the floor — which buys them the one move `pulse` and `ekg`
+cannot make: the S wave carries straight through the line and spikes *below*
+it. A flat line, a small P bump, a spike to the top (R), an immediate drop to
+the bottom (S), and a T bump on the way out. Twins, like the pairs above:
+`heartbeat` draws with box-drawing stems, `monitor` with a braille trace, and
+they share one beat so the two tick in step.
+
+| Value | length 20 | length 10 | |
+| --- | --- | --- | --- |
+| `heartbeat` | `━━━━┻┳━━━━━━━━┻┳━━━━` | `━━━━┻┳━━━━` | box-drawing stems |
+| `monitor` | `⠤⠤⠤⠴⠼⡦⠤⠶⠤⠤⠤⠤⠤⠴⠼⡦⠤⠶⠤⠤` | `⠤⠤⠤⠴⠼⡦⠤⠶⠤⠤` | a braille trace |
+
+Alone among the waveforms, their shape does **not** follow the bar width — as
+the two columns above show, the beat is the same size in both. It stays 10
+cells apart at every length, so a longer bar shows more beats rather than one
+stretched beat; at length 60 a length-adaptive beat would leave some 20 cells
+of empty line between peaks.
+
+They span the whole bar like the rest, but the colors-off tail settles back
+onto the baseline rather than shrinking in height — it flatlines:
+
+```
+heartbeat  40%  ━━━━┻┳━━━━━━━━━━━━━━
+monitor    40%  ⠤⠤⠤⠴⠼⡦⠤⠶⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤
+```
+
+`monitor` has four braille rows to work with, so it shows the P and T bumps.
+A box glyph only has a stem or no stem, so `heartbeat` shows the spike alone:
+P and T are too small to raise one.
+
 ### Your own characters
 
 Any **two characters** — exactly two — mean "filled + empty" (a space works

@@ -285,6 +285,7 @@ value in each question text.
     `rise`, `fade`, `corner`, `glide`, `stipple`, `tiles`, `dash`,
     `knob`, `playhead`, `wave`, `pulse`, `eq`, `notes`, `spectrum`,
     `mirror`, `cava`, `ripple`, `swell`, `bars`, `ekg`,
+    `heartbeat`, `monitor`,
     `braille`, `chevron`, `tape`, `cassette`, `retro`, `dots`, or any
     two glyphs like `#-`
   - "Bar length" (`style.progressbar.length`): Keep current /
