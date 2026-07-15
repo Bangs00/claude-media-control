@@ -131,7 +131,11 @@ Notes you must apply when relevant:
   playing media — browser tab / Music track when scriptable, app front
   otherwise — and bar cells seek) are not a style key — a wish to turn
   clicks/links on or off ("클릭/링크 꺼줘") maps to
-  `/media:config statusline.links on|off`.
+  `/media:config statusline.links on|off`. Each part switches on its own,
+  so "앱 이름만 클릭 안 되게" / "바만 클릭되게" is a list, not on/off:
+  `/media:config statusline.links <parts>` over `toggle` (the icon),
+  `track` (title/artist), `app` (the app name), `seek` (the bar) — name the
+  ones to KEEP clickable (`toggle,track,seek` drops just the app name).
 - `config style.<key> reset` restores one default; `config style reset` all
   styles; `config statusline reset` additionally restores the arrangement,
   lines, colors, and marquee (the full stock look).

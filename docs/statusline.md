@@ -38,20 +38,30 @@ segment in by itself:
 
 In terminals with hyperlink support, the segment is **cmd+clickable**:
 
-| Target | ⌘+click does |
-| --- | --- |
-| `▶︎` / `⏸` icon | toggle play/pause |
-| title — artist, `(App)` | jump to the playing media: the playing browser tab (Safari, Chrome, Edge, Brave, Vivaldi, Opera) or the current track in Music; other apps just come to the front |
-| progress bar | seek — every cell jumps to its position (at the default 20 cells: 2.5%, 7.5%, … 97.5%; a longer bar seeks in finer steps) |
+| Part | Target | ⌘+click does |
+| --- | --- | --- |
+| `toggle` | `▶︎` / `⏸` icon | toggle play/pause |
+| `track` | title — artist | jump to the playing media: the playing browser tab (Safari, Chrome, Edge, Brave, Vivaldi, Opera) or the current track in Music; other apps just come to the front |
+| `app` | `(App)` | the same jump, from the app name |
+| `seek` | progress bar | seek — every cell jumps to its position (at the default 20 cells: 2.5%, 7.5%, … 97.5%; a longer bar seeks in finer steps) |
 
 - **Works in**: iTerm2, Ghostty, WezTerm, Kitty, VS Code, Alacritty ≥ 0.11
   (tmux ≥ 3.4 passes links through). Terminals without hyperlink support
   just show the plain segment.
 - The segment reflects a click on the next tick (≤ 1s): the icon flips, the
   bar jumps.
-- Switch: `/media:config statusline.links off` renders the segment plain.
-  Turning it back on rebuilds the handler app, and is refused (exit 3) if
-  that build fails — a link nothing answers is worse than no link.
+- Switch: `/media:config statusline.links off` renders the segment plain, and
+  `on` makes every part clickable again.
+- **Pick the parts** you want by listing them — the rest render plain:
+
+  ```bash
+  /media:config statusline.links toggle,seek     # clickable icon + bar, plain text
+  /media:config statusline.links track,app       # clickable text, plain icon + bar
+  ```
+
+  Any part left on keeps the handler app, so turning links on (or naming a
+  list) rebuilds it, and is refused (exit 3) if that build fails — a link
+  nothing answers is worse than no link.
 - The first tab-jump asks once for Automation consent
   (`ClaudeMediaClick.app`); denying keeps plain activation, silently.
 
@@ -163,7 +173,7 @@ character per second (CJK counts as two cells, so the window stays steady).
 | `statusline.multiline` | `off` | grouped layout: one line per group |
 | `statusline.color` | `on` | ANSI styling (`NO_COLOR` wins) |
 | `statusline.marquee` | `on` | scroll titles wider than 30 cells |
-| `statusline.links` | `on` | cmd+click actions |
+| `statusline.links` | `on` | cmd+click parts: `toggle`, `track`, `app`, `seek` (`on` = all, `off` = none) |
 | `statusline reset` | — | restore the stock look (arrangement, lines, colors, marquee, styles) |
 
 ## Manual setup (custom statuslines)

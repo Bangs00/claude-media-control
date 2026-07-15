@@ -342,7 +342,7 @@ setup() {
   fi
 }
 
-@test "volume: set drops the statusline cache (no-op set to the current level)" {
+@test "volume: set drops the cached read (no-op set to the current level)" {
   run "$MEDIA" volume
   if [ "$status" -ne 0 ]; then
     skip "no standard audio output device on this machine"
@@ -350,10 +350,12 @@ setup() {
   [[ "$output" =~ \"volume\":([0-9]+) ]]
   cur="${BASH_REMATCH[1]}"
   mkdir -p "$CLAUDE_PLUGIN_DATA"
-  printf 'stale' > "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  printf 'stale' > "$CLAUDE_PLUGIN_DATA/now.cache"
   run "$MEDIA" volume "$cur"               # same level: no audible change
   [ "$status" -eq 0 ]
-  [ ! -f "$CLAUDE_PLUGIN_DATA/statusline.cache" ]
+  # The snapshot carries the old level, and the statusline would extrapolate
+  # it rather than re-read — so the set has to forget it.
+  [ ! -f "$CLAUDE_PLUGIN_DATA/now.cache" ]
 }
 
 # ---- output device ----------------------------------------------------------
@@ -383,12 +385,13 @@ setup() {
   [[ "$output" == *"no output device matches"* ]]
 }
 
-@test "output: switch drops the statusline cache" {
+@test "output: switch drops the cached read" {
   mkdir -p "$CLAUDE_PLUGIN_DATA"
-  printf 'stale' > "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  printf 'stale' > "$CLAUDE_PLUGIN_DATA/now.cache"
   run "$MEDIA" output "airpods"
   [ "$status" -eq 0 ]
-  [ ! -f "$CLAUDE_PLUGIN_DATA/statusline.cache" ]
+  # The snapshot still names the old device (same rule as volume).
+  [ ! -f "$CLAUDE_PLUGIN_DATA/now.cache" ]
 }
 
 @test "output: refused in degraded mode (needs the native helper)" {
@@ -405,7 +408,7 @@ setup() {
   [ -z "$output" ]
 }
 
-@test "statusline: on -> one segment line + cache file written" {
+@test "statusline: on -> one segment line + the read is cached" {
   mkdir -p "$CLAUDE_PLUGIN_DATA"
   echo '{"display.statusline":true}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
@@ -414,21 +417,67 @@ setup() {
   [[ "$output" == *"Stub Artist"* ]]
   [[ "$output" == *"1:15"* ]]      # elapsed and total are styled separately,
   [[ "$output" == *"/3:20"* ]]     # so SGR codes may sit between them
-  [ -f "$CLAUDE_PLUGIN_DATA/statusline.cache" ]
+  # What is cached is the READ, not the rendered line — the line is the
+  # animation frame, and caching a frame would freeze the waveform presets.
+  [ -f "$CLAUDE_PLUGIN_DATA/now.cache" ]
+  run cat "$CLAUDE_PLUGIN_DATA/now.cache"
+  [[ "$output" == *'"title":"Stub Song"'* ]]
 }
 
-@test "statusline: fresh cache is served without a new read" {
+@test "statusline: a fresh cached read is reused instead of re-reading" {
   mkdir -p "$CLAUDE_PLUGIN_DATA"
   echo '{"display.statusline":true}' > "$CLAUDE_PLUGIN_DATA/config.json"
-  # The TTL compares whole seconds, so a write landing right at a second
-  # boundary can age out instantly — retry across a few boundaries.
-  for _ in 1 2 3; do
-    printf 'CACHED_SENTINEL' > "$CLAUDE_PLUGIN_DATA/statusline.cache"
-    run "$MEDIA" statusline
-    [ "$status" -eq 0 ]
-    [ "$output" = "CACHED_SENTINEL" ] && break
-  done
-  [ "$output" = "CACHED_SENTINEL" ]
+  # A snapshot no stub could ever produce: if it renders, the tick did not
+  # re-read. Written fresh, so it is inside the serve window.
+  printf '%s\n' '{"title":"Cached Only","artist":"From The Cache","playing":true,"elapsedTime":10,"elapsedTimeNow":10,"duration":200,"playbackRate":1,"appName":"CacheApp","bundleIdentifier":"com.example.cache"}' \
+    > "$CLAUDE_PLUGIN_DATA/now.cache"
+  run "$MEDIA" statusline
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Cached Only"* ]]
+  [[ "$output" != *"Stub Song"* ]]
+}
+
+@test "statusline: an expired cached read is re-read, not extrapolated" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.statusline":true}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  printf '%s\n' '{"title":"Cached Only","artist":"From The Cache","playing":true,"elapsedTime":10,"elapsedTimeNow":10,"duration":200,"playbackRate":1}' \
+    > "$CLAUDE_PLUGIN_DATA/now.cache"
+  # Older than NOW_CACHE_MAX_SECONDS: too stale to extrapolate honestly (the
+  # track may have ended), so the tick pays for a real read instead.
+  touch -t 200001010000 "$CLAUDE_PLUGIN_DATA/now.cache"
+  run "$MEDIA" statusline
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Stub Song"* ]]
+  [[ "$output" != *"Cached Only"* ]]
+}
+
+@test "statusline: the cached position advances with the clock, not the read" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["time"]}' \
+    > "$CLAUDE_PLUGIN_DATA/config.json"
+  # Captured at 1:00 of a 3:20 track, two seconds ago: the segment must show
+  # 1:02 without re-reading. This is what lets the waveform presets animate
+  # at the tick rate while the ~290ms MediaRemote read runs far less often.
+  printf '%s\n' '{"title":"Cached Only","playing":true,"elapsedTime":60,"elapsedTimeNow":60,"duration":200,"playbackRate":1}' \
+    > "$CLAUDE_PLUGIN_DATA/now.cache"
+  /usr/bin/perl -e 'my $t = time - 2; utime $t, $t, $ARGV[0]' "$CLAUDE_PLUGIN_DATA/now.cache"
+  run "$MEDIA" statusline
+  [ "$status" -eq 0 ]
+  [ "$output" = "1:02/3:20" ]
+}
+
+@test "statusline: a paused cached read does not advance" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["time"]}' \
+    > "$CLAUDE_PLUGIN_DATA/config.json"
+  # playbackRate 0: the position is where it was left, however long ago that
+  # was — so a paused track's animation holds still, as it should.
+  printf '%s\n' '{"title":"Cached Only","playing":false,"elapsedTime":60,"elapsedTimeNow":60,"duration":200,"playbackRate":0}' \
+    > "$CLAUDE_PLUGIN_DATA/now.cache"
+  /usr/bin/perl -e 'my $t = time - 2; utime $t, $t, $ARGV[0]' "$CLAUDE_PLUGIN_DATA/now.cache"
+  run "$MEDIA" statusline
+  [ "$status" -eq 0 ]
+  [ "$output" = "1:00/3:20" ]
 }
 
 @test "statusline: nothing playing -> empty output" {
@@ -473,13 +522,16 @@ setup() {
   [ "$output" = "on" ]
 }
 
-@test "config: off always succeeds and clears the statusline cache" {
+@test "config: off always succeeds and the segment goes quiet" {
   mkdir -p "$CLAUDE_PLUGIN_DATA"
   echo '{"display.statusline":true}' > "$CLAUDE_PLUGIN_DATA/config.json"
-  printf 'stale' > "$CLAUDE_PLUGIN_DATA/statusline.cache"
   run "$MEDIA" config display.statusline off
   [ "$status" -eq 0 ]
-  [ ! -f "$CLAUDE_PLUGIN_DATA/statusline.cache" ]
+  # §4.8.1 (off leaves no trace) needs nothing invalidated: the segment is
+  # built from scratch each tick, and gated on the toggle before it is built.
+  run "$MEDIA" statusline
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
 }
 
 @test "config: settings persist in config.json" {
@@ -725,10 +777,10 @@ setup() {
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["output"]}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
   [ "$output" = "🔊 Stub Speakers" ]             # speaker kind (stub default)
-  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
   STUB_OUTPUT_KIND=headphones run "$MEDIA" statusline
   [ "$output" = "🎧 Stub Speakers" ]             # bluetooth / headphone jack
-  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
   STUB_OUTPUT_KIND=display run "$MEDIA" statusline
   [ "$output" = "📺 Stub Speakers" ]             # HDMI / DisplayPort audio
 }
@@ -763,13 +815,13 @@ setup() {
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["volume"]}' > "$CLAUDE_PLUGIN_DATA/config.json"
   STUB_VOLUME=90 run "$MEDIA" statusline
   [ "$output" = "🔊 █ 90%" ]                     # high tier, full-height bar
-  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"   # beat the 1s TTL between runs
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"   # re-read: the stub changed
   STUB_VOLUME=50 run "$MEDIA" statusline
   [ "$output" = "🔉 ▄ 50%" ]                     # 50% = half-height bar
-  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
   STUB_VOLUME=10 run "$MEDIA" statusline
   [ "$output" = "🔈 ▁ 10%" ]                     # low tier, sliver bar
-  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
   STUB_MUTED=true run "$MEDIA" statusline
   [ "$output" = "🔇" ]
 }
@@ -948,16 +1000,16 @@ setup() {
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["progressbar"]}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
   [ "$output" = "━━━━━━━━────────────" ]
-  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["progressbar"],"style.progressbar.length":"5"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
   [ "$output" = "━━───" ]                    # 75.4/200 -> 2 of 5 cells
-  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
   # Junk in a hand-edited config falls back to the default width.
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["progressbar"],"style.progressbar.length":"huge"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
   [ "$output" = "━━━━━━━━────────────" ]
-  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
   # The volume progress mini bar keeps its fixed 8 cells (45% -> 4 filled).
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["volume"],"style.volume.style":"progress","style.progressbar.length":"40"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
@@ -998,12 +1050,16 @@ setup() {
   [ "$output" = "dim" ]
 }
 
-@test "config style.*: set drops the statusline cache" {
+@test "config style.*: a set shows on the very next render" {
   mkdir -p "$CLAUDE_PLUGIN_DATA"
-  printf 'stale' > "$CLAUDE_PLUGIN_DATA/statusline.cache"
-  run "$MEDIA" config style.app "bold"
+  echo '{"display.statusline":true,"statusline.fields":["app"]}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" config style.app "off"
   [ "$status" -eq 0 ]
-  [ ! -f "$CLAUDE_PLUGIN_DATA/statusline.cache" ]
+  # Only the read is cached, so a style change needs no invalidation at all:
+  # the next tick re-renders, and the hidden app takes its whole line with it.
+  run "$MEDIA" statusline
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
 }
 
 @test "statusline: default styling is unchanged with no style keys set" {
@@ -1061,14 +1117,14 @@ setup() {
   # (past 75.4/200 = 4/10) is attenuated so progress still reads by height.
   # The phase drifts with the position. Charset applies even with color off.
   [ "$output" = "▅▂▂▆▃▂▁▁▂▃" ]
-  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
   STUB_ELAPSED=76 run "$MEDIA" statusline
   [ "$output" = "▇▃▁▄▃▃▂▁▂▃" ]              # one second on — the wave drifts
-  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["progressbar"],"style.progressbar.style":"pulse","style.progressbar.length":"10"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
   [ "$output" = "▃▁▆█▁▂▂▁▃▃" ]              # ECG trace: a QRS spike over a flat baseline
-  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["progressbar"],"style.progressbar.style":"#.","style.progressbar.length":"10"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
   [ "$output" = "####......" ]
@@ -1094,7 +1150,7 @@ setup() {
     "smooth|███▊░░░░░░"
   )
   for c in "${cases[@]}"; do
-    rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+    rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
     echo "{\"display.statusline\":true,\"statusline.color\":false,\"statusline.fields\":[\"progressbar\"],\"style.progressbar.style\":\"${c%%|*}\",\"style.progressbar.length\":\"10\"}" > "$CLAUDE_PLUGIN_DATA/config.json"
     run "$MEDIA" statusline
     echo "preset ${c%%|*}: got '$output', want '${c#*|}'"
@@ -1113,7 +1169,7 @@ setup() {
     "ripple|⣄⢀⣾⣦⠀⠀⣀⣀⠀⢀"
   )
   for c in "${cases[@]}"; do
-    rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+    rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
     echo "{\"display.statusline\":true,\"statusline.color\":false,\"statusline.fields\":[\"progressbar\"],\"style.progressbar.style\":\"${c%%|*}\",\"style.progressbar.length\":\"10\"}" > "$CLAUDE_PLUGIN_DATA/config.json"
     run "$MEDIA" statusline
     echo "preset ${c%%|*}: got '$output', want '${c#*|}'"
@@ -1132,7 +1188,7 @@ setup() {
     "ekg|⣀⣶⣀⣤⠀⠀⠀⣀⠀⢀"
   )
   for c in "${cases[@]}"; do
-    rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+    rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
     echo "{\"display.statusline\":true,\"statusline.color\":false,\"statusline.fields\":[\"progressbar\"],\"style.progressbar.style\":\"${c%%|*}\",\"style.progressbar.length\":\"10\"}" > "$CLAUDE_PLUGIN_DATA/config.json"
     run "$MEDIA" statusline
     echo "preset ${c%%|*}: got '$output', want '${c#*|}'"
@@ -1149,12 +1205,12 @@ setup() {
   echo '{"display.statusline":true,"statusline.fields":["progressbar"],"style.progressbar.style":"heartbeat","style.progressbar.length":"20"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
   [ "$output" = $'\e[32m━━┻╋┳━━━\e[0m\e[2m━━━━┻╋┳━━━━━\e[0m' ]
-  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
   echo '{"display.statusline":true,"statusline.fields":["progressbar"],"style.progressbar.style":"heartbeat","style.progressbar.length":"40"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
   # Twice the bar, twice the beats, same spacing.
   [ "$output" = $'\e[32m━━┻╋┳━━━━━━━┻╋┳\e[0m\e[2m━━━━━━━┻╋┳━━━━━━━┻╋┳━━━━━\e[0m' ]
-  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
   echo '{"display.statusline":true,"statusline.fields":["progressbar"],"style.progressbar.style":"monitor","style.progressbar.length":"20"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
   [ "$output" = $'\e[32m⠤⠶⢾⡤⠴⠲⠤⠤\e[0m\e[2m⠤⠤⠤⠶⢾⡤⠴⠲⠤⠤⠤⠤\e[0m' ]
@@ -1173,7 +1229,7 @@ setup() {
     "monitor|⠤⠶⢾⡤⠤⠤⠤⠤⠤⠤"
   )
   for c in "${cases[@]}"; do
-    rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+    rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
     echo "{\"display.statusline\":true,\"statusline.color\":false,\"statusline.fields\":[\"progressbar\"],\"style.progressbar.style\":\"${c%%|*}\",\"style.progressbar.length\":\"10\"}" > "$CLAUDE_PLUGIN_DATA/config.json"
     run "$MEDIA" statusline
     echo "preset ${c%%|*}: got '$output', want '${c#*|}'"
@@ -1189,13 +1245,13 @@ setup() {
   run "$MEDIA" statusline
   [[ "$output" == *$'\e[32m▄▅▇▅\e[0m\e[2m▂▃▆▅▄▅\e[0m'* ]]
   # wave is a field preset too — same split, full-height tail.
-  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
   echo '{"display.statusline":true,"statusline.fields":["progressbar"],"style.progressbar.style":"wave","style.progressbar.length":"10"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
   [[ "$output" == *$'\e[32m▅▂▂▆\e[0m\e[2m█▅▂▂▆█\e[0m'* ]]
   # notes as well: the dim tail keeps the full ♪♫ density, so only the
   # accent/dim split marks progress (colors off thins it to rest dots).
-  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
   echo '{"display.statusline":true,"statusline.fields":["progressbar"],"style.progressbar.style":"notes","style.progressbar.length":"10"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
   [[ "$output" == *$'\e[32m♪··♫\e[0m\e[2m♪♫··♪♫\e[0m'* ]]
@@ -1220,19 +1276,19 @@ setup() {
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["progressbar"],"style.progressbar.style":"rise","style.progressbar.length":"10"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
   [ "$output" = "███▆░░░░░░" ]
-  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
   STUB_ELAPSED=65 run "$MEDIA" statusline
   [ "$output" = "███▂░░░░░░" ]              # 26 eighths → ▂
-  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
   STUB_ELAPSED=70 run "$MEDIA" statusline
   [ "$output" = "███▄░░░░░░" ]              # 28 eighths → ▄
-  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
   STUB_ELAPSED=77 run "$MEDIA" statusline
   [ "$output" = "███▇░░░░░░" ]              # 31 eighths → ▇
-  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
   STUB_ELAPSED=80 run "$MEDIA" statusline
   [ "$output" = "████░░░░░░" ]              # 32 eighths — the cell completes
-  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
   STUB_ELAPSED=199 run "$MEDIA" statusline
   [ "$output" = "██████████" ]              # 199.4/200 rounds to full
 }
@@ -1246,7 +1302,7 @@ setup() {
   # With the handler app present every cell (boundary included) is its own
   # seek link, and stripping the links leaves the plain glyphs.
   mkdir -p "$CLAUDE_PLUGIN_DATA/ClaudeMediaClick.app"
-  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["progressbar"],"style.progressbar.style":"rise","style.progressbar.length":"10"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
   [ "$(printf '%s' "$output" | /usr/bin/grep -o ']8;;' | wc -l | tr -d ' ')" -eq 20 ]
@@ -1263,13 +1319,13 @@ setup() {
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["progressbar"],"style.progressbar.style":"playhead","style.progressbar.length":"10"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
   [ "$output" = "───╼╾─────" ]
-  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
   STUB_ELAPSED=70 run "$MEDIA" statusline
   [ "$output" = "───━──────" ]              # 6.336 → 6 half-steps, aligned
-  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
   STUB_ELAPSED=1 run "$MEDIA" statusline
   [ "$output" = "━─────────" ]              # parked at the start
-  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
   STUB_ELAPSED=199 run "$MEDIA" statusline
   [ "$output" = "─────────━" ]              # pinned to the last cell
 }
@@ -1284,7 +1340,7 @@ setup() {
   # With the handler app present every cell is its own seek link, and
   # stripping the links leaves the plain glyphs.
   mkdir -p "$CLAUDE_PLUGIN_DATA/ClaudeMediaClick.app"
-  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["progressbar"],"style.progressbar.style":"playhead","style.progressbar.length":"10"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
   [ "$(printf '%s' "$output" | /usr/bin/grep -o ']8;;' | wc -l | tr -d ' ')" -eq 20 ]
@@ -1308,7 +1364,7 @@ setup() {
     "dash|━━━┉╌╌╌╌╌╌"
   )
   for c in "${cases[@]}"; do
-    rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+    rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
     echo "{\"display.statusline\":true,\"statusline.color\":false,\"statusline.fields\":[\"progressbar\"],\"style.progressbar.style\":\"${c%%|*}\",\"style.progressbar.length\":\"10\"}" > "$CLAUDE_PLUGIN_DATA/config.json"
     run "$MEDIA" statusline
     echo "preset ${c%%|*}: got '$output', want '${c#*|}'"
@@ -1323,19 +1379,19 @@ setup() {
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["progressbar"],"style.progressbar.style":"stipple","style.progressbar.length":"10"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   STUB_ELAPSED=62 run "$MEDIA" statusline
   [ "$output" = "⣿⣿⣿⣄⣀⣀⣀⣀⣀⣀" ]              # 19 sixths → ⣄
-  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
   STUB_ELAPSED=65 run "$MEDIA" statusline
   [ "$output" = "⣿⣿⣿⣤⣀⣀⣀⣀⣀⣀" ]              # 20 sixths → ⣤
-  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
   STUB_ELAPSED=70 run "$MEDIA" statusline
   [ "$output" = "⣿⣿⣿⣦⣀⣀⣀⣀⣀⣀" ]              # 21 sixths → ⣦
-  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
   STUB_ELAPSED=73 run "$MEDIA" statusline
   [ "$output" = "⣿⣿⣿⣶⣀⣀⣀⣀⣀⣀" ]              # 22 sixths → ⣶
-  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
   STUB_ELAPSED=77 run "$MEDIA" statusline
   [ "$output" = "⣿⣿⣿⣷⣀⣀⣀⣀⣀⣀" ]              # 23 sixths → ⣷
-  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
   STUB_ELAPSED=79 run "$MEDIA" statusline
   [ "$output" = "⣿⣿⣿⣿⣀⣀⣀⣀⣀⣀" ]              # 24 sixths — the cell completes
 }
@@ -1348,13 +1404,13 @@ setup() {
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["progressbar"],"style.progressbar.style":"glide","style.progressbar.length":"10"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   STUB_ELAPSED=65 run "$MEDIA" statusline
   [ "$output" = "━━━╾──────" ]
-  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
   STUB_ELAPSED=85 run "$MEDIA" statusline
   [ "$output" = "━━━━╾─────" ]
-  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
   STUB_ELAPSED=199 run "$MEDIA" statusline
   [ "$output" = "━━━━━━━━━━" ]
-  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["progressbar"],"style.progressbar.style":"tiles","style.progressbar.length":"10"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   STUB_ELAPSED=65 run "$MEDIA" statusline
   [ "$output" = "■■■◧□□□□□□" ]
@@ -1370,13 +1426,13 @@ setup() {
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["progressbar"],"style.progressbar.style":"dash","style.progressbar.length":"10"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   STUB_ELAPSED=65 run "$MEDIA" statusline
   [ "$output" = "━━━╍╌╌╌╌╌╌" ]              # 13 quarters → ╍ (1/4)
-  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
   STUB_ELAPSED=70 run "$MEDIA" statusline
   [ "$output" = "━━━┅╌╌╌╌╌╌" ]              # 14 quarters → ┅ (2/4)
-  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
   STUB_ELAPSED=73 run "$MEDIA" statusline
   [ "$output" = "━━━┉╌╌╌╌╌╌" ]              # 15 quarters → ┉ (3/4)
-  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
   STUB_ELAPSED=79 run "$MEDIA" statusline
   [ "$output" = "━━━━╌╌╌╌╌╌" ]              # 16 quarters — the cell fuses
 }
@@ -1390,7 +1446,7 @@ setup() {
   # With the handler app present every cell (boundary included) is its own
   # seek link, and stripping the links leaves the plain glyphs.
   mkdir -p "$CLAUDE_PLUGIN_DATA/ClaudeMediaClick.app"
-  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["progressbar"],"style.progressbar.style":"fade","style.progressbar.length":"10"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
   [ "$(printf '%s' "$output" | /usr/bin/grep -o ']8;;' | wc -l | tr -d ' ')" -eq 20 ]
@@ -1403,11 +1459,11 @@ setup() {
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["volume"],"style.volume.icon":"♪"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
   [ "$output" = "♪ ▄ 45%" ]
-  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["volume"],"style.volume.icon":"none"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
   [ "$output" = "▄ 45%" ]
-  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["volume"],"style.volume.icon":"♪"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   STUB_MUTED=true run "$MEDIA" statusline
   [ "$output" = "🔇" ]                      # muted always shows the mute glyph
@@ -1420,11 +1476,11 @@ setup() {
   # Since 0.14.0 the bar follows the playing/paused accent (green while
   # playing) — one accent across the segment; the percent keeps its own spec.
   [ "$output" = $'🔉 \e[32m▄\e[0m \e[2m45%\e[0m' ]
-  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
   echo '{"display.statusline":true,"statusline.fields":["volume"],"style.volume.percent":"bold red"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
   [ "$output" = $'🔉 \e[32m▄\e[0m \e[1;31m45%\e[0m' ]
-  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
   echo '{"display.statusline":true,"statusline.fields":["volume"],"style.progressbar.playing":"red"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
   [ "$output" = $'🔉 \e[31m▄\e[0m \e[2m45%\e[0m' ]  # accent change recolors the bar
@@ -1456,7 +1512,7 @@ setup() {
   echo '{"display.statusline":true,"style.time.total":"italic"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
   [[ "$output" == *$'\e[1m1:15\e[0m\e[3m/3:20\e[0m'* ]]
-  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
   echo '{"display.statusline":true,"statusline.fields":["output"],"style.output":"bold cyan"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
   # Since 0.13.0 the icon stays outside the SGR wrap (so style.output.icon
@@ -1509,11 +1565,11 @@ setup() {
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["track","app"],"style.track.artist":"off"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
   [ "$output" = "▶︎ Stub Song (StubPlayer)" ]      # the — separator goes too
-  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["track","app"],"style.track.title":"off"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
   [ "$output" = "▶︎ Stub Artist (StubPlayer)" ]
-  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["track","app"],"style.app":"off"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
   [ "$output" = "▶︎ Stub Song — Stub Artist" ]
@@ -1524,7 +1580,7 @@ setup() {
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["time"],"style.time.total":"off"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
   [ "$output" = "1:15" ]
-  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["time"],"style.time.elapsed":"off"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
   [ "$output" = "3:20" ]                           # no leading slash alone
@@ -1535,11 +1591,11 @@ setup() {
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["volume"],"style.volume.percent":"off"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
   [ "$output" = "🔉 ▄" ]
-  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["volume"],"style.volume.bar":"off"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
   [ "$output" = "🔉 45%" ]
-  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["track","/","volume"],"style.volume.icon":"none","style.volume.bar":"off","style.volume.percent":"off"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
   [ "${#lines[@]}" -eq 1 ]                         # the volume line vanishes
@@ -1551,27 +1607,27 @@ setup() {
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["volume"],"style.volume.style":"progress"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
   [ "$output" = "🔉 ━━━━──── 45%" ]                # 45% of 8 cells, line charset
-  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["volume"],"style.volume.style":"progress","style.progressbar.style":"#."}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
   [ "$output" = "🔉 ####.... 45%" ]                # follows the custom pair
-  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["volume"],"style.volume.style":"progress","style.progressbar.style":"knob"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
   [ "$output" = "🔉 ━━━●──── 45%" ]                # knob head caps the fill
-  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["volume"],"style.volume.style":"progress","style.progressbar.style":"smooth"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
   [ "$output" = "🔉 ███▋░░░░ 45%" ]                # 45% of 8 cells = 29/8 → ▋
-  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["volume"],"style.volume.style":"progress","style.progressbar.style":"rise"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
   [ "$output" = "🔉 ███▅░░░░ 45%" ]                # same 29/8, rising ramp → ▅
-  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["volume"],"style.volume.style":"progress","style.progressbar.style":"stipple"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
   [ "$output" = "🔉 ⣿⣿⣿⣶⣀⣀⣀⣀ 45%" ]              # 45% in sixths = 22/6 → ⣶
-  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["volume"],"style.volume.style":"stairs"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
   [ "$output" = "🔉 ▁▂▃▄ 45%" ]                    # ceil(45*8/100) = 4 steps
@@ -1582,15 +1638,15 @@ setup() {
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["output"],"style.output.icon":"none"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
   [ "$output" = "Stub Speakers" ]
-  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["output"],"style.output.icon":"→"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
   [ "$output" = "→ Stub Speakers" ]
-  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["output"],"style.output":"off"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
   [ "$output" = "🔊" ]                             # icon-only output item
-  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["track","/","output"],"style.output.icon":"none","style.output":"off"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
   [ "${#lines[@]}" -eq 1 ]                         # nothing left -> line drops
@@ -1604,7 +1660,6 @@ setup() {
   run "$MEDIA" config style.track.title "cyan"
   run "$MEDIA" config display.statusline off
   run "$MEDIA" config history.record off
-  printf 'stale' > "$CLAUDE_PLUGIN_DATA/statusline.cache"
   run "$MEDIA" config statusline reset
   [ "$status" -eq 0 ]
   [[ "$output" == *"defaults"* ]]
@@ -1635,7 +1690,7 @@ setup() {
   echo '{"display.statusline":true,"statusline.color":false,"style.track.title":"bold cyan"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
   [[ "$output" != *$'\e['* ]]
-  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
   echo '{"display.statusline":true,"style.track.title":"bold cyan"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   NO_COLOR=1 run "$MEDIA" statusline
   [[ "$output" != *$'\e['* ]]
@@ -1904,7 +1959,7 @@ setup() {
   plain="$(printf '%s' "$output" | /usr/bin/perl -pe 's/\e\]8;;[^\a]*\a//g')"
   [ "$plain" = "━━━━━━━━────────────" ]
   # A custom length re-divides the click map: 4 cells seek to their centers.
-  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["progressbar"],"style.progressbar.length":"4"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
   for pct in 12 37 62 87; do
@@ -1924,17 +1979,135 @@ setup() {
   [ ! -d "$CLAUDE_PLUGIN_DATA/ClaudeMediaClick.app" ]
   # Handler present but the key off.
   mkdir -p "$CLAUDE_PLUGIN_DATA/ClaudeMediaClick.app"
-  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
   echo '{"display.statusline":true,"statusline.links":false}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
   [ "$status" -eq 0 ]
   [[ "$output" != *']8;;'* ]]
   # The volume mini bar (progress shape) never seeks.
-  rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
   echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["volume"],"style.volume.style":"progress"}' > "$CLAUDE_PLUGIN_DATA/config.json"
   run "$MEDIA" statusline
   [ "$status" -eq 0 ]
   [[ "$output" != *"seek/"* ]]
+}
+
+# ---- per-part links (statusline.links as a list) ------------------------------
+
+@test "statusline.links: a list round-trips; on/off stay the all/none shorthands" {
+  run "$MEDIA" config statusline.links "toggle,seek"
+  [ "$status" -eq 0 ]
+  run "$MEDIA" config statusline.links
+  [ "$output" = "toggle seek" ]
+  # Normalized to VALID_STATUSLINE_LINKS order — links are a set, not a layout.
+  run "$MEDIA" config statusline.links "seek app toggle"
+  [ "$status" -eq 0 ]
+  run "$MEDIA" config statusline.links
+  [ "$output" = "toggle app seek" ]
+  # Every part reads back as the "on" it is.
+  run "$MEDIA" config statusline.links "toggle,track,app,seek"
+  run "$MEDIA" config statusline.links
+  [ "$output" = "on" ]
+  run "$MEDIA" config statusline.links off
+  run "$MEDIA" config statusline.links
+  [ "$output" = "off" ]
+}
+
+@test "statusline.links: unknown names drop; a list naming nothing valid is an error" {
+  run "$MEDIA" config statusline.links "toggle,bogus,seek"
+  [ "$status" -eq 0 ]
+  run "$MEDIA" config statusline.links
+  [ "$output" = "toggle seek" ]
+  # All-bogus is a typo, not an intent to switch links off.
+  run "$MEDIA" config statusline.links "bogus,nonsense"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"statusline.links"* ]]
+}
+
+@test "statusline.links: a stored boolean still means all/none" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  # What every config written before per-part links holds.
+  echo '{"statusline.links":true}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" config statusline.links
+  [ "$output" = "on" ]
+  echo '{"statusline.links":false}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" config statusline.links
+  [ "$output" = "off" ]
+  # An empty list is "none" — not "unset", which would read as the default.
+  echo '{"statusline.links":[]}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" config statusline.links
+  [ "$output" = "off" ]
+}
+
+@test "statusline.links: each part links independently of the others" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA/ClaudeMediaClick.app"
+  local p
+  # One part on at a time: only that part's action may appear.
+  for p in toggle track app seek; do
+    rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
+    echo "{\"display.statusline\":true,\"statusline.color\":false,\"statusline.fields\":[\"track\",\"app\",\"progressbar\"],\"statusline.links\":[\"$p\"]}" \
+      > "$CLAUDE_PLUGIN_DATA/config.json"
+    run "$MEDIA" statusline
+    [ "$status" -eq 0 ]
+    case "$p" in
+      toggle)
+        [[ "$output" == *"://toggle"* ]]
+        [[ "$output" != *"://activate"* ]]
+        [[ "$output" != *"://seek/"* ]]
+        ;;
+      track | app)
+        # track and app share the activate action, so what distinguishes them
+        # is which text carries it: the title, or the "(StubPlayer)" tail.
+        [[ "$output" == *"://activate"* ]]
+        [[ "$output" != *"://toggle"* ]]
+        [[ "$output" != *"://seek/"* ]]
+        if [ "$p" = "track" ]; then
+          [[ "$output" == *"activate"*"Stub Song"* ]]
+          [[ "$output" != *"activate"*"(StubPlayer)"* ]]
+        else
+          [[ "$output" == *"activate"*"(StubPlayer)"* ]]
+          [[ "$output" != *"activate"*"Stub Song"* ]]
+        fi
+        ;;
+      seek)
+        [[ "$output" == *"://seek/"* ]]
+        [[ "$output" != *"://toggle"* ]]
+        [[ "$output" != *"://activate"* ]]
+        ;;
+    esac
+  done
+}
+
+@test "statusline.links: a part switched off renders byte-identically to links off" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA/ClaudeMediaClick.app"
+  local with without
+  # The bar is the one that matters: with seek off its fill must collapse back
+  # to a single SGR run, exactly as it does with links off entirely.
+  echo '{"display.statusline":true,"statusline.fields":["progressbar"],"statusline.links":["toggle","track","app"]}' \
+    > "$CLAUDE_PLUGIN_DATA/config.json"
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
+  with="$("$MEDIA" statusline)"
+  echo '{"display.statusline":true,"statusline.fields":["progressbar"],"statusline.links":false}' \
+    > "$CLAUDE_PLUGIN_DATA/config.json"
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
+  without="$("$MEDIA" statusline)"
+  [ -n "$without" ]
+  [ "$with" = "$without" ]
+}
+
+@test "statusline.links: a non-empty list still builds the handler; off never does" {
+  run "$MEDIA" config statusline.links "toggle"
+  [ "$status" -eq 0 ]
+  [ -d "$CLAUDE_PLUGIN_DATA/ClaudeMediaClick.app" ]     # preflight built it
+  rm -rf "$CLAUDE_PLUGIN_DATA/ClaudeMediaClick.app"
+  run "$MEDIA" config statusline.links off
+  [ "$status" -eq 0 ]
+  [ ! -d "$CLAUDE_PLUGIN_DATA/ClaudeMediaClick.app" ]
+  # A list is refused (exit 3) when the build fails, exactly as "on" is: a
+  # link nothing answers is worse than no link.
+  STUB_CLICK=fail run "$MEDIA" config statusline.links "seek"
+  [ "$status" -eq 3 ]
+  [[ "$output" == *"click-handler"* ]]
 }
 
 # ---- bar (the /media:now progress bar) --------------------------------------
@@ -1952,14 +2125,20 @@ setup() {
   # bar with one builder, so they cannot disagree about what a preset looks
   # like. Presets that are computed waveforms could never be kept in step by a
   # prose table in the skill — which is exactly how they drifted before.
+  #
+  # Both calls read fresh (the cache is dropped before each), so both render
+  # the stub's position with nothing extrapolated on top: same builder, same
+  # instant. Left to extrapolate, the two would legitimately differ by the
+  # milliseconds between them — a live bar is supposed to move.
   mkdir -p "$CLAUDE_PLUGIN_DATA"
   local seg bar p
   for p in line blocks heartbeat monitor wave pulse eq notes spectrum mirror \
            cava ripple swell bars ekg playhead smooth rise fade corner glide \
            stipple tiles dash knob braille chevron tape cassette retro dots "#-"; do
-    rm -f "$CLAUDE_PLUGIN_DATA/statusline.cache"
     echo "{\"display.statusline\":true,\"statusline.color\":false,\"statusline.links\":false,\"statusline.fields\":[\"progressbar\"],\"style.progressbar.style\":\"$p\",\"style.progressbar.length\":\"20\"}" > "$CLAUDE_PLUGIN_DATA/config.json"
+    rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
     seg="$("$MEDIA" statusline)"
+    rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
     bar="$("$MEDIA" bar)"
     echo "preset $p: statusline='$seg' bar='$bar'"
     [ -n "$bar" ]
@@ -2082,12 +2261,18 @@ setup() {
   done
 }
 
-@test "open-url: control clicks drop the statusline cache" {
+@test "open-url: control clicks refresh the cached read" {
   mkdir -p "$CLAUDE_PLUGIN_DATA"
-  printf 'stale' > "$CLAUDE_PLUGIN_DATA/statusline.cache"
+  printf '%s\n' '{"title":"Stale Click","playing":false,"elapsedTime":1,"elapsedTimeNow":1,"duration":200,"playbackRate":0}' \
+    > "$CLAUDE_PLUGIN_DATA/now.cache"
   run "$MEDIA" open-url claude-media-control://toggle
   [ "$status" -eq 0 ]
-  [ ! -f "$CLAUDE_PLUGIN_DATA/statusline.cache" ]
+  # The click changed the state, so the snapshot behind it is void — and the
+  # re-read that follows the command replaces it. This is what flips the icon
+  # on the next tick instead of a serve-window later.
+  run cat "$CLAUDE_PLUGIN_DATA/now.cache"
+  [[ "$output" != *"Stale Click"* ]]
+  [[ "$output" == *"Stub Song"* ]]
 }
 
 # ---- removed features ------------------------------------------------------------

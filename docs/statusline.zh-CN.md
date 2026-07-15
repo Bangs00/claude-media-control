@@ -35,18 +35,28 @@
 
 在支持超链接的终端里，这个组件可以 **⌘+点击**：
 
-| 目标 | ⌘+点击的效果 |
-| --- | --- |
-| `▶︎` / `⏸` 图标 | 切换播放/暂停 |
-| 曲名 — 歌手、`(应用)` | 跳到正在播放的媒体：正在播放的浏览器标签页（Safari、Chrome、Edge、Brave、Vivaldi、Opera）或 Music 的当前曲目——其他应用只是调到最前 |
-| 进度条 | seek——每个格子各自跳到对应位置（默认 20 格时是 2.5%、7.5%、… 97.5%；条越长跳得越细） |
+| 部分 | 目标 | ⌘+点击的效果 |
+| --- | --- | --- |
+| `toggle` | `▶︎` / `⏸` 图标 | 切换播放/暂停 |
+| `track` | 曲名 — 歌手 | 跳到正在播放的媒体：正在播放的浏览器标签页（Safari、Chrome、Edge、Brave、Vivaldi、Opera）或 Music 的当前曲目——其他应用只是调到最前 |
+| `app` | `(应用)` | 点应用名也跳到同一个地方 |
+| `seek` | 进度条 | seek——每个格子各自跳到对应位置（默认 20 格时是 2.5%、7.5%、… 97.5%；条越长跳得越细） |
 
 - **支持的终端**：iTerm2、Ghostty、WezTerm、Kitty、VS Code、Alacritty
   0.11+（tmux 3.4+ 会透传超链接）。不认识超链接的终端只会显示普通组件。
 - 点击的结果在下一次刷新（1 秒内）就能看到：图标翻转，进度条跳到新位置。
-- 开关：`/media:config statusline.links off` 恢复成不带链接的普通组件。
-  再打开会重建处理器应用，构建失败则拒绝开启（exit 3）——没人应答的
-  链接还不如没有。
+- 开关：`/media:config statusline.links off` 恢复成不带链接的普通组件，
+  `on` 则每个部分又都能点了。
+- 也可以**只挑想要的**，没列出来的部分照常显示，不带链接：
+
+  ```bash
+  /media:config statusline.links toggle,seek     # 只有图标和进度条能点，文字照常
+  /media:config statusline.links track,app       # 只有文字能点，图标和进度条照常
+  ```
+
+  只要还有一个部分开着就需要处理器应用，所以每次打开链接、或者指定一份
+  列表，都会重建它；构建失败则拒绝开启（exit 3）——没人应答的链接还不如
+  没有。
 - 第一次跳标签页时会请求一次自动化授权（`ClaudeMediaClick.app`）——
   拒绝也没关系，之后只会安静地把应用调到最前。
 
@@ -151,7 +161,7 @@ Stacked——两行（`123/456`）：
 | `statusline.multiline` | `off` | 分组布局下每组一行 |
 | `statusline.color` | `on` | ANSI 样式（`NO_COLOR` 优先） |
 | `statusline.marquee` | `on` | 滚动超过 30 格的曲名 |
-| `statusline.links` | `on` | ⌘+点击操作 |
+| `statusline.links` | `on` | 可 ⌘+点击的部分：`toggle`、`track`、`app`、`seek`（`on` = 全开，`off` = 全关） |
 | `statusline reset` | — | 恢复出厂外观（布局、分行、颜色、marquee、样式） |
 
 ## 手动接线（自定义状态栏）

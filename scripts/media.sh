@@ -10,7 +10,7 @@
 #   output [device]              audio output device list / switch, JSON
 #   history [n|clear|--json]     recently played tracks (passive local log)
 #   bar                          the progress bar alone, unstyled (for /media:now)
-#   statusline                   one-line segment for a statusline (TTL cache)
+#   statusline                   one-line segment for a statusline
 #   statusline install           wire the segment into ~/.claude/settings.json
 #   statusline uninstall         unwire it and restore the previous statusLine
 #   statusline status            report how the segment is wired
@@ -219,12 +219,19 @@ history_record() {
     "$HISTORY_AMEND_SECONDS" 2>/dev/null || true
 }
 
-# Print one now-playing JSON line, logging it into the history on the way out.
+# Print one now-playing JSON line, logging it into the history and refreshing
+# the statusline's data cache on the way out. Every real read funnels through
+# here, so a read that happened for any reason (now, a control re-read, the
+# background refresh) is the read the next statusline tick reuses — and
+# /media:now's `bar` costs nothing on top of its `now`.
 emit_now() {
-  if [ -n "$1" ] && [ "$1" != "null" ]; then
-    history_record "$1"
+  local json="${1:-null}"
+  [ -n "$json" ] || json=null
+  if [ "$json" != "null" ]; then
+    history_record "$json"
   fi
-  printf '%s\n' "$1"
+  now_cache_write "$json"
+  printf '%s\n' "$json"
 }
 
 # ---- now --------------------------------------------------------------------
@@ -249,7 +256,10 @@ do_now() {
         emit_now "$jxa"
         return 0
       fi
-      echo "null"
+      # "Nothing is playing" is a real answer, not a missing one: cache it
+      # like any other read so the statusline stops re-reading a silent Mac
+      # once per tick.
+      emit_now null
       return 0
     fi
     echo "media: native read failed — using fallback. Run /media:doctor if this persists." >&2
@@ -351,9 +361,12 @@ control_applescript() {
 # resulting now-playing state.
 do_control() {
   local action="$1" id="$2"
-  # The cached statusline segment predates the state change — drop it so the
-  # next tick re-renders (same rule as volume/output set).
-  rm -f "$DATA_DIR/statusline.cache"
+  # The cached read predates the state change, and extrapolating it would keep
+  # showing the old one — drop it so a tick landing mid-command reads for
+  # itself (same rule as seek/volume/output). The do_now below re-caches the
+  # settled state anyway; this covers the window before it, and the case where
+  # it never gets there.
+  now_cache_drop
   ensure_native
   if [ -n "$LIB" ] && primary_send "$id"; then
     sleep 0.5
@@ -378,7 +391,7 @@ do_seek() {
       exit 2
       ;;
   esac
-  rm -f "$DATA_DIR/statusline.cache"
+  now_cache_drop
   ensure_native
   if [ -n "$LIB" ] && primary_seek "$seconds"; then
     sleep 0.5
@@ -646,8 +659,9 @@ do_volume() {
       echo "media: setting the system volume failed. Run /media:doctor." >&2
       exit 1
     fi
-    # The statusline `volume` field must show the change on the next tick.
-    rm -f "$DATA_DIR/statusline.cache"
+    # The cached read still carries the old level — the statusline `volume`
+    # field must show the change on the next tick.
+    now_cache_drop
   fi
   local vol muted
   vol="$(/usr/bin/osascript -e 'output volume of (get volume settings)' 2>/dev/null || true)"
@@ -686,8 +700,9 @@ do_output() {
       echo "media: switching the output device failed. Run /media:doctor." >&2
       exit 1
     fi
-    # The statusline `output` field must show the switch on the next tick.
-    rm -f "$DATA_DIR/statusline.cache"
+    # The cached read still names the old device — the statusline `output`
+    # field must show the switch on the next tick.
+    now_cache_drop
   fi
   local out=""
   if ! out="$(primary_output_list)" || [ -z "$out" ]; then
@@ -697,52 +712,319 @@ do_output() {
   echo "$out"
 }
 
+# ---- statusline data cache ------------------------------------------------------
+
+# What the statusline caches is the now-playing DATA, never the rendered line.
+#
+# That distinction is the whole point. The waveform presets derive their phase
+# from the playback position (see statusline_render), so the rendered line IS
+# the animation frame: cache the line and the animation freezes for as long as
+# the cache lives, while every tick that does re-render pays ~290ms for a
+# MediaRemote read to learn a position it could have got from the clock.
+# Caching the read instead inverts that — each tick advances the cached
+# position locally and renders a fresh frame (~35ms), so the animation runs at
+# the full tick rate while the real read happens at most once per
+# NOW_CACHE_TTL_SECONDS, off the critical path.
+#
+# The file holds one now-playing JSON line (or "null" — a silent Mac is a real
+# answer, worth caching like any other). Its mtime is the instant that read was
+# captured, which is all statusline_inputs needs to bring the position up to
+# date; no separate timestamp to write, and none to keep in step.
+NOW_CACHE_FILE_NAME="now.cache"
+# Serve-stale window: past it a tick still serves the cached read and kicks a
+# background refresh for the NEXT tick. Only title/artist/volume/output can
+# ever be this stale — the position is extrapolated, so frames stay exact
+# whatever this is set to.
+NOW_CACHE_TTL_SECONDS=2
+# Past this the snapshot is too old to extrapolate honestly (the track may have
+# ended, or the Mac slept), so the tick reads synchronously instead.
+NOW_CACHE_MAX_SECONDS=10
+# A refresh that has not finished by now is presumed dead: Claude Code cancels
+# in-flight statusline commands, which can take a background refresh down with
+# the tick that spawned it. Without breaking the lock, one such death would
+# stop every later refresh.
+NOW_REFRESH_LOCK_SECONDS=15
+
+# Cache one now-playing read. Atomic (write + rename) because several sessions
+# tick against the same data directory, and rename keeps the temp file's mtime
+# — the capture instant, give or take the milliseconds spent printing it.
+now_cache_write() {
+  local json="$1" cache="$DATA_DIR/$NOW_CACHE_FILE_NAME" tmp
+  tmp="$cache.$$.tmp"
+  mkdir -p "$DATA_DIR" 2>/dev/null || true
+  printf '%s\n' "$json" > "$tmp" 2>/dev/null || return 0
+  mv -f "$tmp" "$cache" 2>/dev/null || rm -f "$tmp" 2>/dev/null || true
+  return 0
+}
+
+# Forget the cached read, so the next tick reads instead of extrapolating.
+# Anything that changes what a read would return calls this: the snapshot
+# predates the change, and extrapolating it would keep showing the old state.
+now_cache_drop() {
+  rm -f "$DATA_DIR/$NOW_CACHE_FILE_NAME" 2>/dev/null || true
+  return 0
+}
+
+# Refresh the cache in the background, at most one at a time. The lock is a
+# directory (mkdir is atomic), and one older than NOW_REFRESH_LOCK_SECONDS is
+# broken on sight rather than left to block every later refresh.
+#
+# Detaching is best-effort by design: if the child dies with its tick, nothing
+# breaks. The next tick finds the same stale cache and tries again, and once
+# the data passes NOW_CACHE_MAX_SECONDS the tick reads synchronously. No
+# correctness rests on the child surviving — only the tick's latency does.
+now_cache_refresh_bg() {
+  local lock="$DATA_DIR/now.refresh.lock" age
+  mkdir -p "$DATA_DIR" 2>/dev/null || true
+  if ! mkdir "$lock" 2>/dev/null; then
+    age="$(/usr/bin/perl -e 'my @s = stat($ARGV[0]); print @s ? int(time - $s[9]) : 0' \
+      "$lock" 2>/dev/null || echo 0)"
+    case "$age" in '' | *[!0-9]*) age=0 ;; esac
+    [ "$age" -gt "$NOW_REFRESH_LOCK_SECONDS" ] || return 0
+    rmdir "$lock" 2>/dev/null || true
+    mkdir "$lock" 2>/dev/null || return 0
+  fi
+  # do_now caches (and history-logs) through emit_now, so the output is
+  # dropped here: the write is the point, not the print.
+  ( trap 'rmdir "$lock" 2>/dev/null || true' EXIT
+    do_now >/dev/null 2>&1 || true ) >/dev/null 2>&1 &
+  return 0
+}
+
+# Everything one statusline tick reads from disk, in a single perl: the config
+# toggles, the per-item style table, and the cached now-playing JSON with its
+# playback position brought up to date.
+#
+# Why the position is patched here rather than re-read: elapsedTimeNow advances
+# with the wall clock at playbackRate, which is exactly how adapter.m
+# extrapolates it from the app's own snapshot to begin with. Repeating that
+# arithmetic costs nothing and is just as accurate, so the ~290ms read it
+# replaces buys only fresher title/artist/volume/output — none of which move
+# between ticks. A paused track (rate 0) does not advance, so its animation
+# holds still, which is what a paused track should look like.
+#
+# Output, one record per line (a JSON value is last on its line and cannot
+# contain a newline — it is re-encoded here — and the "STY" marker is last of
+# all, so the style block runs to EOF):
+#   CFG <key> <value>            every boolean toggle plus fields and links
+#   NOW <freshness> [json]       freshness: fresh | stale | expired | none
+#   STY                          marker; every following line is a style
+#   <key>\t<value>\t<default>    style_resolve's format, verbatim
+statusline_inputs() {
+  /usr/bin/perl -MJSON::PP -MTime::HiRes=time,stat -e '
+    binmode STDOUT, ":utf8";
+    my ($cfgfile, $nowfile, $bools, $validf, $deff, $validl, $defl,
+        $ttl, $maxage) = @ARGV;
+    my $c = {};
+    if (-f $cfgfile) {
+      local $/;
+      if (open my $fh, "<", $cfgfile) { $c = eval { decode_json(<$fh>) } || {}; close $fh; }
+      $c = {} unless ref $c eq "HASH";
+    }
+    # Boolean toggles, straight off CONFIG_BOOL_DEFAULTS: whatever the getter
+    # answers, this answers.
+    for my $l (split /\n/, $bools) {
+      my ($k, $dv) = split /=/, $l, 2;
+      next unless defined $dv && length $k;
+      my $v = $c->{$k};
+      my $on = defined $v ? ($v ? 1 : 0) : ($dv eq "on" ? 1 : 0);
+      print "CFG $k ", ($on ? "on" : "off"), "\n";
+    }
+    # statusline.fields: stored order kept, unknown names and dupes dropped,
+    # "/" breaks normalized (never leading, trailing, or doubled).
+    my @f;
+    if (ref $c->{"statusline.fields"} eq "ARRAY") {
+      my %valid = map { $_ => 1 } split /\s+/, $validf;
+      my %seen;
+      for my $x (grep { defined && !ref } @{$c->{"statusline.fields"}}) {
+        if ($x eq "/") { push @f, "/" if @f && $f[-1] ne "/"; next; }
+        push @f, $x if $valid{$x} && !$seen{$x}++;
+      }
+      pop @f while @f && $f[-1] eq "/";
+    }
+    print "CFG statusline.fields ", (@f ? join(" ", @f) : $deff), "\n";
+    # statusline.links: a list of parts, or a boolean meaning all/none. The
+    # boolean is what every config written before per-part links holds, and it
+    # has to keep meaning what it did.
+    my @l;
+    my $la = $c->{"statusline.links"};
+    if (ref $la eq "ARRAY") {
+      # Links are a set, not a layout: normalize to VALID_STATUSLINE_LINKS
+      # order so unknown names, dupes, and the order they were stored in all
+      # wash out, and "every part" has exactly one spelling.
+      my %want = map { $_ => 1 } grep { defined && !ref } @$la;
+      @l = grep { $want{$_} } split /\s+/, $validl;
+    } elsif (!defined $la) {
+      @l = split /\s+/, $defl;
+    } else {
+      @l = $la ? split(/\s+/, $validl) : ();
+    }
+    print "CFG statusline.links ", join(" ", @l), "\n";
+    # The cached read, advanced to now. "null" is a valid cached answer
+    # (nothing playing); only unparseable content counts as no cache at all.
+    my ($fresh, $out) = ("none", "");
+    if (-f $nowfile) {
+      my @st = stat($nowfile);
+      my $age = time() - $st[9];
+      my $raw = "";
+      { local $/; if (open my $fh, "<", $nowfile) { $raw = <$fh>; close $fh; } }
+      $raw = "" unless defined $raw;
+      $raw =~ s/\s+\z//;
+      my $d = eval { decode_json($raw) };
+      if (length $raw && !$@) {
+        # A clock that went backwards (sleep, NTP) must not read as fresh
+        # forever, nor extrapolate a position into the past.
+        $age = 0 if $age < 0;
+        $fresh = $age <= $ttl    ? "fresh"
+               : $age <= $maxage ? "stale"
+               :                   "expired";
+        if (ref $d eq "HASH") {
+          my $base = defined $d->{elapsedTimeNow} ? $d->{elapsedTimeNow}
+                                                  : $d->{elapsedTime};
+          if (defined $base) {
+            my $rate = defined $d->{playbackRate} ? $d->{playbackRate}
+                     : ($d->{playing} ? 1 : 0);
+            my $pos = $base + ($rate > 0 ? $age * $rate : 0);
+            $pos = $d->{duration}
+              if defined $d->{duration} && $pos > $d->{duration};
+            $d->{elapsedTimeNow} = $pos;
+          }
+          $out = JSON::PP->new->canonical->ascii->encode($d);
+        } else {
+          $out = "null";
+        }
+      }
+    }
+    print "NOW $fresh $out\n";
+    # Per-item styles. The renderer and the style CLI both read this block
+    # (style_resolve is a filter over it), so there is one table, not two.
+    my @def = (
+      ["style.track.title",         "bold"],
+      ["style.track.artist",        "italic"],
+      ["style.app",                 "dim"],
+      ["style.volume.icon",         "auto"],
+      ["style.volume.style",        "block"],
+      ["style.volume.bar",          "on"],
+      ["style.volume.percent",      "dim"],
+      ["style.progressbar.playing", "green"],
+      ["style.progressbar.paused",  "yellow"],
+      ["style.progressbar.style",   "line"],
+      ["style.progressbar.length",  "20"],
+      ["style.time.elapsed",        "bold"],
+      ["style.time.total",          "dim"],
+      ["style.output.icon",         "auto"],
+      ["style.output",              "dim"],
+    );
+    print "STY\n";
+    for my $e (@def) {
+      my ($k, $dv) = @$e;
+      my $v = $c->{$k};
+      $v = $dv unless defined $v && !ref $v && length $v;
+      print "$k\t$v\t$dv\n";
+    }
+  ' "$CONFIG_FILE" "$DATA_DIR/$NOW_CACHE_FILE_NAME" "$CONFIG_BOOL_DEFAULTS" \
+    "$VALID_STATUSLINE_FIELDS" "$DEFAULT_STATUSLINE_FIELDS" \
+    "$VALID_STATUSLINE_LINKS" "$DEFAULT_STATUSLINE_LINKS" \
+    "$NOW_CACHE_TTL_SECONDS" "$NOW_CACHE_MAX_SECONDS" 2>/dev/null
+}
+
+# statusline_inputs, parsed into SL_*. One reader for both surfaces that draw
+# from it (the segment and `bar`).
+SL_STATUSLINE=off
+SL_PROGRESSBAR=on
+SL_FIELDS=""
+SL_MULTILINE=off
+SL_COLOR=on
+SL_MARQUEE=on
+SL_LINKS=""
+SL_FRESH=none
+SL_JSON=""
+SL_STYLES=""
+
+statusline_read_inputs() {
+  local inputs line rest key in_styles=""
+  SL_STATUSLINE=off
+  SL_PROGRESSBAR=on
+  SL_FIELDS="$DEFAULT_STATUSLINE_FIELDS"
+  SL_MULTILINE=off
+  SL_COLOR=on
+  SL_MARQUEE=on
+  SL_LINKS="$DEFAULT_STATUSLINE_LINKS"
+  SL_FRESH=none
+  SL_JSON=""
+  SL_STYLES=""
+  inputs="$(statusline_inputs)" || return 1
+  # A here-doc keeps the loop in this shell (a pipe would not), so the reads
+  # below land in SL_*.
+  while IFS= read -r line; do
+    if [ -n "$in_styles" ]; then
+      SL_STYLES="$SL_STYLES$line
+"
+      continue
+    fi
+    case "$line" in
+      STY) in_styles=1 ;;
+      "CFG "*)
+        rest="${line#CFG }"
+        key="${rest%% *}"
+        rest="${rest#* }"
+        case "$key" in
+          display.statusline)   SL_STATUSLINE="$rest" ;;
+          display.progressbar)  SL_PROGRESSBAR="$rest" ;;
+          statusline.multiline) SL_MULTILINE="$rest" ;;
+          statusline.color)     SL_COLOR="$rest" ;;
+          statusline.marquee)   SL_MARQUEE="$rest" ;;
+          statusline.fields)    SL_FIELDS="$rest" ;;
+          statusline.links)     SL_LINKS="$rest" ;;
+        esac
+        ;;
+      "NOW "*)
+        rest="${line#NOW }"
+        SL_FRESH="${rest%% *}"
+        SL_JSON="${rest#* }"
+        ;;
+    esac
+  done <<EOF
+$inputs
+EOF
+  return 0
+}
+
 # ---- statusline -----------------------------------------------------------------
 
-# Short cache window: a now-read costs ~60ms, so a 1s TTL keeps high-frequency
-# statusline re-runs cheap while letting the elapsed time and progress bar
-# advance every second (paired with a small `refreshInterval` — see
-# docs/statusline.md; idle statuslines otherwise refresh only on events).
-STATUSLINE_TTL_SECONDS=1
-
 # One-line now-playing segment for a statusline command. Statuslines fire on
-# every conversation event (plus optional refreshInterval polling), so this
-# must answer instantly: a TTL file cache absorbs the perl+dylib startup cost
-# and the real read runs at most once per TTL window. Empty output (and no
-# trailing newline) when the feature is off or nothing is playing — the
-# wrapper recipe in docs/statusline.md relies on that to add no extra line.
+# every conversation event plus a refreshInterval timer (whose minimum is 1s —
+# see docs/statusline.md), and Claude Code cancels a tick still running when
+# the next one fires. So this must answer in milliseconds, not by caching its
+# own output — it re-renders every tick from the cached read (see the data
+# cache above) and only pays for a real read when there is nothing usable to
+# extrapolate from. Empty output (and no trailing newline) when the feature is
+# off or nothing is playing — the wrapper recipe in docs/statusline.md relies
+# on that to add no extra line.
 do_statusline() {
-  [ "$(config_get display.statusline)" = "on" ] || return 0
-  local cache="$DATA_DIR/statusline.cache"
-  local now_epoch mtime age
-  now_epoch="$(/bin/date +%s)"
-  if [ -f "$cache" ]; then
-    mtime="$(/usr/bin/stat -f %m "$cache" 2>/dev/null || echo 0)"
-    age=$((now_epoch - mtime))
-    if [ "$age" -ge 0 ] && [ "$age" -lt "$STATUSLINE_TTL_SECONDS" ]; then
-      cat "$cache"
-      return 0
-    fi
-  fi
-  local fields json line="" multiline color marquee styles links
-  fields="$(config_get_statusline_fields)"
-  multiline="$(config_get statusline.multiline)"
-  marquee="$(config_get statusline.marquee)"
-  styles="$(style_resolve)"
-  # NO_COLOR (https://no-color.org) beats the config key. The cache may serve
-  # a line rendered under the other setting for at most one TTL second.
-  color="$(config_get statusline.color)"
+  statusline_read_inputs || return 0
+  [ "$SL_STATUSLINE" = "on" ] || return 0
+  local json="$SL_JSON" color="$SL_COLOR" links="$SL_LINKS"
+  case "$SL_FRESH" in
+    none | expired)
+      # Nothing to extrapolate from: read now, and cache it for the next tick.
+      json="$(do_now 2>/dev/null || echo null)"
+      ;;
+    stale)
+      # Serve what we have and refresh for the next tick — the position is
+      # exact either way, so there is nothing to wait for.
+      now_cache_refresh_bg
+      ;;
+  esac
+  # NO_COLOR (https://no-color.org) beats the config key.
   [ -n "${NO_COLOR:-}" ] && color=off
-  # cmd+click links render only while the claude-media-control:// handler
-  # app exists — a link nothing answers is worse than no link. Independent
-  # of colors.
-  links="$(config_get statusline.links)"
-  [ -d "$DATA_DIR/ClaudeMediaClick.app" ] || links=off
-  json="$(do_now 2>/dev/null || echo null)"
-  line="$(statusline_render "$json" "$fields" "$multiline" "$color" "$marquee" "$styles" "$links")"
-  mkdir -p "$DATA_DIR" 2>/dev/null || true
-  printf '%s' "$line" > "$cache" 2>/dev/null || true
-  printf '%s' "$line"
+  # cmd+click links render only while the claude-media-control:// handler app
+  # exists — a link nothing answers is worse than no link. Independent of
+  # colors.
+  [ -d "$DATA_DIR/ClaudeMediaClick.app" ] || links=""
+  printf '%s' \
+    "$(statusline_render "$json" "$SL_FIELDS" "$SL_MULTILINE" "$color" \
+       "$SL_MARQUEE" "$SL_STYLES" "$links")"
   return 0
 }
 
@@ -760,19 +1042,27 @@ do_statusline() {
 # Honors display.progressbar and prints nothing (exit 0) when it is off, when
 # nothing is playing, or when the track has no duration (a live stream) — so
 # /media:now just omits the line when the output is empty.
+#
+# Reads through the same data cache as the segment, so the `now` the skill runs
+# just before this one is the read this one draws: /media:now costs one
+# MediaRemote round-trip, not two.
 do_bar() {
-  [ "$(config_get display.progressbar)" = "on" ] || return 0
-  local json styles out
-  json="$(do_now 2>/dev/null || echo null)"
-  styles="$(style_resolve)"
-  out="$(statusline_render "$json" "progressbar" "off" "off" "off" "$styles" "off")"
+  statusline_read_inputs || return 0
+  [ "$SL_PROGRESSBAR" = "on" ] || return 0
+  local json="$SL_JSON" out
+  case "$SL_FRESH" in
+    none | expired) json="$(do_now 2>/dev/null || echo null)" ;;
+  esac
+  out="$(statusline_render "$json" "progressbar" "off" "off" "off" "$SL_STYLES" "")"
   [ -n "$out" ] || return 0
   printf '%s\n' "$out"
 }
 
 # Renders <fields> for one now-playing JSON and prints the segment. Pure: no
-# config reads, no cache, no display gate — do_statusline supplies the live
-# settings, do_bar pins colors and links off to get bare glyphs.
+# config reads, no cache, no display gate, no clock of its own — the position
+# it draws is whatever elapsedTimeNow the caller hands it (statusline_inputs
+# brings that up to date; see there). do_statusline supplies the live settings,
+# do_bar pins colors and links off to get bare glyphs.
 statusline_render() {
   local json="$1" fields="$2" multiline="$3" color="$4" marquee="$5" styles="$6" links="$7"
   local line=""
@@ -821,10 +1111,12 @@ statusline_render() {
     # never restyled. statusline.marquee scrolls titles wider than 30 display
     # cells through a fixed window, one character per second (offset derives
     # from the epoch, so each 1s cache refresh advances it — no state file
-    # needed). With statusline.links on and the claude-media-control:// handler app
-    # present, the segment is cmd+clickable via OSC 8 hyperlinks: the ▶︎/⏸
-    # icon toggles playback, title/artist/app activate the playing app, and
-    # each progress-bar cell seeks to its position (see do_open_url).
+    # needed). With the claude-media-control:// handler app present, the parts
+    # named in statusline.links are cmd+clickable via OSC 8 hyperlinks, each
+    # switchable on its own: `toggle` (the ▶︎/⏸ icon) toggles playback, `track`
+    # (title — artist) and `app` (the app name) activate the playing app, and
+    # `seek` gives every progress-bar cell its own jump to that position (see
+    # do_open_url). A part left out renders exactly as it would with links off.
     line="$(printf '%s' "$json" | /usr/bin/perl -CA -MJSON::PP -e '
       binmode STDOUT, ":utf8";
       my (@order, %seen);
@@ -837,7 +1129,9 @@ statusline_render() {
       my $ml = ($ARGV[1] // "") eq "on";
       my $c  = ($ARGV[2] // "") eq "on";
       my $mq = ($ARGV[3] // "") eq "on";
-      my $lk = ($ARGV[5] // "") eq "on";
+      # Which parts are cmd+clickable, as a set: "toggle track app seek" (see
+      # VALID_STATUSLINE_LINKS). Empty means a plain segment.
+      my %lk = map { $_ => 1 } grep { length } split /\s+/, ($ARGV[5] // "");
       # Per-part styles from style_resolve ("key<TAB>value<TAB>default" lines).
       my %sty;
       for my $sl (split /\n/, ($ARGV[4] // "")) {
@@ -907,9 +1201,11 @@ statusline_render() {
       # terminal: capable ones (iTerm2, Ghostty, WezTerm, Kitty, VS Code)
       # make the text cmd+clickable, others ignore the sequence. Clicked
       # URLs land in ClaudeMediaClick.app -> click-handler.sh -> open-url.
+      # Each caller names the part it is linking, so a part switched off in
+      # statusline.links renders exactly as it would with links off entirely.
       my $href = sub {
-        my ($u, $t) = @_;
-        ($lk && length $t) ? "\e]8;;$u\a$t\e]8;;\a" : $t;
+        my ($u, $t, $part) = @_;
+        ($lk{$part} && length $t) ? "\e]8;;$u\a$t\e]8;;\a" : $t;
       };
       # A text part whose style spec is "off" is hidden entirely (the setter
       # only allows it on text parts; lc keeps hand-edited configs lenient).
@@ -928,7 +1224,8 @@ statusline_render() {
         my $icon = $d->{playing} ? "\x{25B6}\x{FE0E}" : "\x{23F8}";
         # cmd+click targets: the icon toggles play/pause; the title/artist
         # (and the app name below) bring the playing app to the front.
-        my $t = $href->("claude-media-control://toggle", $st->($iconsgr, $icon));
+        my $t = $href->("claude-media-control://toggle", $st->($iconsgr, $icon),
+                        "toggle");
         my $body = "";
         unless ($hid->("track.title")) {
           my $title = $mq ? marquee($d->{title}) : $d->{title};
@@ -939,15 +1236,18 @@ statusline_render() {
         $body .= ($hid->("track.title") ? "" : " " . $st->(2, "\x{2014}") . " ")
             . $st->(sgr($sty{"track.artist"}), $d->{artist})
           if defined $d->{artist} && !$hid->("track.artist");
-        $t .= " " . $href->("claude-media-control://activate", $body) if length $body;
-        $t .= " " . $href->("claude-media-control://activate", $st->($appsgr, "($app)"))
+        $t .= " " . $href->("claude-media-control://activate", $body, "track")
+          if length $body;
+        $t .= " " . $href->("claude-media-control://activate",
+                            $st->($appsgr, "($app)"), "app")
           if !$explicit && $w{app} && defined $app && !$hid->("app");
         $tok{track} = $t;
       }
       # Standalone app token: always in the explicit layout (folding happens
       # per line during assembly), only without a track in the grouped one.
       if ($w{app} && defined $app && !$hid->("app") && ($explicit || !$w{track})) {
-        $tok{app} = $href->("claude-media-control://activate", $st->($appsgr, $app));
+        $tok{app} = $href->("claude-media-control://activate",
+                            $st->($appsgr, $app), "app");
       }
       my $pos = $d->{elapsedTimeNow} // $d->{elapsedTime};
       my $dur = $d->{duration};
@@ -1151,10 +1451,11 @@ statusline_render() {
         # mini bar) wraps every cell in its own cmd+click link: cell i
         # jumps to its center percent, (i+0.5)/cells. Without links the
         # fill stays one SGR run — byte-identical to the unlinked render.
-        my $link = $seek && $lk;
+        my $link = $seek && $lk{seek};
         my $cell = sub {
           my ($i, $t) = @_;
-          $href->("claude-media-control://seek/" . int((($i + 0.5) * 100) / $cells), $t);
+          $href->("claude-media-control://seek/" . int((($i + 0.5) * 100) / $cells),
+                  $t, "seek");
         };
         if (my $wdef = $wf{$csv}) {
           # Waveform / visualizer presets (Phase 19): every one is a
@@ -1398,7 +1699,7 @@ statusline_render() {
           for my $k (0 .. $#fs) {
             if ($fs[$k] eq "app" && $k > 0 && $fs[$k - 1] eq "track") {
               $parts[-1] .= " " . $href->("claude-media-control://activate",
-                                          $st->($appsgr, "($app)"));
+                                          $st->($appsgr, "($app)"), "app");
               next;
             }
             push @parts, $tok{$fs[$k]};
@@ -1724,7 +2025,7 @@ statusline_install() {
       # Re-wired on a newer plugin version: refresh the wrapper from the
       # existing backup — never re-backup (settings point at the wrapper now).
       statusline_wrapper_write "$(statusline_backup_cmd)" || return 1
-      if [ "$(config_get statusline.links)" = "on" ]; then
+      if statusline_links_any; then
         "$SCRIPT_DIR/build-click-handler.sh" >/dev/null 2>&1 || true
       fi
       echo "statusline: already wired into settings.json (wrapper refreshed)."
@@ -1745,7 +2046,6 @@ statusline_install() {
     echo "media: statusline wiring failed — $SETTINGS_FILE was left unchanged." >&2
     return 1
   fi
-  rm -f "$DATA_DIR/statusline.cache"
   if [ -n "$orig_cmd" ]; then
     echo "statusline: wired into settings.json — your previous statusline still runs first (backup: $WRAPPER_BACKUP_FILE; auto-restored if the plugin is uninstalled)."
   else
@@ -1755,11 +2055,11 @@ statusline_install() {
 }
 
 # Best-effort cmd+click support next to the wiring: build + register the
-# claude-media-control:// handler app while statusline.links is on. A failed build
-# never blocks the statusline itself — the segment just renders without
-# links (the renderer gates on the app's presence).
+# claude-media-control:// handler app while any part of statusline.links is on.
+# A failed build never blocks the statusline itself — the segment just renders
+# without links (the renderer gates on the app's presence).
 statusline_click_handler_setup() {
-  [ "$(config_get statusline.links)" = "on" ] || return 0
+  statusline_links_any || return 0
   if "$SCRIPT_DIR/build-click-handler.sh" >/dev/null; then
     echo "statusline: cmd+click enabled — the claude-media-control:// handler app is registered (disable with /media:config statusline.links off)."
   else
@@ -1796,7 +2096,8 @@ statusline_uninstall() {
       rm -f "$WRAPPER_FILE" "$WRAPPER_BACKUP_FILE"
       "$SCRIPT_DIR/build-click-handler.sh" --remove >/dev/null 2>&1 || true
       config_write display.statusline off
-      rm -f "$DATA_DIR/statusline.cache"
+      # Unwiring leaves no reading of this Mac behind (§4.8.1).
+      now_cache_drop
       echo "statusline: unwired — the previous \"statusLine\" is back in settings.json (display.statusline = off)."
       ;;
   esac
@@ -1826,17 +2127,41 @@ CONFIG_KEYS="display.progressbar display.statusline statusline.multiline statusl
 VALID_STATUSLINE_FIELDS="track app progressbar time output volume"
 DEFAULT_STATUSLINE_FIELDS="track app progressbar time"
 
+# Which parts of the segment are cmd+clickable, each independently switchable
+# (statusline.links). They are the whole click surface — the four link targets
+# statusline_render can emit, one per open-url action:
+#   toggle  the ▶︎/⏸ icon        -> claude-media-control://toggle
+#   track   title — artist       -> claude-media-control://activate
+#   app     the app name         -> claude-media-control://activate
+#   seek    the progress bar     -> claude-media-control://seek/<0-100>
+# The default is every part: links have always been all-or-nothing, and "on"
+# has to keep meaning what it did.
+VALID_STATUSLINE_LINKS="toggle track app seek"
+DEFAULT_STATUSLINE_LINKS="$VALID_STATUSLINE_LINKS"
+
+# key=default for every boolean toggle. Single source of truth: config_default
+# answers the CLI from it and statusline_inputs is handed it verbatim, so the
+# tick's batched reader cannot drift away from the getter.
+#
+# statusline.links is deliberately absent — it is a list of parts, not a
+# boolean (see config_get_statusline_links); its default is
+# DEFAULT_STATUSLINE_LINKS above.
+CONFIG_BOOL_DEFAULTS='display.progressbar=on
+display.statusline=off
+statusline.multiline=off
+statusline.color=on
+statusline.marquee=on
+history.record=on'
+
 config_default() {
-  case "$1" in
-    display.progressbar) echo on ;;
-    display.statusline)  echo off ;;
-    statusline.multiline) echo off ;;
-    statusline.color)    echo on ;;
-    statusline.marquee)  echo on ;;
-    statusline.links)    echo on ;;
-    history.record)      echo on ;;
-    *) return 1 ;;
+  case "
+$CONFIG_BOOL_DEFAULTS" in
+    *"
+$1=on"*)  echo on;  return 0 ;;
+    *"
+$1=off"*) echo off; return 0 ;;
   esac
+  return 1
 }
 
 config_get() {
@@ -1943,8 +2268,89 @@ config_set_statusline_fields() {
     close $fh;
     rename "$file.tmp", $file or die "cannot save config: $!\n";
   ' "$CONFIG_FILE" $ordered
-  rm -f "$DATA_DIR/statusline.cache"
   echo "statusline.fields =${ordered:- (none)}"
+}
+
+# Which parts of the segment are cmd+clickable, as a space-separated list in
+# VALID_STATUSLINE_LINKS order. Resolved through statusline_inputs so the CLI
+# and the tick can never disagree about what a stored boolean, an unknown
+# name, or a missing key means.
+#
+# Prints "on"/"off" for the all/none extremes: those are what the setter takes,
+# and what this key meant for as long as links were all-or-nothing.
+config_get_statusline_links() {
+  local v
+  v="$(statusline_inputs | /usr/bin/sed -n 's/^CFG statusline\.links //p')"
+  if [ -z "$v" ]; then
+    echo off
+  elif [ "$v" = "$VALID_STATUSLINE_LINKS" ]; then
+    echo on
+  else
+    echo "$v"
+  fi
+}
+
+# Store statusline.links. "on" is every part, "off" is none — what the key
+# meant before it was per-part, and what a stored true/false still reads as.
+# Otherwise a comma/space-separated list of parts; unknown names are dropped,
+# and order and duplicates do not survive (links are a set, not a layout).
+# A list naming nothing valid is an error rather than a silent "off", since
+# that is far more likely a typo than an intent.
+#
+# Any part left on needs the claude-media-control:// handler app, so the same
+# preflight that gated "on" gates a non-empty list: a link nothing answers is
+# worse than no link (§4.9 fail-closed).
+config_set_statusline_links() {
+  local input="$1" chosen="" p g
+  case "$input" in
+    on)  chosen="$VALID_STATUSLINE_LINKS" ;;
+    off) chosen="" ;;
+    *)
+      input="$(printf '%s' "$input" | tr ',' ' ')"
+      for p in $VALID_STATUSLINE_LINKS; do
+        for g in $input; do
+          if [ "$p" = "$g" ]; then
+            chosen="$chosen $p"
+            break
+          fi
+        done
+      done
+      chosen="${chosen# }"
+      if [ -z "$chosen" ]; then
+        echo "media: statusline.links takes on, off, or a list of parts ($(printf '%s' "$VALID_STATUSLINE_LINKS" | tr ' ' '|')); got: $1" >&2
+        exit 2
+      fi
+      ;;
+  esac
+  if [ -n "$chosen" ]; then
+    config_preflight statusline.links || exit 3
+  fi
+  mkdir -p "$DATA_DIR"
+  # shellcheck disable=SC2086
+  /usr/bin/perl -MJSON::PP -e '
+    my ($file, @parts) = @ARGV;
+    my $d = {};
+    if (-f $file) {
+      local $/;
+      if (open my $fh, "<", $file) { $d = eval { decode_json(<$fh>) } || {}; close $fh; }
+      $d = {} unless ref $d eq "HASH";
+    }
+    # Always an array, even for on/off: one shape out of the setter, both
+    # shapes accepted on the way back in (legacy and hand-edited configs).
+    $d->{"statusline.links"} = [@parts];
+    open my $fh, ">", "$file.tmp" or die "cannot write config: $!\n";
+    print $fh JSON::PP->new->canonical->ascii->encode($d), "\n";
+    close $fh;
+    rename "$file.tmp", $file or die "cannot save config: $!\n";
+  ' "$CONFIG_FILE" $chosen
+  echo "statusline.links = $(config_get_statusline_links)"
+}
+
+# Whether any part of the segment is still cmd+clickable. The handler app is
+# per-install, not per-part, so what decides whether it is worth having (and
+# worth reporting) is only whether every part is off.
+statusline_links_any() {
+  [ "$(config_get_statusline_links)" != "off" ]
 }
 
 # ---- per-item statusline styles (string-valued style.* keys) -------------------
@@ -1982,39 +2388,12 @@ STYLE_OFF_KEYS="style.track.title style.track.artist style.app style.volume.perc
 # config file (stored strings win; absent keys fall back to the default).
 # This is the single source of the defaults table — the listing, single-key
 # get, doctor, and the renderer all consume it.
+# The per-item styles alone, as "key<TAB>value<TAB>default" lines. A filter over
+# statusline_inputs rather than a second reader of its own: one defaults table
+# serves the tick, the renderer, and the style CLI, so none of them can drift
+# out of step with the others.
 style_resolve() {
-  /usr/bin/perl -MJSON::PP -e '
-    binmode STDOUT, ":utf8";
-    my @def = (
-      ["style.track.title",         "bold"],
-      ["style.track.artist",        "italic"],
-      ["style.app",                 "dim"],
-      ["style.volume.icon",         "auto"],
-      ["style.volume.style",        "block"],
-      ["style.volume.bar",          "on"],
-      ["style.volume.percent",      "dim"],
-      ["style.progressbar.playing", "green"],
-      ["style.progressbar.paused",  "yellow"],
-      ["style.progressbar.style",   "line"],
-      ["style.progressbar.length",  "20"],
-      ["style.time.elapsed",        "bold"],
-      ["style.time.total",          "dim"],
-      ["style.output.icon",         "auto"],
-      ["style.output",              "dim"],
-    );
-    my $d = {};
-    if (-f $ARGV[0]) {
-      local $/;
-      if (open my $fh, "<", $ARGV[0]) { $d = eval { decode_json(<$fh>) } || {}; close $fh; }
-      $d = {} unless ref $d eq "HASH";
-    }
-    for my $e (@def) {
-      my ($k, $def) = @$e;
-      my $v = $d->{$k};
-      $v = $def unless defined $v && !ref $v && length $v;
-      print "$k\t$v\t$def\n";
-    }
-  ' "$CONFIG_FILE" 2>/dev/null
+  statusline_inputs | /usr/bin/awk 'f { print } /^STY$/ { f = 1 }'
 }
 
 style_get() {
@@ -2264,6 +2643,19 @@ do_config() {
     return 0
   fi
 
+  # statusline.links is list-valued too — which parts of the segment are
+  # cmd+clickable — with "on"/"off" still meaning every part / none. Handle it
+  # before the boolean keys below, which is also what carries its preflight
+  # (config_set_statusline_links builds the handler app).
+  if [ "$key" = "statusline.links" ]; then
+    if [ -z "$value" ]; then
+      config_get_statusline_links
+    else
+      config_set_statusline_links "$value"
+    fi
+    return 0
+  fi
+
   # Per-item statusline styles (string-valued). "config style" lists them,
   # "config style reset" clears every customization; per key, an empty value
   # prints the resolved value and "reset" restores the default. Any style
@@ -2275,7 +2667,6 @@ do_config() {
     fi
     if [ "$value" = "reset" ]; then
       style_wipe
-      rm -f "$DATA_DIR/statusline.cache"
       echo "style.* = defaults (all statusline styles cleared)"
       return 0
     fi
@@ -2289,7 +2680,6 @@ do_config() {
   if [ "$key" = "statusline" ]; then
     if [ "$value" = "reset" ]; then
       statusline_wipe
-      rm -f "$DATA_DIR/statusline.cache"
       echo "statusline = defaults (arrangement, lines, colors, marquee, and styles restored)"
       return 0
     fi
@@ -2305,14 +2695,12 @@ do_config() {
       fi
       if [ "$value" = "reset" ]; then
         style_write "$key" ""
-        rm -f "$DATA_DIR/statusline.cache"
         echo "$key = $(style_get "$key") (default)"
         return 0
       fi
       local canon
       canon="$(style_validate "$key" "$value")" || exit 2
       style_write "$key" "$canon"
-      rm -f "$DATA_DIR/statusline.cache"
       echo "$key = $canon"
       return 0
       ;;
@@ -2322,6 +2710,9 @@ do_config() {
     local k
     echo "key                   value  notes"
     for k in $CONFIG_KEYS; do
+      # statusline.links is list-valued — printed with statusline.fields below,
+      # where a list has room to show.
+      [ "$k" = "statusline.links" ] && continue
       local note=""
       case "$k" in
         display.progressbar) note="progress bar in /media:now and statusline output" ;;
@@ -2329,13 +2720,14 @@ do_config() {
         statusline.multiline) note="statusline layout: on = each group on its own line, off = one line (unused when statusline.fields has / breaks)" ;;
         statusline.color)    note="ANSI colors/bold/italic in the statusline segment (honors NO_COLOR)" ;;
         statusline.marquee)  note="scroll statusline titles wider than 30 cells (1 char/second)" ;;
-        statusline.links)    note="cmd+click actions in the statusline: icon toggles, track jumps to the playing media (tab/track), bar seeks (OSC 8 + claude-media-control:// handler)" ;;
         history.record)      note="log played tracks to history.jsonl (view with /media:history)" ;;
       esac
       printf '%-21s %-6s %s\n' "$k" "$(config_get "$k")" "$note"
     done
     printf '%-21s %-6s %s\n' "statusline.fields" "-" \
       "[$(config_get_statusline_fields)] — items in render order, / starts a new line; arrange with /media:statusline"
+    printf '%-21s %-6s %s\n' "statusline.links" "-" \
+      "[$(config_get_statusline_links)] — cmd+click parts, each switchable ($(printf '%s' "$VALID_STATUSLINE_LINKS" | tr ' ' '|')); on = all, off = none (OSC 8 + claude-media-control:// handler)"
     echo ""
     style_list
     echo ""
@@ -2357,23 +2749,16 @@ do_config() {
         statusline_install || exit 3
       fi
       config_write "$key" on
-      # Any key that changes what the segment renders drops the stale cache so
-      # the change shows up on the next tick instead of after the TTL.
-      case "$key" in
-        display.statusline | display.progressbar | statusline.multiline | statusline.color | statusline.marquee | statusline.links)
-          rm -f "$DATA_DIR/statusline.cache" ;;
-      esac
+      # Nothing to invalidate: the segment is not cached, only the read behind
+      # it is, and no toggle here changes what a read returns.
       echo "$key = on"
       ;;
     off)
       # Disabling is always allowed, no preconditions.
       config_write "$key" off
-      # A stale segment cache must not outlive the toggle (§4.8.1: off leaves
-      # no trace, not even a cached line; layout/field changes must re-render).
-      case "$key" in
-        display.statusline | display.progressbar | statusline.multiline | statusline.color | statusline.marquee | statusline.links)
-          rm -f "$DATA_DIR/statusline.cache" ;;
-      esac
+      # §4.8.1 (off leaves no trace) needs nothing dropped here: the segment
+      # renders from scratch each tick and do_statusline gates on the toggle
+      # before it renders anything at all.
       echo "$key = off"
       ;;
     *)
@@ -2472,7 +2857,7 @@ do_doctor() {
   # cmd+click actions: the claude-media-control:// handler app must exist for
   # the segment to render OSC 8 links at all.
   local clicks clickapp
-  if [ "$(config_get statusline.links)" != "on" ]; then
+  if ! statusline_links_any; then
     clicks="off (statusline.links) — the segment renders without cmd+click links"
   elif clickapp="$("$SCRIPT_DIR/build-click-handler.sh" --check-only 2>/dev/null)"; then
     clicks="on — handler app registered ($clickapp)"
@@ -2520,7 +2905,7 @@ do_warmup() {
     statusline_wrapper_write "$(statusline_backup_cmd)" >/dev/null 2>&1
     # Managed wiring + links on -> the handler pair must exist; this is what
     # brings cmd+click to installs wired before 0.17.0 on their next session.
-    if [ "$(config_get statusline.links)" = "on" ]; then
+    if statusline_links_any; then
       "$SCRIPT_DIR/build-click-handler.sh" >/dev/null 2>&1
     fi
   elif [ -d "$DATA_DIR/ClaudeMediaClick.app" ]; then

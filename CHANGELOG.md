@@ -5,6 +5,54 @@ All notable changes to this project are documented here. The format follows
 [SemVer](https://semver.org/spec/v2.0.0.html), tracked in
 `.claude-plugin/plugin.json`.
 
+## [0.36.0] — 2026-07-15
+
+### Fixed
+
+- **The statusline dragged instead of ticking once a second, and the animated
+  presets showed it.** The segment cached its own rendered line for a second
+  — but the rendered line *is* the animation frame: the waveform presets take
+  their phase from the playback position, so a cached line is a frozen beat,
+  and roughly every other tick served one. The cache barely worked as a cache
+  either: it compared whole seconds against a `refreshInterval` of 1, so ticks
+  a second apart aged out almost every time (measured: 1 hit in 10), and each
+  miss paid ~430ms to rebuild the line — ~290ms of it a MediaRemote round-trip
+  for a position the clock already knew. Claude Code cancels a tick still
+  running when the next one fires, so a busy session dropped frames outright.
+
+  What is cached now is the **read**, not the line. Every tick re-renders and
+  advances the position locally, the same extrapolation `adapter.m` already
+  does from the app's own snapshot — so frames stay exact while the real read
+  happens at most every 2 seconds, in the background, with nothing waiting on
+  it. Measured on one machine at matched load, 12 ticks a second apart with
+  `heartbeat`: frames advancing went from **5/11 to 11/11**, and a tick from
+  **531ms to 92ms** (5.8×). A paused track still holds still.
+- **`/media:now` read the Mac twice.** `now` and `bar` each paid their own
+  ~290ms round-trip; `bar` now reuses the read `now` just cached (~60ms).
+
+### Added
+
+- **`statusline.links` switches each clickable part on its own.** It used to
+  be all-or-nothing. `toggle` (the ▶︎/⏸ icon), `track` (title — artist), `app`
+  (the app name) and `seek` (the progress bar) are now independent:
+
+  ```bash
+  /media:config statusline.links toggle,seek     # clickable icon + bar, plain text
+  /media:config statusline.links track,app       # clickable text, plain icon + bar
+  ```
+
+  `on` and `off` still mean every part and none, a `true`/`false` already in
+  your config still reads as it always did, and a part left out renders
+  byte-identically to links off entirely.
+
+### Changed
+
+- Only what changes a *reading* of the Mac now invalidates anything: a control
+  click, `seek`, a volume or output switch drop the cached read so the next
+  tick re-reads. Appearance changes — styles, arrangement, colors, marquee —
+  need no invalidation at all any more, because the segment is built from
+  scratch on every tick.
+
 ## [0.35.0] — 2026-07-15
 
 ### Added
