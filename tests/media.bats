@@ -938,7 +938,8 @@ setup() {
   [ "$status" -eq 0 ]
   for p in eq notes braille chevron tape cassette retro knob playhead \
            smooth rise fade corner glide stipple tiles dash \
-           spectrum mirror cava ripple swell bars ekg heartbeat monitor; do
+           spectrum mirror cava ripple swell bars ekg heartbeat monitor \
+           cat snake duck bird; do
     run "$MEDIA" config style.progressbar.style "$p"
     [ "$status" -eq 0 ]
   done
@@ -1346,6 +1347,196 @@ setup() {
   [ "$(printf '%s' "$output" | /usr/bin/grep -o ']8;;' | wc -l | tr -d ' ')" -eq 20 ]
   plain="$(printf '%s' "$output" | /usr/bin/perl -pe 's/\e\]8;;[^\a]*\a//g')"
   [ "$plain" = "───╼╾─────" ]
+}
+
+@test "statusline: progressbar sprite presets — the object walks, its position is the progress" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  # Stub 75.4/200 at length 10. A 3-cell sprite leaves 7 slots, so the cat
+  # stands on round(0.377 * 7) = 3 — three cells of walked trail behind it,
+  # four of untravelled track ahead. int(75.4) is odd, so every sprite here
+  # shows its second frame. Each preset themes its own trail/track: the cat
+  # walks a dotted road, the snake a dashed one, the duck swims, the bird
+  # crosses a dotted sky.
+  local cases=("cat|━━━ᓚᘐᗢ┈┈┈┈" "snake|━━━ᔕᔓᔕ╌╌╌╌" "duck|≈≈≈ᕫᗢ~~~~~" "bird|━━━⌄^⌄····")
+  local c p want
+  for c in "${cases[@]}"; do
+    p="${c%%|*}"; want="${c#*|}"
+    rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
+    echo "{\"display.statusline\":true,\"statusline.color\":false,\"statusline.fields\":[\"progressbar\"],\"style.progressbar.style\":\"$p\",\"style.progressbar.length\":\"10\"}" > "$CLAUDE_PLUGIN_DATA/config.json"
+    run "$MEDIA" statusline
+    [ "$output" = "$want" ]
+  done
+  # The ends pin the sprite to the track: it never walks off either edge.
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
+  echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["progressbar"],"style.progressbar.style":"cat","style.progressbar.length":"10"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  STUB_ELAPSED=0 run "$MEDIA" statusline
+  [ "$output" = "ᓚᘏᗢ┈┈┈┈┈┈┈" ]
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
+  STUB_ELAPSED=200 run "$MEDIA" statusline
+  [ "$output" = "━━━━━━━ᓚᘏᗢ" ]
+}
+
+@test "statusline: progressbar sprite — the gait cycles every second, the cell does not" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  # The whole point of the frames: at length 10 a 200s track only steps cells
+  # every ~28s, so a gait tied to the step would look frozen. It is tied to
+  # int($pos) instead, so the legs swap every tick while the cat holds its
+  # cell — 74..77 all stand on cell 3 and alternate ᘏ/ᘐ.
+  echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["progressbar"],"style.progressbar.style":"cat","style.progressbar.length":"10"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  local t
+  for t in 74 76; do
+    rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
+    STUB_ELAPSED=$t run "$MEDIA" statusline
+    [ "$output" = "━━━ᓚᘏᗢ┈┈┈┈" ]
+  done
+  for t in 75 77; do
+    rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
+    STUB_ELAPSED=$t run "$MEDIA" statusline
+    [ "$output" = "━━━ᓚᘐᗢ┈┈┈┈" ]
+  done
+  # Paused, $pos stops advancing, so the walk freezes with it — no flag, the
+  # same way the waveform drift holds still.
+  local first second
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
+  first="$(STUB_PLAYING=false "$MEDIA" statusline)"
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
+  second="$(STUB_PLAYING=false "$MEDIA" statusline)"
+  [ "$first" = "$second" ]
+}
+
+@test "statusline: progressbar sprite — accent runs through the sprite, links skip its cells" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  # Colors on: the walked trail and the sprite are one accent run, the track
+  # ahead dims. Colors off the position alone still carries progress.
+  echo '{"display.statusline":true,"statusline.fields":["progressbar"],"style.progressbar.style":"cat","style.progressbar.length":"10"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [[ "$output" == *$'\e[32m━━━ᓚᘐᗢ\e[0m\e[2m┈┈┈┈\e[0m'* ]]
+  # A sprite is one glyph over three cells, so it takes one seek link and the
+  # two cells it covers get none: 8 links, not the 10 a per-cell preset emits.
+  # Stripping them leaves exactly the plain glyphs.
+  mkdir -p "$CLAUDE_PLUGIN_DATA/ClaudeMediaClick.app"
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
+  echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["progressbar"],"style.progressbar.style":"cat","style.progressbar.length":"10"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$(printf '%s' "$output" | /usr/bin/grep -o ']8;;' | wc -l | tr -d ' ')" -eq 16 ]
+  plain="$(printf '%s' "$output" | /usr/bin/perl -pe 's/\e\]8;;[^\a]*\a//g')"
+  [ "$plain" = "━━━ᓚᘐᗢ┈┈┈┈" ]
+  # The sprite links to the cell it starts on; the cells under it seek nowhere.
+  [[ "$output" == *"seek/35"*"ᓚᘐᗢ"* ]]
+  [[ "$output" != *"seek/45"* ]]
+  [[ "$output" != *"seek/55"* ]]
+}
+
+@test "statusline: progressbar sprite — a bar too narrow to walk falls back to line" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  # style.progressbar.length goes down to 1, below the 3 cells a cat needs.
+  # Rather than clamp or overflow, the sprite branch declines and the plain
+  # fill path draws line — the charset it already resolved to.
+  echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["progressbar"],"style.progressbar.style":"cat","style.progressbar.length":"2"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$output" = "━─" ]
+  # Exactly as wide as the sprite: it fills the bar and never moves.
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
+  echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["progressbar"],"style.progressbar.style":"cat","style.progressbar.length":"3"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$output" = "ᓚᘐᗢ" ]
+}
+
+@test "config style.progressbar.sprite: frames in cycle order; one frame is legal" {
+  run "$MEDIA" config style.progressbar.sprite
+  [ "$output" = "● ○" ]
+  # Whitespace separates the frames, so runs of it collapse on the way in.
+  run "$MEDIA" config style.progressbar.sprite "ᓚᘏᗢ   ᓚᘐᗢ"
+  [ "$status" -eq 0 ]
+  [ "$output" = "style.progressbar.sprite = ᓚᘏᗢ ᓚᘐᗢ" ]
+  # A single frame is the knob case: a marker that walks but never animates.
+  run "$MEDIA" config style.progressbar.sprite "🚀"
+  [ "$status" -eq 0 ]
+  [ "$output" = "style.progressbar.sprite = 🚀" ]
+  run "$MEDIA" config style.progressbar.sprite "▶"
+  [ "$status" -eq 0 ]
+  # Nine frames is one too many, and a frame of 17 characters one too long.
+  for bad in "a b c d e f g h i" "aaaaaaaaaaaaaaaaa"; do
+    run "$MEDIA" config style.progressbar.sprite "$bad"
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"1-8 frames"* ]]
+  done
+  run "$MEDIA" config style.progressbar.sprite reset
+  [ "$output" = "style.progressbar.sprite = ● ○ (default)" ]
+}
+
+@test "config style.progressbar.trail/.track: exactly one narrow character" {
+  run "$MEDIA" config style.progressbar.trail
+  [ "$output" = "━" ]
+  run "$MEDIA" config style.progressbar.track
+  [ "$output" = "─" ]
+  local k
+  for k in style.progressbar.trail style.progressbar.track; do
+    run "$MEDIA" config "$k" "═"
+    [ "$status" -eq 0 ]
+    # A space is a legitimate glyph — an invisible half of the track — the same
+    # way the two-character charsets take one.
+    run "$MEDIA" config "$k" " "
+    [ "$status" -eq 0 ]
+    # Two characters would double the cells, and a wide glyph would double the
+    # columns; both blow past style.progressbar.length.
+    for bad in "ab" "🚀" "━━"; do
+      run "$MEDIA" config "$k" "$bad"
+      [ "$status" -eq 2 ]
+      [[ "$output" == *"exactly one narrow character"* ]]
+    done
+  done
+}
+
+@test "statusline: progressbar sprite — frames, trail and track come from the style keys" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  # The bring-your-own entry to the sprite family. Stub 75.4/200 at length 10:
+  # int(75.4) is odd, so a two-frame sprite shows its second frame, and a
+  # 3-cell one stands on cell 3 as the named presets do.
+  echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["progressbar"],"style.progressbar.style":"sprite","style.progressbar.length":"10","style.progressbar.sprite":"ᓚᘏᗢ ᓚᘐᗢ","style.progressbar.trail":"═","style.progressbar.track":"┈"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$output" = "═══ᓚᘐᗢ┈┈┈┈" ]
+  # Untouched keys fall back to their defaults: a blinking dot on a line track.
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
+  echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["progressbar"],"style.progressbar.style":"sprite","style.progressbar.length":"10"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$output" = "━━━○──────" ]
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
+  STUB_ELAPSED=74 run "$MEDIA" statusline
+  [ "$output" = "━━━●──────" ]
+  # One frame never animates — a marker that only walks, like knob.
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
+  echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["progressbar"],"style.progressbar.style":"sprite","style.progressbar.length":"10","style.progressbar.sprite":"▶"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$output" = "━━━▶──────" ]
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
+  STUB_ELAPSED=74 run "$MEDIA" statusline
+  [ "$output" = "━━━▶──────" ]
+  # The named presets keep their own frames and track: the keys do not reach
+  # them, exactly as a custom "#-" charset leaves the named charsets alone.
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
+  echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["progressbar"],"style.progressbar.style":"cat","style.progressbar.length":"10","style.progressbar.sprite":"▶","style.progressbar.trail":"═","style.progressbar.track":" "}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$output" = "━━━ᓚᘐᗢ┈┈┈┈" ]
+}
+
+@test "statusline: progressbar sprite — a wide frame costs two cells, not one" {
+  mkdir -p "$CLAUDE_PLUGIN_DATA"
+  # Width is counted in columns, not characters. An emoji frame is one
+  # character but two columns, so it has to spend two cells — otherwise the
+  # bar would draw one column past style.progressbar.length.
+  echo '{"display.statusline":true,"statusline.color":false,"statusline.fields":["progressbar"],"style.progressbar.style":"sprite","style.progressbar.length":"10","style.progressbar.sprite":"🚀"}' > "$CLAUDE_PLUGIN_DATA/config.json"
+  run "$MEDIA" statusline
+  [ "$output" = "━━━🚀─────" ]
+  # 3 trail + 2 for the rocket + 5 track = the 10 columns asked for.
+  [ "$(printf '%s' "$output" | /usr/bin/perl -CS -ne 'chomp; my $n = 0; $n += (/[\x{1F300}-\x{1FAFF}]/ ? 2 : 1) for split //; print $n')" -eq 10 ]
+  # It still walks, and it never overruns either end.
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
+  STUB_ELAPSED=0 run "$MEDIA" statusline
+  [ "$output" = "🚀────────" ]
+  rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
+  STUB_ELAPSED=200 run "$MEDIA" statusline
+  [ "$output" = "━━━━━━━━🚀" ]
 }
 
 @test "statusline: progressbar sub-cell presets — ramp arity drives the step math" {
@@ -2134,7 +2325,8 @@ setup() {
   local seg bar p
   for p in line blocks heartbeat monitor wave pulse eq notes spectrum mirror \
            cava ripple swell bars ekg playhead smooth rise fade corner glide \
-           stipple tiles dash knob braille chevron tape cassette retro dots "#-"; do
+           stipple tiles dash knob braille chevron tape cassette retro dots \
+           cat snake duck bird "#-"; do
     echo "{\"display.statusline\":true,\"statusline.color\":false,\"statusline.links\":false,\"statusline.fields\":[\"progressbar\"],\"style.progressbar.style\":\"$p\",\"style.progressbar.length\":\"20\"}" > "$CLAUDE_PLUGIN_DATA/config.json"
     rm -f "$CLAUDE_PLUGIN_DATA/now.cache"
     seg="$("$MEDIA" statusline)"

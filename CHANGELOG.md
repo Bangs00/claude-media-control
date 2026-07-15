@@ -5,6 +5,48 @@ All notable changes to this project are documented here. The format follows
 [SemVer](https://semver.org/spec/v2.0.0.html), tracked in
 `.claude-plugin/plugin.json`.
 
+## [0.37.0] — 2026-07-15
+
+### Added
+
+- **Sprite progress bars: something walks the track, and where it stands is
+  the progress.** `cat` `━━━━━━ᓚᘏᗢ┈┈┈┈┈┈┈┈┈┈┈` · `snake` · `duck` · `bird` —
+  four presets that walk the bar instead of filling it. It is the `playhead`
+  idea with something alive in place of the thick head, and it inherits that
+  preset's best property: position alone carries the progress, so a sprite
+  reads exactly the same with colors off. Each walks its own track — the cat a
+  dotted road, the duck water.
+
+  The gait cycles once a second while playing and holds still when paused,
+  which is the whole reason the frames exist: at length 20 a four-minute track
+  only steps cells every 13 seconds, and a creature that moved once every 13
+  seconds would read as broken rather than alive. The frames come off
+  `int(elapsed)`, so the freeze on pause is the same trick the waveform drift
+  already used — no flag, nothing to keep in sync.
+
+  Drawn in Canadian Aboriginal Syllabics rather than emoji, which is what makes
+  them work: emoji are two columns wide and all of 🐈🐕🚗 face *left*, so they
+  moonwalk down a bar that fills rightward. `ᓚᘏᗢ` is one cell per glyph, faces
+  the way it walks, and sits on the same baseline as the track. No monospace
+  font carries the syllabics, but macOS falls back to Euphemia UCAS and the
+  terminal squeezes it into its cell, so the grid holds.
+
+- **`sprite`: bring your own.** Three keys, the sprite-family answer to the
+  two-character custom charset. `style.progressbar.sprite` takes the frames it
+  cycles through — `"ᓚᘏᗢ ᓚᘐᗢ"`, up to eight, in the order given — and a single
+  frame simply never animates, which makes it a `knob` whose glyph is anything
+  you like (`"🚀"` walks the bar without moving a muscle). `style.progressbar.trail`
+  and `style.progressbar.track` are the walked and untravelled halves of the
+  track, one narrow glyph each. Emoji frames work: width is counted in columns,
+  not characters, so a two-column rocket spends two cells and the bar still
+  spans exactly `style.progressbar.length`.
+
+### Changed
+
+- `docs/statusline.md` and the README said 31 progress-bar charsets; they now
+  say 36. The `/media:statusline` style picker offers the sprites, and asks for
+  the frames when the chosen style is `sprite`.
+
 ## [0.36.0] — 2026-07-15
 
 ### Fixed

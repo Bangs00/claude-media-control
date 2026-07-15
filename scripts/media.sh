@@ -910,6 +910,9 @@ statusline_inputs() {
       ["style.progressbar.paused",  "yellow"],
       ["style.progressbar.style",   "line"],
       ["style.progressbar.length",  "20"],
+      ["style.progressbar.sprite",  "\x{25CF} \x{25CB}"],
+      ["style.progressbar.trail",   "\x{2501}"],
+      ["style.progressbar.track",   "\x{2500}"],
       ["style.time.elapsed",        "bold"],
       ["style.time.total",          "dim"],
       ["style.output.icon",         "auto"],
@@ -1298,6 +1301,34 @@ statusline_render() {
                  stipple => ["\x{28C4}", "\x{28E4}", "\x{28E6}", "\x{28F6}", "\x{28F7}"],
                  tiles => ["\x{25E7}"],
                  dash => ["\x{254D}", "\x{2505}", "\x{2509}"]);
+      # Sprite presets: a creature walks the track and its POSITION is the
+      # progress — the playhead idea (a marker gliding a thin line) with
+      # something drawn in place of the thick head. Entries are
+      # [frames, trail, track]:
+      # the walked path behind it, the untravelled one ahead, themed per animal.
+      #
+      # The frames cycle off int($pos), so the gait advances every tick whether
+      # or not the sprite changed cells — at length 20 a 4:00 track only steps
+      # every ~13s, and a creature that moved once every 13 seconds would read
+      # as broken rather than alive. A paused track holds $pos still, so the
+      # walk freezes with it; no flag, same trick the waveform drift uses.
+      # One flip per second is the ceiling worth having: the statusline ticks at
+      # 1s (refreshInterval floors there), so a faster cycle would only alias.
+      #
+      # Every glyph is one cell wide. No monospace font ships the Canadian
+      # Aboriginal Syllabics, but macOS always falls back to Euphemia UCAS and
+      # the terminal squeezes the result into its cell, so the grid holds and
+      # the two frames stay the same width — verified in a real terminal, not
+      # in a text layout engine, which measures Euphemia proportionally (1.27
+      # vs 1.45 cells) and would have you believe the bar jitters every second.
+      my %sp = (
+        cat   => [["\x{14DA}\x{160F}\x{15E2}", "\x{14DA}\x{1610}\x{15E2}"],
+                  "\x{2501}", "\x{2508}"],
+        snake => [["\x{1513}\x{1515}\x{1513}", "\x{1515}\x{1513}\x{1515}"],
+                  "\x{2501}", "\x{254C}"],
+        duck  => [["\x{156C}\x{15E2}", "\x{156B}\x{15E2}"], "\x{2248}", "~"],
+        bird  => [["\x{2312}v\x{2312}", "\x{2304}^\x{2304}"], "\x{2501}", "\x{00B7}"],
+      );
       # Waveform presets (Phase 19). wave/pulse/eq/notes render as
       # length-adaptive functions (below); spectrum/mirror/cava/ripple are
       # whole-bar visualizers. Height fns return 0..7: $blk maps that to ▁..█;
@@ -1556,6 +1587,49 @@ statusline_render() {
           return join "", map {
             $cell->($_, $st->($_ <= $hs ? $accsgr : 2, $g[$_]))
           } 0 .. $cells - 1;
+        }
+        # "sprite" is the bring-your-own entry to the family: the same walk with
+        # the frames and the two track halves taken from the style keys, the way
+        # a two-character charset is the bring-your-own entry to the fills. The
+        # named presets keep their own table and are not affected by the keys.
+        my $spd = $sp{$csv};
+        if ($csv eq "sprite") {
+          my @f = grep { length } split /\s+/, ($sty{"progressbar.sprite"} // "");
+          @f = ("\x{25CF}", "\x{25CB}") unless @f;   # lenient for hand-edits
+          $spd = [\@f, $sty{"progressbar.trail"} // "\x{2501}",
+                       $sty{"progressbar.track"} // "\x{2500}"];
+        }
+        if ($spd) {
+          # The sprite is one glyph standing on $w cells of the track, so it
+          # spends $w of the budget and the bar stays exactly $cells wide at
+          # every position. Width is measured in COLUMNS, not characters: the
+          # built-in sprites are narrow so the two agree, but a custom frame may
+          # be an emoji, which costs two cells and would otherwise overrun the
+          # bar by one column per frame.
+          my ($frames, $trail, $track) = @$spd;
+          my $g = $frames->[(defined $pos ? int($pos) : 0) % @$frames];
+          my $w = dwidth($g);
+          # Below $w cells there is nowhere to walk. Falling through rather than
+          # clamping lands on the plain fill path, where $cs{$csv} already
+          # resolved to the ━/─ of line up top — a 1-2 cell bar draws as line.
+          if ($cells >= $w) {
+            my $p = int($r * ($cells - $w) + 0.5);
+            unless ($link) {
+              return $st->($accsgr, ($trail x $p) . $g)
+                   . $st->(2, $track x ($cells - $p - $w));
+            }
+            # One glyph cannot carry $w links, so the sprite takes the one for
+            # the cell it starts on and the cells it covers seek nowhere; the
+            # track around it links per cell as everywhere else.
+            my $out = "";
+            for my $i (0 .. $cells - 1) {
+              next if $i > $p && $i < $p + $w;
+              $out .= $i <  $p ? $cell->($i, $st->($accsgr, $trail))
+                    : $i == $p ? $cell->($i, $st->($accsgr, $g))
+                    :            $cell->($i, $st->(2, $track));
+            }
+            return $out;
+          }
         }
         if (my $ramp = $sub{$csv}) {
           # Fill measured in ramp steps of a cell (partials + 1: eighths
@@ -2377,7 +2451,7 @@ statusline_links_any() {
 # line in 0.12.0 (set "blocks" to restore the pre-0.12 bar) and the bar
 # width default moved from 10 to 20 cells in 0.20.0 (set
 # style.progressbar.length 10 to restore the pre-0.20 bar).
-STYLE_KEYS="style.track.title style.track.artist style.app style.volume.icon style.volume.style style.volume.bar style.volume.percent style.progressbar.playing style.progressbar.paused style.progressbar.style style.progressbar.length style.time.elapsed style.time.total style.output.icon style.output"
+STYLE_KEYS="style.track.title style.track.artist style.app style.volume.icon style.volume.style style.volume.bar style.volume.percent style.progressbar.playing style.progressbar.paused style.progressbar.style style.progressbar.length style.progressbar.sprite style.progressbar.trail style.progressbar.track style.time.elapsed style.time.total style.output.icon style.output"
 
 # Text parts that accept the "off" (hide) value; the icon keys spell hiding
 # as none, style.volume.bar is a dedicated on/off toggle, and the bar
@@ -2427,9 +2501,9 @@ style_validate() {
         qw(blocks wave pulse eq notes braille chevron tape cassette retro
            knob playhead smooth rise fade corner glide stipple tiles dash
            line dots spectrum mirror cava ripple swell bars ekg
-           heartbeat monitor);
+           heartbeat monitor cat snake duck bird sprite);
       if ($preset{lc $val}) { print lc $val; exit 0 }
-      fail("progressbar style must be blocks|wave|pulse|eq|notes|braille|chevron|tape|cassette|retro|knob|playhead|smooth|rise|fade|corner|glide|stipple|tiles|dash|line|dots|spectrum|mirror|cava|ripple|swell|bars|ekg|heartbeat|monitor or exactly two characters (filled+empty, e.g. \"~-\"); got: $val")
+      fail("progressbar style must be blocks|wave|pulse|eq|notes|braille|chevron|tape|cassette|retro|knob|playhead|smooth|rise|fade|corner|glide|stipple|tiles|dash|line|dots|spectrum|mirror|cava|ripple|swell|bars|ekg|heartbeat|monitor|cat|snake|duck|bird|sprite or exactly two characters (filled+empty, e.g. \"~-\"); got: $val")
         unless length($val) == 2 && $val !~ /[\t\n]/ && $val ne "  ";
       print $val; exit 0;
     }
@@ -2440,6 +2514,36 @@ style_validate() {
       fail("progressbar length must be a whole number of cells from 1 to 60 (default 20); got: $val")
         unless $val =~ /^\d+$/ && $val + 0 >= 1 && $val + 0 <= 60;
       print $val + 0; exit 0;
+    }
+    if ($key eq "style.progressbar.sprite") {
+      # The frames of the "sprite" style, in the order they cycle — one per
+      # second while playing. Whitespace separates them, which is why a frame
+      # may not contain any (the same rule the icon keys use). One frame is
+      # legal and simply never animates. Canonicalized to single spaces.
+      # The example stays ASCII on purpose: this file carries no "use utf8", so
+      # a literal glyph here would be bytes and print back doubly-encoded
+      # through the -CS layer. Everything else spells glyphs as \x{...}.
+      $val =~ s/^\s+|\s+$//g;
+      my @f = split /\s+/, $val;
+      fail("progressbar sprite must be 1-8 frames separated by spaces, each a glyph of 1-16 characters, cycling one per second (e.g. \"o O\"); got: $val")
+        unless @f >= 1 && @f <= 8
+          && !grep { length($_) < 1 || length($_) > 16 } @f;
+      print join(" ", @f); exit 0;
+    }
+    if ($key eq "style.progressbar.trail" || $key eq "style.progressbar.track") {
+      my $what = $key eq "style.progressbar.trail" ? "progressbar trail"
+                                                   : "progressbar track";
+      # The walked / untravelled halves of a sprite track. Each is repeated
+      # once per cell, so it has to be exactly one character AND one column
+      # wide: a wide glyph would draw two columns per cell and the bar would
+      # blow past style.progressbar.length. The width test mirrors cw() in
+      # statusline_render — keep the two ranges in step. Left untrimmed on
+      # purpose: a space is a legitimate glyph here (an invisible track), the
+      # same way the two-character charsets take one.
+      fail("$what must be exactly one narrow character (a wide glyph would draw two columns per cell); got: $val")
+        unless length($val) == 1 && $val !~ /[\t\n]/
+          && $val !~ /[\x{1100}-\x{115F}\x{2E80}-\x{303E}\x{3041}-\x{33FF}\x{3400}-\x{4DBF}\x{4E00}-\x{9FFF}\x{A000}-\x{A4CF}\x{AC00}-\x{D7A3}\x{F900}-\x{FAFF}\x{FE30}-\x{FE4F}\x{FF00}-\x{FF60}\x{FFE0}-\x{FFE6}\x{1F300}-\x{1FAFF}\x{20000}-\x{2FFFD}]/;
+      print $val; exit 0;
     }
     $val =~ s/^\s+|\s+$//g;
     if ($key eq "style.volume.style") {
@@ -2555,9 +2659,13 @@ style_list() {
   echo " text parts also take off = hide that part; style.progressbar.style:"
   echo " blocks|wave|pulse|eq|notes|braille|chevron|tape|cassette|retro|knob|"
   echo " playhead|smooth|rise|fade|corner|glide|stipple|tiles|dash|line|dots|"
-  echo " spectrum|mirror|cava|ripple|swell|bars|ekg|heartbeat|monitor or two glyphs"
+  echo " spectrum|mirror|cava|ripple|swell|bars|ekg|heartbeat|monitor|cat|snake|"
+  echo " duck|bird|sprite or two glyphs"
   echo " like \"~-\"; style.progressbar.length: 1-60 cells (also sizes the"
-  echo " /media:now bar); style.volume.style: block|progress|stairs;"
+  echo " /media:now bar); style.progressbar.sprite / .trail / .track: the"
+  echo " frames and the two track halves the sprite style draws with — frames"
+  echo " cycle one per second (\"o O\"), trail/track are one narrow glyph each;"
+  echo " style.volume.style: block|progress|stairs;"
   echo " style.volume.bar: on|off — the bar draws in the progress-bar accent;"
   echo " style.volume.icon / style.output.icon: auto|none|<glyph>."
   echo " Set: media.sh config <style key> \"<spec>\" — the value reset restores a"

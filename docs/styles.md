@@ -198,6 +198,79 @@ monitor    40%  ⠤⠤⠤⠴⠼⡦⠤⠶⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤
 A box glyph only has a stem or no stem, so `heartbeat` shows the spike alone:
 P and T are too small to raise one.
 
+### Sprites
+
+Four presets **walk** the bar rather than filling it. The creature stands
+where the track has got to, so its **position** is the progress — `playhead`
+with something alive on the line. Each walks its own kind of track: the walked
+half behind it, the untravelled half ahead.
+
+Shown at 34%, on the first of their two frames:
+
+| Value | length 20 | |
+| --- | --- | --- |
+| `cat` | `━━━━━━ᓚᘏᗢ┈┈┈┈┈┈┈┈┈┈┈` | a cat on a dotted road |
+| `snake` | `━━━━━━ᔓᔕᔓ╌╌╌╌╌╌╌╌╌╌╌` | a snake over dashes |
+| `duck` | `≈≈≈≈≈≈ᕬᗢ~~~~~~~~~~~~` | a duck on water |
+| `bird` | `━━━━━━⌒v⌒···········` | a bird under a dotted sky |
+
+The gait cycles **once a second while playing**, and holds still when paused.
+That is the point of the frames: at length 20 a four-minute track only steps
+cells every 13 seconds, and a creature that moved once every 13 seconds would
+read as broken rather than alive. So the legs swap on every tick whether or
+not the cat has changed cells — here it walks in place from 1:24 to 1:35, then
+takes its step:
+
+```
+1:24  ━━━━━━ᓚᘏᗢ┈┈┈┈┈┈┈┈┈┈┈      1:27  ━━━━━━ᓚᘐᗢ┈┈┈┈┈┈┈┈┈┈┈
+1:25  ━━━━━━ᓚᘐᗢ┈┈┈┈┈┈┈┈┈┈┈       ...
+1:26  ━━━━━━ᓚᘏᗢ┈┈┈┈┈┈┈┈┈┈┈      1:36  ━━━━━━━ᓚᘏᗢ┈┈┈┈┈┈┈┈┈┈
+```
+
+Sprites are the one family that needs no color at all: position carries the
+progress by itself, so they read exactly the same with colors off. With colors
+on, the walked track and the creature take the accent and the track ahead dims.
+
+A sprite is one glyph standing on several cells, so it takes **one** seek link
+rather than one per cell — the cells underneath it are not their own jump
+target. And a bar too narrow to walk in (fewer cells than the sprite is wide)
+draws as `line` instead.
+
+### Your own sprite
+
+`sprite` is the bring-your-own entry to that family, the way two characters are
+for the fills. Three keys:
+
+| Key | What | Default |
+| --- | --- | --- |
+| `style.progressbar.sprite` | the frames, cycling one per second | `● ○` |
+| `style.progressbar.trail` | the track already walked | `━` |
+| `style.progressbar.track` | the track still ahead | `─` |
+
+```
+/media:config style.progressbar.style sprite            →  ━━━━━━━━━━●─────────
+/media:config style.progressbar.sprite "ᓚᘏᗢ ᓚᘐᗢ"        →  ━━━━━━━━━ᓚᘏᗢ────────
+/media:config style.progressbar.trail "═"
+/media:config style.progressbar.track "┈"               →  ═════════ᓚᘏᗢ┈┈┈┈┈┈┈┈
+```
+
+Frames are separated by spaces (so a frame cannot contain one) and cycle in
+the order given — up to eight of them. **One frame never animates**: a marker
+that only walks, like `knob` but any glyph you please.
+
+```
+/media:config style.progressbar.sprite "🚀"              →  ━━━━━━━━━🚀─────────
+/media:config style.progressbar.sprite "▶"               →  ━━━━━━━━━━▶─────────
+```
+
+Emoji work — they are two columns wide, and the bar accounts for it, so it
+still spans exactly `style.progressbar.length`. The trail and track glyphs
+must each be **one narrow character** (a wide one would draw two columns per
+cell and overrun the bar); a space is allowed and makes that half invisible.
+
+The named sprites above keep their own frames and track — these keys only
+drive `sprite`, exactly as a custom `"#-"` charset leaves `blocks` alone.
+
 ### Your own characters
 
 Any **two characters** — exactly two — mean "filled + empty" (a space works
