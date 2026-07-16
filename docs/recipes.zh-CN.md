@@ -3,7 +3,8 @@
 [English](recipes.md) | [한국어](recipes.ko.md) | [日本語](recipes.ja.md) | **简体中文**
 
 现成的 now-playing 组件整套外观，直接粘贴即用。每一款都源自你认得出的
-原型——荧光体终端、磁带卡座、调谐刻度盘、调音台。下面每条命令都通过了真实的
+原型——荧光体终端、磁带卡座、调谐刻度盘、调音台。颜色也取自原型本身：
+荧光体的发射谱线、颜料、有据可查的标准。下面每条命令都通过了真实的
 `media.sh config` 校验，每张 GIF 都是渲染器的真实输出（每秒 1 帧）。
 （全程使用虚构曲目——*Modem Chorus* 的 *Rented Sunsets*，在虚构应用
 *Aux* 中播放。）
@@ -27,7 +28,7 @@
 
 ## Zen
 
-只留标题和播放位置——连 marquee 也关掉，会动的只有时间。
+只留标题和当前位置——连 marquee 也关掉，会动的只有时钟。
 
 ![Zen 搭配的真实渲染（每秒 1 帧）](recipes/zen.gif)
 
@@ -44,7 +45,8 @@
 
 ## Mono
 
-黑底白字、细 line 条——口袋播放器 OLED 屏的样子，只用 named color。
+黑底白字配一条细 line 进度条——口袋播放器 OLED 的外观，只用 named
+color。
 
 ![Mono 搭配的真实渲染（每秒 1 帧）](recipes/mono.gif)
 
@@ -64,7 +66,8 @@
 
 ## Hardcopy
 
-纯 ASCII、零颜色——像打印出来的终端日志，适合朴素终端和 `NO_COLOR` 环境。
+纯 ASCII、零颜色，像一份打印出来的终端日志——适合朴素终端和
+`NO_COLOR` 环境。
 
 ![Hardcopy 搭配的真实渲染（每秒 1 帧）](recipes/hardcopy.gif)
 
@@ -79,9 +82,36 @@
 ▶︎ Rented Sunsets — Modem Chorus  =======-------------  1:32/4:07
 ```
 
+## Plasma
+
+近乎全黑的底上一格格橙色——氖气等离子面板。一格要么亮要么不亮，中间
+没有过渡。
+
+![Plasma 搭配的真实渲染（每秒 1 帧）](recipes/plasma.gif)
+
+```
+/media:config statusline.fields "track,progressbar,time"
+/media:config style.progressbar.style blocks
+/media:config style.progressbar.playing "#ff6a1a"
+/media:config style.progressbar.paused "#a34410"
+/media:config style.track.title "bold #ffcba3"
+/media:config style.track.artist "italic #c26a2e"
+/media:config style.time.elapsed "bold #ff6a1a"
+/media:config style.time.total "dim #7a3a12"
+```
+
+```
+▶︎ Rented Sunsets — Modem Chorus  ███████░░░░░░░░░░░░░  1:32/4:07
+```
+
+这抹橙是氖自己的颜色——它在可见光里最强的两条谱线落在 585 nm 和
+640 nm。把进度条换成 `rise`、`fade` 或 `corner`，同样的填充就不再以整格
+推进，而是按八分之一、三分之一、四分之一格生长；要这块面板的点阵版本，
+用 `braille`（它的半格孪生是 `stipple`）。
+
 ## Phosphor
 
-黑底纯绿加实心块条——绿荧光体 CRT 终端。
+黑底绿字的单色配实心方块条——绿色荧光体 CRT 终端。
 
 ![Phosphor 搭配的真实渲染（每秒 1 帧）](recipes/phosphor.gif)
 
@@ -100,12 +130,101 @@
 ▶︎ Rented Sunsets — Modem Chorus  ███████               1:32/4:07
 ```
 
-想要琥珀荧光体版本，把 `#33ff33`/`#22bb33`/`#22aa22` 换成
-`#ffb000`/`#cc8400`/`#996300` 即可。
+想要琥珀色荧光体那位表亲，把 `#33ff33`/`#22bb33`/`#22aa22` 换成
+`#ffb000`/`#cc8400`/`#996300`。
+
+## Goban
+
+板岩的黑对蛤壳的白——围棋子。黑子看着偏小，所以特意多削出 0.3 mm，
+让两者看起来一样大。
+
+![Goban 搭配的真实渲染（每秒 1 帧）](recipes/goban.gif)
+
+```
+/media:config statusline.fields "track,progressbar,time"
+/media:config style.progressbar.style dots
+/media:config style.progressbar.playing "#f7f3e8"
+/media:config style.progressbar.paused "#8a8578"
+/media:config style.track.title "bold #f7f3e8"
+/media:config style.track.artist "italic #b5a882"
+/media:config style.time.elapsed "bold #e8c88a"
+/media:config style.time.total "dim #6b6455"
+```
+
+```
+▶︎ Rented Sunsets — Modem Chorus  ●●●●●●●○○○○○○○○○○○○○  1:32/4:07
+```
+
+## Service
+
+毛呢上的金线——袖章上的 V 形条。自 1777 年起它只表示一件事：服役的时间。
+
+![Service 搭配的真实渲染（每秒 1 帧）](recipes/service.gif)
+
+```
+/media:config statusline.fields "track,progressbar,time"
+/media:config style.progressbar.style chevron
+/media:config style.progressbar.playing "#c9a227"
+/media:config style.progressbar.paused "#8a6f1e"
+/media:config style.track.title "bold #e8d9a0"
+/media:config style.track.artist "italic #9a8b5e"
+/media:config style.time.elapsed "bold #c9a227"
+/media:config style.time.total "dim #6b5a2c"
+```
+
+```
+▶︎ Rented Sunsets — Modem Chorus  ▸▸▸▸▸▸▸▹▹▹▹▹▹▹▹▹▹▹▹▹  1:32/4:07
+```
+
+## Platform
+
+以半块砖收尾的白釉——车站墙砖。烧成白色，是因为白色能在地下把光返还
+给你。
+
+![Platform 搭配的真实渲染（每秒 1 帧）](recipes/platform.gif)
+
+```
+/media:config statusline.fields "track,progressbar,time"
+/media:config style.progressbar.style tiles
+/media:config style.progressbar.playing "#f2efe6"
+/media:config style.progressbar.paused "#1e3a34"
+/media:config style.track.title "bold #fdfcf8"
+/media:config style.track.artist "italic #8fa8a0"
+/media:config style.time.elapsed "bold #f2efe6"
+/media:config style.time.total "dim #5c6b66"
+```
+
+```
+▶︎ Rented Sunsets — Modem Chorus  ■■■■■■■◧□□□□□□□□□□□□  1:32/4:07
+```
+
+`◧` 不是将就——一排砖本来就以半块砖收尾，所以边界格才有东西可画。
+
+## Telegraph
+
+黄铜与刷了清漆的橡木，边界处的点会变粗、连成划——电报最古老的规矩：
+一划不过是三个点连在一起。
+
+![Telegraph 搭配的真实渲染（每秒 1 帧）](recipes/telegraph.gif)
+
+```
+/media:config statusline.fields "track,progressbar,time"
+/media:config style.progressbar.style dash
+/media:config style.progressbar.playing "#b08d57"
+/media:config style.progressbar.paused "#6e5327"
+/media:config style.track.title "bold #efe6d0"
+/media:config style.track.artist "italic #a1854f"
+/media:config style.time.elapsed "bold #d4b06a"
+/media:config style.time.total "dim #6e5327"
+```
+
+```
+▶︎ Rented Sunsets — Modem Chorus  ━━━━━━━┅╌╌╌╌╌╌╌╌╌╌╌╌  1:32/4:07
+```
 
 ## Cassette
 
-温暖的磁带卡座：卡带窗进度条、♪ 阶梯音量、奶油-琥珀色字。
+温暖的磁带卡座：磁带视窗式进度条、♪ 阶梯音量、奶油与琥珀色的字。
 
 ![Cassette 搭配的真实渲染（每秒 1 帧）](recipes/cassette.gif)
 
@@ -129,7 +248,7 @@
 
 ## Dial
 
-40 格细线刻度上一根红针——银面收音机的背光调谐刻度盘，冰蓝色字。
+40 格发丝刻度配一根红指针——银面功放背光调谐盘，字用冰蓝色。
 
 ![Dial 搭配的真实渲染（每秒 1 帧）](recipes/dial.gif)
 
@@ -149,9 +268,36 @@
 ▶︎ Rented Sunsets — Modem Chorus  ──────────────╼╾────────────────────────  1:32/4:07
 ```
 
+## Vernier
+
+淬火钢与黄铜滚轮。游标滑过发丝刻度，停在刻度与刻度*之间*——这正是
+游标自 1631 年以来一直在做的事。
+
+![Vernier 搭配的真实渲染（每秒 1 帧）](recipes/vernier.gif)
+
+```
+/media:config statusline.fields "track,progressbar,time"
+/media:config style.progressbar.style glide
+/media:config style.progressbar.length 36
+/media:config style.progressbar.playing "#dfe4e9"
+/media:config style.progressbar.paused "#b08d57"
+/media:config style.track.title "bold #eef2f5"
+/media:config style.track.artist "italic #8d959e"
+/media:config style.time.elapsed "bold #b9bec4"
+/media:config style.time.total "dim #5c636a"
+```
+
+```
+▶︎ Rented Sunsets — Modem Chorus  ━━━━━━━━━━━━━╾──────────────────────  1:32/4:07
+```
+
+用 36 而不是 40 是有原因的：`glide` 的游标只在半格位置才会裂成 `╾`，
+而在这个位置上，40 格的进度条正好落在整格边界，一次都不会显示。
+
 ## VFD
 
-深底青绿荧光段——90 年代高保真音响前面板的 VFD 屏，应用名充当输入源标签。
+暗底上的青绿色段码——90 年代 Hi-Fi 的荧光显示管面板，应用名充当信号源
+标签。
 
 ![VFD 搭配的真实渲染（每秒 1 帧）](recipes/vfd.gif)
 
@@ -176,7 +322,8 @@
 
 ## Console
 
-调音台式上下两行：上排电平表和时间码，下排走带和监听——LED 绿、录音红。
+调音台式的双行：上排是电平表和时间码，下排是走带与监听——LED 绿、
+录音红。
 
 ![Console 搭配的真实渲染（每秒 1 帧）](recipes/console.gif)
 
@@ -195,11 +342,141 @@
 ▶︎ Rented Sunsets — Modem Chorus (Aux)  🎚 Bookshelf Speakers
 ```
 
-音量迷你表直接借用进度条的 `eq` 字符，一起跳动。
+音量小电平表直接借用进度条的 `eq` 字符，因此会跟着一起跳。
+
+## Slider wall
+
+奶油色、黑色，加一段红色顶端——VU 表。指针是故意做慢的，好让你看到
+响度，而不是去追每一个瞬态。
+
+![Slider wall 搭配的真实渲染（每秒 1 帧）](recipes/slider-wall.gif)
+
+```
+/media:config statusline.fields "track,volume,progressbar,time"
+/media:config style.progressbar.style bars
+/media:config style.progressbar.playing "#f0e3c0"
+/media:config style.progressbar.paused "#c44a3d"
+/media:config style.volume.style stairs
+/media:config style.volume.percent off
+/media:config style.track.title "bold #f7efd9"
+/media:config style.track.artist "italic #b9a887"
+/media:config style.time.elapsed "bold #f0e3c0"
+/media:config style.time.total "dim #7d7159"
+```
+
+```
+▶︎ Rented Sunsets — Modem Chorus  🔉 ▁▂▃  ⣄⡀⢀⣤⣤⣴⣦⣄⣤⣶⣴⣶⣦⣀⣀⣀⣀⣴⣦⣤  1:32/4:07
+```
+
+`bars` 的形状由基频加上一个非谐分音和一个次谐波叠成——所以它动起来像
+真实节目素材，而不像一个和弦。想要方块高度的版本就用 `eq`，那就是
+[Console](#console)。
+
+## Third-octave
+
+不会被拉长、只在原地跳动的红色 LED 柱——三分之一倍频程分析仪。它的
+频带中心是固定的，所以条更宽换来的是更多频谱，而不是把同一段看得更宽。
+
+![Third-octave 搭配的真实渲染（每秒 1 帧）](recipes/third-octave.gif)
+
+```
+/media:config statusline.fields "track,progressbar,time"
+/media:config style.progressbar.style spectrum
+/media:config style.progressbar.playing "#ff2d10"
+/media:config style.progressbar.paused "#8c1f0d"
+/media:config style.track.title "bold #ffc2ae"
+/media:config style.track.artist "italic #d4654a"
+/media:config style.time.elapsed "bold #ff7a45"
+/media:config style.time.total "dim #8a3f2a"
+```
+
+```
+▶︎ Rented Sunsets — Modem Chorus  ▄▁▃▆▅▄▆▅▂▃▆▆▄▅▅▃▃▆▆▄  1:32/4:07
+```
+
+这抹红是第一颗可见 LED 自己的颜色——磷砷化镓，655 nm，1962 年。把
+`spectrum` 换成 `cava`，同样的分析就以 braille 点阵、两倍横向密度画出来。
+
+## Seiche
+
+整座湖在它的盆里晃荡——不论盆有多宽，这道驻波都正好装得下。这也是这条
+进度条无论多长都只显示同样两个半波的原因。
+
+![Seiche 搭配的真实渲染（每秒 1 帧）](recipes/seiche.gif)
+
+```
+/media:config statusline.fields "track,progressbar,time"
+/media:config style.progressbar.style wave
+/media:config style.progressbar.playing "#3b8fc4"
+/media:config style.progressbar.paused "#5f9e79"
+/media:config style.track.title "bold #d6ecf5"
+/media:config style.track.artist "italic #7fb3cc"
+/media:config style.time.elapsed "bold #a5d5ea"
+/media:config style.time.total "dim #4a7285"
+```
+
+```
+▶︎ Rented Sunsets — Modem Chorus  █▇▅▂▁▂▄▇█▇▅▂▁▂▄▇█▇▅▂  1:32/4:07
+```
+
+从靛蓝到绿，正是那把湖水色标尺排列的方向——给 seiche 命名的人，也做了
+那把标尺。把 `wave` 换成 `swell` 就是它的 braille 孪生。
+
+## Ripple tank
+
+上方一盏灯，下方一盘水，一根针敲在正中——波把自己的影子从中心投向
+四周。这台装置当初就是为了证明光是波而造的。
+
+![Ripple tank 搭配的真实渲染（每秒 1 帧）](recipes/ripple-tank.gif)
+
+```
+/media:config statusline.fields "track,progressbar,time"
+/media:config style.progressbar.style mirror
+/media:config style.progressbar.playing "#f2ead4"
+/media:config style.progressbar.paused "#8a94a6"
+/media:config style.track.title "bold #fdfaf0"
+/media:config style.track.artist "italic #9fb0c4"
+/media:config style.time.elapsed "bold #e8dcbb"
+/media:config style.time.total "dim #5c6675"
+```
+
+```
+▶︎ Rented Sunsets — Modem Chorus  ▇▄▁▁▄▇█▆▃▁▁▃▆█▇▄▁▁▄▇  1:32/4:07
+```
+
+同一形状的 braille 孪生是 `ripple`。
+
+## Lead II
+
+每秒 25 毫米走过的描迹——全世界共同约定的走纸速度。所以条越长，得到的
+是更多心搏，而不是更宽的一次。
+
+![Lead II 搭配的真实渲染（每秒 1 帧）](recipes/lead-ii.gif)
+
+```
+/media:config statusline.fields "track,progressbar,time"
+/media:config style.progressbar.style heartbeat
+/media:config style.progressbar.length 40
+/media:config style.progressbar.playing "#55f5a1"
+/media:config style.progressbar.paused "#6f8fa8"
+/media:config style.track.title "bold #c9fdde"
+/media:config style.track.artist "italic #3fbc7b"
+/media:config style.time.elapsed "bold #55f5a1"
+/media:config style.time.total "dim #2e8f5c"
+```
+
+```
+▶︎ Rented Sunsets — Modem Chorus  ━┻┳━━━━━━━━┻┳━━━━━━━━┻┳━━━━━━━━┻┳━━━━━━━  1:32/4:07
+```
+
+绿色取自长余辉显示管荧光体，而暂停色刻意既不用红也不用黄：在监护仪上
+这两种是标准规定的报警色，而暂停的一首歌不是警报。把 `heartbeat` 换成
+`monitor` 会用 braille 描迹，行数够多，除了尖峰还能显出小小的 P 波和
+T 波隆起；`ekg` 则把心搏从底线往上画，而不是绕着中线。
 
 ## Night drive
 
-夜路仪表盘的琥珀光——一暂停，强调色就切成红色警示灯。
+夜间驾驶的琥珀色仪表辉光——暂停时强调色翻成红色警示灯。
 
 ![Night drive 搭配的真实渲染（每秒 1 帧）](recipes/night-drive.gif)
 
@@ -220,7 +497,7 @@
 
 ## Synthwave
 
-铬青色标题下的荧光粉脉冲——霓虹网格落日配色。
+铬青色标题下的亮粉 pulse——霓虹网格落日配色。
 
 ![Synthwave 搭配的真实渲染（每秒 1 帧）](recipes/synthwave.gif)
 
@@ -236,12 +513,12 @@
 ```
 
 ```
-▶︎ Rented Sunsets — Modem Chorus  ▃▂▂▂▂▂▂▇▃▂▂▂▂▂▂▇▃▂▂▂  1:32/4:07
+▶︎ Rented Sunsets — Modem Chorus  ▄▁▁▁▁▁▁█▁▁▄▁▁▁▁▁▁█▁▁  1:32/4:07
 ```
 
 ## Lo-fi
 
-灰调粉彩配一小段行进音符——低对比、安安静静的学习节拍。
+蒙尘的粉彩配一条音符行进的短条——安静、低对比的 study beats。
 
 ![Lo-fi 搭配的真实渲染（每秒 1 帧）](recipes/lo-fi.gif)
 
@@ -261,30 +538,63 @@
 ▶︎ Rented Sunsets — Modem Chorus  ·♫♪♫··♪♫♪··♫  1:32/4:07
 ```
 
+## Neko
+
+一只猫沿着点线小路踱步，用温暖的纸色——终端里的小生灵。早在有什么东西
+在桌面上行走之前，它就已经在命令行上走了。
+
+![Neko 搭配的真实渲染（每秒 1 帧）](recipes/neko.gif)
+
+```
+/media:config statusline.fields "track,progressbar,time"
+/media:config style.progressbar.style cat
+/media:config style.progressbar.playing "#f4e4c1"
+/media:config style.progressbar.paused "#8a7f6a"
+/media:config style.track.title "bold #fbf3e2"
+/media:config style.track.artist "italic #b3a488"
+/media:config style.time.elapsed "bold #f4e4c1"
+/media:config style.time.total "dim #6f6656"
+```
+
+```
+▶︎ Rented Sunsets — Modem Chorus  ━━━━━━ᓚᘏᗢ┈┈┈┈┈┈┈┈┈┈┈  1:32/4:07
+```
+
+`snake`、`duck`、`bird` 各走各的路，`sprite` 则接受你给的任意帧：
+
+```
+/media:config style.progressbar.style sprite
+/media:config style.progressbar.sprite "◐ ◓ ◑ ◒"
+/media:config style.progressbar.trail "═"
+/media:config style.progressbar.track "┈"
+```
+
+这是唯一完全不需要颜色的一族——小生灵站在进度所到之处，光凭位置就读得
+出进度。
+
 ## Twilight
 
-smooth 条上的靛蓝·长春花·薰衣草粉彩——现代深色主题的粉彩外观，全部精确
-hex。
+smooth 条上的靛蓝·长春花·薰衣草粉彩——现代深色主题的粉彩外观。
 
 ![Twilight 搭配的真实渲染（每秒 1 帧）](recipes/twilight.gif)
 
 ```
 /media:config style.progressbar.style smooth
-/media:config style.progressbar.playing "#7aa2f7"
-/media:config style.progressbar.paused "#e0af68"
-/media:config style.track.title "bold #c0caf5"
-/media:config style.track.artist "italic #bb9af7"
-/media:config style.app "#565f89"
-/media:config style.time.elapsed "bold #7dcfff"
-/media:config style.time.total "dim #565f89"
+/media:config style.progressbar.playing "#79a0f5"
+/media:config style.progressbar.paused "#dfae66"
+/media:config style.track.title "bold #bfc9f4"
+/media:config style.track.artist "italic #ba99f5"
+/media:config style.app "#555e87"
+/media:config style.time.elapsed "bold #7bcdfd"
+/media:config style.time.total "dim #555e87"
 ```
 
 ```
 ▶︎ Rented Sunsets — Modem Chorus (Aux)  ███████▌░░░░░░░░░░░░  1:32/4:07
 ```
 
-终端不支持 truecolor（如 Apple Terminal）？只把 hex 键换成 named
-color——本页任何搭配都适用同一套换法：
+没有 truecolor（比如 Apple Terminal）？只把 hex 那几个键换成 named
+color 即可——本页任何一款搭配都适用同样的做法：
 
 ```
 /media:config style.progressbar.playing bright-blue

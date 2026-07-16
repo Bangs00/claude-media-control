@@ -186,7 +186,8 @@ dash     46%  ━━━━━━━━━╍╌╌╌╌╌╌╌╌╌╌      
 20칸쯤 남게 됩니다.
 
 나머지와 마찬가지로 이 둘도 바 전체에 걸쳐 그려지지만, 색을 끄면 꼬리
-부분의 높이가 낮아지는 대신 기준선으로 도로 내려앉습니다 — 일직선이 됩니다:
+부분의 높이가 낮아지는 대신 기준선으로 도로 내려앉습니다 — 실제 트레이스가
+박동과 박동 사이에 쉬는 것과 같은 등전위선을 그립니다:
 
 ```
 heartbeat  40%  ━━━━┻┳━━━━━━━━━━━━━━
@@ -304,7 +305,7 @@ monitor    40%  ⠤⠤⠤⠴⠼⡦⠤⠶⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤
 
 ```
 /media:config style.progressbar.playing bright-cyan
-/media:config style.progressbar.playing "#1db954"   # 어떤 헥스 색이든
+/media:config style.progressbar.playing "#3ddc84"   # 어떤 헥스 색이든
 /media:config style.progressbar.paused magenta
 ```
 
@@ -380,10 +381,11 @@ monitor    40%  ⠤⠤⠤⠴⠼⡦⠤⠶⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤
 
 ## 레시피
 
-바로 붙여넣는 완성 look들 — 인광 터미널, 테이프 덱, 믹싱 콘솔, synthwave
-네온 등 — 은 이제 전용 페이지에 있습니다. 레시피마다 GIF, 정확한 config
-블록, 플레인 텍스트 미리보기가 함께 실려 있습니다:
-**[docs/recipes.ko.md](recipes.ko.md)**.
+바로 붙여넣는 완성 look들 — 인광 터미널, 테이프 덱, 믹싱 콘솔, 네온
+플라즈마 패널, 버니어 눈금, 기록지 속도의 심전도, synthwave 네온 등 — 은
+이제 전용 페이지에 있습니다. 레시피마다 GIF, 정확한 config 블록, 플레인
+텍스트 미리보기가 함께 실려 있습니다: **[docs/recipes.ko.md](recipes.ko.md)**.
+24종이 이 페이지의 모든 프리셋을 빠짐없이 다룹니다.
 
 ## 기본값으로 되돌리기
 

@@ -5,6 +5,88 @@ All notable changes to this project are documented here. The format follows
 [SemVer](https://semver.org/spec/v2.0.0.html), tracked in
 `.claude-plugin/plugin.json`.
 
+## [0.38.0] — 2026-07-16
+
+### Added
+
+- **Twelve more recipes, and the gallery finally reaches every preset.**
+  [`docs/recipes.md`](docs/recipes.md) shipped twelve looks in 0.27.0 and then
+  never caught up with the bar: 0.31.0 added the length-adaptive waveforms and
+  the audio visualizers, 0.32.0 their braille twins, 0.33.0 whole-bar notes,
+  0.34.0–0.35.0 the ECG family, 0.37.0 the sprites. Of 36 charsets the page
+  reached ten. It has twenty-four recipes now, and every charset is in one of
+  them.
+
+  Each new look is grounded the way the first twelve were — in something whose
+  *behaviour* forces the preset rather than decorating it. **Lead II** is
+  `heartbeat` at chart speed: ECG paper runs at 25 mm/s the world over, so a
+  longer strip shows more beats and never a wider one — which is exactly why
+  the beat is pinned at 10 cells while every other waveform scales with the
+  bar. **Third-octave** is `spectrum`: an analyser's bands sit on fixed ISO
+  centres and dance in place, which is why `spectrum` alone among the field
+  presets does not stretch. **Seiche** is `wave`: a standing wave fits its
+  basin whatever the width, so 2.5 cycles at any length is the physics, not a
+  compromise. **Vernier** is `glide` — an instrument built in 1631 to read
+  *between* the graduations. **Telegraph** is `dash`, where a dash is three
+  dots fused, which is what the boundary cells do. Then **Plasma** `blocks` ·
+  **Goban** `dots` · **Service** `chevron` · **Platform** `tiles` · **Slider
+  wall** `bars` · **Ripple tank** `mirror` · **Neko** `cat`.
+
+  Twins and boundary variants ride along as one-line swaps inside their kin's
+  recipe rather than padding the page with near-identical entries, so `swell`
+  `cava` `ripple` `monitor` `ekg` `snake` `duck` `bird` `sprite` `rise` `fade`
+  `corner` `braille` and `stipple` all have somewhere to live.
+
+  Colors are derived from the referent instead of borrowed from a theme:
+  Plasma's orange is neon's own two strong visible lines (585 and 640 nm),
+  Third-octave's red is the first visible LED's (GaAsP, 655 nm), Lead II's
+  green is a long-persistence display phosphor. That is a provenance the page
+  can state, rather than a resemblance it has to hope nobody checks.
+
+### Changed
+
+- **The whole gallery was re-recorded on one geometry.** The 0.27.0 gifs came
+  from a vhs that no longer exists here: it drew 11.452 px per display cell and
+  a rounded window border, and vhs 0.11.0 — current stable — draws 13.2 and has
+  no `Set BorderRadius` at all. Twelve new gifs at the new metrics beside
+  twelve old ones at the old would have read as two galleries, so all
+  twenty-four are the current renderer through the current tool. The rig now
+  computes each gif's width from the line it actually draws, measured against
+  an 80-column ruler; without that the segment wraps, the top line scrolls off,
+  and you record an empty box.
+
+- **`heartbeat`/`monitor`'s colors-off tail "runs isoelectric" now, not
+  "flatlines".** Isoelectric is the clinical term and the accurate one: the TP
+  segment of every healthy beat is flat, so a flat trace is a heart resting
+  between beats, not the absence of one. Same behaviour, better word, in all
+  four languages. Lead II's paused colour is deliberately neither red nor
+  yellow for the same reason — on a monitor those two are standardised
+  alarm-priority colours (IEC 60601-1-8), and a paused song is not an alarm.
+
+- **Twilight's palette moved off its exact source, and the doc stopped
+  advertising it.** The six hex values were, to the digit, Tokyo Night's
+  (MIT, © Enkia), and the page then called them "in exact hex". Colour values
+  are not copyrightable — 37 CFR §202.1(a) excludes "mere variations of ...
+  coloring" outright — so nothing was ever owed. But keeping the values *and*
+  saying nothing was the one combination that is legally fine and socially
+  poor. Each value is nudged 1–3%: the look is unchanged, the provenance is no
+  longer someone else's.
+
+- **The style gallery's hex example is no longer a brand colour.** `#1db954`
+  was Spotify's (legacy) green, sitting in a media plugin's own docs as the
+  example of "any exact hex color" — the one spot on the page with a
+  goods-and-services nexus behind it. It is `#3ddc84` now, which is nobody's.
+
+### Fixed
+
+- **The Synthwave preview had been drawing a `pulse` that no longer exists.**
+  0.34.0 redrew `pulse` as a real ECG trace and re-recorded the gifs, but the
+  plain-text preview underneath kept the pre-0.34.0 shape,
+  `▃▂▂▂▂▂▂▇▃▂▂▂▂▂▂▇▃▂▂▂` — stale for four releases, in all four languages. It
+  reads `▄▁▁▁▁▁▁█▁▁▄▁▁▁▁▁▁█▁▁` now, which is what the renderer actually draws.
+  Every preview and every config line on the page is checked against the real
+  thing before it ships.
+
 ## [0.37.0] — 2026-07-15
 
 ### Added

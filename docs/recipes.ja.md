@@ -4,7 +4,8 @@
 
 now-playing セグメントにそのまま貼れる完成 look 集です。どれも
 見覚えのあるものに根ざしています — 蛍光体ターミナル、テープデッキ、
-チューナーダイヤル、ミキシングコンソール。以下のコマンドはすべて実際の
+チューナーダイヤル、ミキシングコンソール。色はその実物から導きました。
+蛍光体の輝線、顔料、文書に残る規格から。以下のコマンドはすべて実際の
 `media.sh config` の検証を通り、GIF はすべてレンダラーの実出力（毎秒
 1 フレーム）です。（すべて架空のトラック — *Modem Chorus* の *Rented
 Sunsets*、架空のアプリ *Aux* で再生中。）
@@ -30,7 +31,7 @@ Apple Terminal は非対応です。[Twilight](#twilight) の末尾に、どの
 
 ## Zen
 
-タイトルと現在位置だけ — marquee も切って、動くのは時計だけ。
+タイトルと現在位置だけ — marquee も切って、動くのは時計だけです。
 
 ![Zen レシピの実レンダリング（毎秒 1 フレーム）](recipes/zen.gif)
 
@@ -47,8 +48,8 @@ Apple Terminal は非対応です。[Twilight](#twilight) の末尾に、どの
 
 ## Mono
 
-黒地に白、細い line バー — ポケットプレーヤーの OLED 画面の look。named
-color のみ。
+黒地に白と細い line バー — ポケットプレーヤーの OLED の look。named color
+だけで組みます。
 
 ![Mono レシピの実レンダリング（毎秒 1 フレーム）](recipes/mono.gif)
 
@@ -68,8 +69,8 @@ color のみ。
 
 ## Hardcopy
 
-純 ASCII・無色 — 印字したターミナルログのような姿。プレーンなターミナルや
-`NO_COLOR` 環境に。
+純 ASCII で色なし — 印字されたターミナルログのような姿。プレーンな
+ターミナルや `NO_COLOR` 環境向けです。
 
 ![Hardcopy レシピの実レンダリング（毎秒 1 フレーム）](recipes/hardcopy.gif)
 
@@ -84,9 +85,37 @@ color のみ。
 ▶︎ Rented Sunsets — Modem Chorus  =======-------------  1:32/4:07
 ```
 
+## Plasma
+
+ほぼ黒の地にオレンジのセル — ネオンガスパネルです。セルは点いているか
+いないかのどちらかで、その中間はありません。
+
+![Plasma レシピの実レンダリング（毎秒 1 フレーム）](recipes/plasma.gif)
+
+```
+/media:config statusline.fields "track,progressbar,time"
+/media:config style.progressbar.style blocks
+/media:config style.progressbar.playing "#ff6a1a"
+/media:config style.progressbar.paused "#a34410"
+/media:config style.track.title "bold #ffcba3"
+/media:config style.track.artist "italic #c26a2e"
+/media:config style.time.elapsed "bold #ff6a1a"
+/media:config style.time.total "dim #7a3a12"
+```
+
+```
+▶︎ Rented Sunsets — Modem Chorus  ███████░░░░░░░░░░░░░  1:32/4:07
+```
+
+このオレンジはネオン自身の色です — 可視域で最も強い 2 本の輝線が
+585 nm と 640 nm にあります。バーを `rise`・`fade`・`corner` に替えると、
+同じ塗りがセル単位ではなく 1/8・1/3・1/4 ずつ伸びます。このパネルの
+ドットマトリクス版は `braille`（部分セルの相方は `stipple`）です。
+
 ## Phosphor
 
-黒地に緑一色、ソリッドなブロックバー — 緑蛍光体の CRT ターミナル。
+黒地に緑の単色と塗りつぶしブロックのバー — グリーン蛍光体の CRT
+ターミナルです。
 
 ![Phosphor レシピの実レンダリング（毎秒 1 フレーム）](recipes/phosphor.gif)
 
@@ -105,13 +134,104 @@ color のみ。
 ▶︎ Rented Sunsets — Modem Chorus  ███████               1:32/4:07
 ```
 
-アンバー蛍光体版は `#33ff33`/`#22bb33`/`#22aa22` を
-`#ffb000`/`#cc8400`/`#996300` に差し替えるだけ。
+アンバー蛍光体のいとこにするには、`#33ff33`/`#22bb33`/`#22aa22` を
+`#ffb000`/`#cc8400`/`#996300` に替えてください。
+
+## Goban
+
+粘板岩の黒とハマグリの白 — 碁石です。黒石は小さく見えるので 0.3 mm
+大きく削り、二つが同じ大きさに見えるようにしてあります。
+
+![Goban レシピの実レンダリング（毎秒 1 フレーム）](recipes/goban.gif)
+
+```
+/media:config statusline.fields "track,progressbar,time"
+/media:config style.progressbar.style dots
+/media:config style.progressbar.playing "#f7f3e8"
+/media:config style.progressbar.paused "#8a8578"
+/media:config style.track.title "bold #f7f3e8"
+/media:config style.track.artist "italic #b5a882"
+/media:config style.time.elapsed "bold #e8c88a"
+/media:config style.time.total "dim #6b6455"
+```
+
+```
+▶︎ Rented Sunsets — Modem Chorus  ●●●●●●●○○○○○○○○○○○○○  1:32/4:07
+```
+
+## Service
+
+ウール地に金糸の線 — 袖のシェブロンです。1777 年から意味することは
+ただ一つ、勤めた時間です。
+
+![Service レシピの実レンダリング（毎秒 1 フレーム）](recipes/service.gif)
+
+```
+/media:config statusline.fields "track,progressbar,time"
+/media:config style.progressbar.style chevron
+/media:config style.progressbar.playing "#c9a227"
+/media:config style.progressbar.paused "#8a6f1e"
+/media:config style.track.title "bold #e8d9a0"
+/media:config style.track.artist "italic #9a8b5e"
+/media:config style.time.elapsed "bold #c9a227"
+/media:config style.time.total "dim #6b5a2c"
+```
+
+```
+▶︎ Rented Sunsets — Modem Chorus  ▸▸▸▸▸▸▸▹▹▹▹▹▹▹▹▹▹▹▹▹  1:32/4:07
+```
+
+## Platform
+
+半分のタイルで終わる白い釉薬 — 駅の壁タイルです。白く焼いたのは、
+地下で光を返してくれるからでした。
+
+![Platform レシピの実レンダリング（毎秒 1 フレーム）](recipes/platform.gif)
+
+```
+/media:config statusline.fields "track,progressbar,time"
+/media:config style.progressbar.style tiles
+/media:config style.progressbar.playing "#f2efe6"
+/media:config style.progressbar.paused "#1e3a34"
+/media:config style.track.title "bold #fdfcf8"
+/media:config style.track.artist "italic #8fa8a0"
+/media:config style.time.elapsed "bold #f2efe6"
+/media:config style.time.total "dim #5c6b66"
+```
+
+```
+▶︎ Rented Sunsets — Modem Chorus  ■■■■■■■◧□□□□□□□□□□□□  1:32/4:07
+```
+
+`◧` は妥協ではありません — タイルの一列は実際に半分のタイルで終わり、
+だからこそ境界のセルに描くものがあるのです。
+
+## Telegraph
+
+真鍮とニス塗りのオーク、そして境界で点が太くなってダッシュになります —
+電信のいちばん古い規則です。ダッシュとは点 3 つをつないだものですから。
+
+![Telegraph レシピの実レンダリング（毎秒 1 フレーム）](recipes/telegraph.gif)
+
+```
+/media:config statusline.fields "track,progressbar,time"
+/media:config style.progressbar.style dash
+/media:config style.progressbar.playing "#b08d57"
+/media:config style.progressbar.paused "#6e5327"
+/media:config style.track.title "bold #efe6d0"
+/media:config style.track.artist "italic #a1854f"
+/media:config style.time.elapsed "bold #d4b06a"
+/media:config style.time.total "dim #6e5327"
+```
+
+```
+▶︎ Rented Sunsets — Modem Chorus  ━━━━━━━┅╌╌╌╌╌╌╌╌╌╌╌╌  1:32/4:07
+```
 
 ## Cassette
 
-温かいテープデッキ: カセット窓のバー、♪ の階段レベル、クリーム &
-アンバーのレタリング。
+あたたかいテープデッキ: カセット窓のバー、♪ の階段レベル、クリームと
+アンバーの文字。
 
 ![Cassette レシピの実レンダリング（毎秒 1 フレーム）](recipes/cassette.gif)
 
@@ -135,8 +255,8 @@ color のみ。
 
 ## Dial
 
-40 マスのヘアライン目盛りに赤い針 —
-シルバーフェイスのレシーバーのバックライト付きチューナーダイヤル、アイスブルーの文字。
+40 セルのヘアラインスケールと赤い針 — シルバーフェイス機のバックライト
+付きチューナーダイヤルです。文字はアイスブルーで。
 
 ![Dial レシピの実レンダリング（毎秒 1 フレーム）](recipes/dial.gif)
 
@@ -156,10 +276,37 @@ color のみ。
 ▶︎ Rented Sunsets — Modem Chorus  ──────────────╼╾────────────────────────  1:32/4:07
 ```
 
+## Vernier
+
+焼き入れ鋼と真鍮のつまみ。ヘッドがヘアラインスケールを滑り、目盛と目盛の
+*あいだ*に止まります — 1631 年からバーニヤがしてきたのは、まさにそれです。
+
+![Vernier レシピの実レンダリング（毎秒 1 フレーム）](recipes/vernier.gif)
+
+```
+/media:config statusline.fields "track,progressbar,time"
+/media:config style.progressbar.style glide
+/media:config style.progressbar.length 36
+/media:config style.progressbar.playing "#dfe4e9"
+/media:config style.progressbar.paused "#b08d57"
+/media:config style.track.title "bold #eef2f5"
+/media:config style.track.artist "italic #8d959e"
+/media:config style.time.elapsed "bold #b9bec4"
+/media:config style.time.total "dim #5c636a"
+```
+
+```
+▶︎ Rented Sunsets — Modem Chorus  ━━━━━━━━━━━━━╾──────────────────────  1:32/4:07
+```
+
+40 ではなく 36 なのには理由があります。`glide` のヘッドは半セル位置で
+しか `╾` に割れず、この位置では 40 セルのバーは境界にちょうど乗って
+`╾` を一度も見せません。
+
 ## VFD
 
-暗い地に青緑のセグメント — 90 年代ハイファイの前面 VFD
-パネル。アプリ名がソースラベルの役を務めます。
+暗い地にシアングリーンのセグメント — 90 年代ハイファイの蛍光表示管
+フロントパネルです。アプリ名がソースラベルの役をします。
 
 ![VFD レシピの実レンダリング（毎秒 1 フレーム）](recipes/vfd.gif)
 
@@ -184,9 +331,8 @@ color のみ。
 
 ## Console
 
-ミキシングデスク式の 2 段:
-上にメーターとタイムコード、下にトランスポートとモニター — LED
-グリーン、録音レッド。
+ミキシングデスク風の 2 段: 上にメーターとタイムコード、下にトランスポートと
+モニター — LED グリーンとレコードレッド。
 
 ![Console レシピの実レンダリング（毎秒 1 フレーム）](recipes/console.gif)
 
@@ -205,13 +351,148 @@ color のみ。
 ▶︎ Rented Sunsets — Modem Chorus (Aux)  🎚 Bookshelf Speakers
 ```
 
-音量のミニメーターはプログレスバーの `eq`
-文字をそのまま借りて、いっしょに跳ねます。
+音量ミニメーターはプログレスバーの `eq` 文字をそのまま借りるので、
+一緒に揺れます。
+
+## Slider wall
+
+クリームと黒、そして赤い上端 — VU メーターです。針をわざと遅くして、
+瞬間音を追いかけるかわりに音の大きさを見せてくれます。
+
+![Slider wall レシピの実レンダリング（毎秒 1 フレーム）](recipes/slider-wall.gif)
+
+```
+/media:config statusline.fields "track,volume,progressbar,time"
+/media:config style.progressbar.style bars
+/media:config style.progressbar.playing "#f0e3c0"
+/media:config style.progressbar.paused "#c44a3d"
+/media:config style.volume.style stairs
+/media:config style.volume.percent off
+/media:config style.track.title "bold #f7efd9"
+/media:config style.track.artist "italic #b9a887"
+/media:config style.time.elapsed "bold #f0e3c0"
+/media:config style.time.total "dim #7d7159"
+```
+
+```
+▶︎ Rented Sunsets — Modem Chorus  🔉 ▁▂▃  ⣄⡀⢀⣤⣤⣴⣦⣄⣤⣶⣴⣶⣦⣀⣀⣀⣀⣴⣦⣤  1:32/4:07
+```
+
+`bars` は基音に非整数次の倍音と下位倍音を重ねて形を作ります — だから
+和音ではなく実際の音源のように動きます。ブロック高さ版が欲しければ `eq`
+を。それが [Console](#console) です。
+
+## Third-octave
+
+伸びずにその場で踊る赤い LED の柱 — 1/3 オクターブアナライザーです。
+バンドの中心が固定なので、バーを広げると同じ区間を広く見るのではなく、
+スペクトルをより多く見ることになります。
+
+![Third-octave レシピの実レンダリング（毎秒 1 フレーム）](recipes/third-octave.gif)
+
+```
+/media:config statusline.fields "track,progressbar,time"
+/media:config style.progressbar.style spectrum
+/media:config style.progressbar.playing "#ff2d10"
+/media:config style.progressbar.paused "#8c1f0d"
+/media:config style.track.title "bold #ffc2ae"
+/media:config style.track.artist "italic #d4654a"
+/media:config style.time.elapsed "bold #ff7a45"
+/media:config style.time.total "dim #8a3f2a"
+```
+
+```
+▶︎ Rented Sunsets — Modem Chorus  ▄▁▃▆▅▄▆▅▂▃▆▆▄▅▅▃▃▆▆▄  1:32/4:07
+```
+
+この赤は、最初に目に見えた LED 自身の色です — ガリウムヒ素リン、
+655 nm、1962 年。`spectrum` を `cava` に替えると、同じ解析を braille の
+点で、横方向 2 倍の密度で描きます。
+
+## Seiche
+
+湖ぜんたいが器の中で揺れます — 盆地の幅がどうであれ、その中にぴたりと
+収まる定常波です。このバーが長さによらず同じ 2.5 個の波を見せるのも
+そのためです。
+
+![Seiche レシピの実レンダリング（毎秒 1 フレーム）](recipes/seiche.gif)
+
+```
+/media:config statusline.fields "track,progressbar,time"
+/media:config style.progressbar.style wave
+/media:config style.progressbar.playing "#3b8fc4"
+/media:config style.progressbar.paused "#5f9e79"
+/media:config style.track.title "bold #d6ecf5"
+/media:config style.track.artist "italic #7fb3cc"
+/media:config style.time.elapsed "bold #a5d5ea"
+/media:config style.time.total "dim #4a7285"
+```
+
+```
+▶︎ Rented Sunsets — Modem Chorus  █▇▅▂▁▂▄▇█▇▅▂▁▂▄▇█▇▅▂  1:32/4:07
+```
+
+藍から緑へという向きは、湖水の色スケールが並んでいる向きそのものです —
+seiche に名をつけた人が、そのスケールも作りました。`wave` を `swell` に
+替えると braille の双子になります。
+
+## Ripple tank
+
+上にランプ、下に水を張った盆、真ん中を叩く針 — 波が自分の影を、中心から
+外へ投げます。光が波であることを示すために作られた装置です。
+
+![Ripple tank レシピの実レンダリング（毎秒 1 フレーム）](recipes/ripple-tank.gif)
+
+```
+/media:config statusline.fields "track,progressbar,time"
+/media:config style.progressbar.style mirror
+/media:config style.progressbar.playing "#f2ead4"
+/media:config style.progressbar.paused "#8a94a6"
+/media:config style.track.title "bold #fdfaf0"
+/media:config style.track.artist "italic #9fb0c4"
+/media:config style.time.elapsed "bold #e8dcbb"
+/media:config style.time.total "dim #5c6675"
+```
+
+```
+▶︎ Rented Sunsets — Modem Chorus  ▇▄▁▁▄▇█▆▃▁▁▃▆█▇▄▁▁▄▇  1:32/4:07
+```
+
+同じ形の braille の双子は `ripple` です。
+
+## Lead II
+
+毎秒 25 ミリメートルで流れるトレース — 世界じゅうが合意した記録紙の
+速度です。バーが長くなると拍が広がるのではなく増えるのは、これが理由です。
+
+![Lead II レシピの実レンダリング（毎秒 1 フレーム）](recipes/lead-ii.gif)
+
+```
+/media:config statusline.fields "track,progressbar,time"
+/media:config style.progressbar.style heartbeat
+/media:config style.progressbar.length 40
+/media:config style.progressbar.playing "#55f5a1"
+/media:config style.progressbar.paused "#6f8fa8"
+/media:config style.track.title "bold #c9fdde"
+/media:config style.track.artist "italic #3fbc7b"
+/media:config style.time.elapsed "bold #55f5a1"
+/media:config style.time.total "dim #2e8f5c"
+```
+
+```
+▶︎ Rented Sunsets — Modem Chorus  ━┻┳━━━━━━━━┻┳━━━━━━━━┻┳━━━━━━━━┻┳━━━━━━━  1:32/4:07
+```
+
+緑は長残光の表示管蛍光体の色で、一時停止の色が赤でも黄でもないのは
+意図的です。モニターでその二つは規格で定められた警報色ですが、一時停止した
+曲は警報ではありません。`heartbeat` を `monitor` に替えると braille で
+描き、行に余裕があるのでスパイクだけでなく小さな P 波と T 波の隆起まで
+見せます。`ekg` は中心線のまわりではなく、床から上へ拍を描きます。
 
 ## Night drive
 
-夜間走行のアンバー計器グロー —
-一時停止でアクセントが赤い警告灯に変わります。
+夜の運転のためのアンバーの計器光 — 一時停止するとアクセントが赤い警告灯に
+変わります。
 
 ![Night drive レシピの実レンダリング（毎秒 1 フレーム）](recipes/night-drive.gif)
 
@@ -232,8 +513,8 @@ color のみ。
 
 ## Synthwave
 
-クロム・シアンのタイトルの下にホットピンクのパルス —
-ネオングリッドのサンセットパレット。
+クロムシアンのタイトルの下にホットピンクの pulse — ネオングリッドの
+サンセットパレットです。
 
 ![Synthwave レシピの実レンダリング（毎秒 1 フレーム）](recipes/synthwave.gif)
 
@@ -249,12 +530,13 @@ color のみ。
 ```
 
 ```
-▶︎ Rented Sunsets — Modem Chorus  ▃▂▂▂▂▂▂▇▃▂▂▂▂▂▂▇▃▂▂▂  1:32/4:07
+▶︎ Rented Sunsets — Modem Chorus  ▄▁▁▁▁▁▁█▁▁▄▁▁▁▁▁▁█▁▁  1:32/4:07
 ```
 
 ## Lo-fi
 
-くすんだパステルと短い音符バー — 落ち着いた低コントラストの study beats。
+くすんだパステルと音符が行進する短いバー — 穏やかで低コントラストの
+スタディビート。
 
 ![Lo-fi レシピの実レンダリング（毎秒 1 フレーム）](recipes/lo-fi.gif)
 
@@ -274,31 +556,67 @@ color のみ。
 ▶︎ Rented Sunsets — Modem Chorus  ·♫♪♫··♪♫♪··♫  1:32/4:07
 ```
 
+## Neko
+
+点線の道を歩く猫、あたたかい紙の色で — ターミナルの生きものです。
+何かがデスクトップを歩くよりずっと前から、コマンドラインを歩いて
+いました。
+
+![Neko レシピの実レンダリング（毎秒 1 フレーム）](recipes/neko.gif)
+
+```
+/media:config statusline.fields "track,progressbar,time"
+/media:config style.progressbar.style cat
+/media:config style.progressbar.playing "#f4e4c1"
+/media:config style.progressbar.paused "#8a7f6a"
+/media:config style.track.title "bold #fbf3e2"
+/media:config style.track.artist "italic #b3a488"
+/media:config style.time.elapsed "bold #f4e4c1"
+/media:config style.time.total "dim #6f6656"
+```
+
+```
+▶︎ Rented Sunsets — Modem Chorus  ━━━━━━ᓚᘏᗢ┈┈┈┈┈┈┈┈┈┈┈  1:32/4:07
+```
+
+`snake`・`duck`・`bird` はそれぞれの道を歩き、`sprite` は好きなフレームを
+そのまま受け取ります:
+
+```
+/media:config style.progressbar.style sprite
+/media:config style.progressbar.sprite "◐ ◓ ◑ ◒"
+/media:config style.progressbar.trail "═"
+/media:config style.progressbar.track "┈"
+```
+
+色がまったく要らない唯一の系統です — 生きものがトラックの現在位置に
+立つので、位置だけで進捗が読めます。
+
 ## Twilight
 
-smooth バーにインディゴ・ペリウィンクル・ラベンダーのパステル —
-モダンなダークテーマのパステル look、すべて正確な hex で。
+やわらかいインディゴ、ペリウィンクル、ラベンダーを smooth バーの上に —
+いまどきのダークテーマのパステル look です。
 
 ![Twilight レシピの実レンダリング（毎秒 1 フレーム）](recipes/twilight.gif)
 
 ```
 /media:config style.progressbar.style smooth
-/media:config style.progressbar.playing "#7aa2f7"
-/media:config style.progressbar.paused "#e0af68"
-/media:config style.track.title "bold #c0caf5"
-/media:config style.track.artist "italic #bb9af7"
-/media:config style.app "#565f89"
-/media:config style.time.elapsed "bold #7dcfff"
-/media:config style.time.total "dim #565f89"
+/media:config style.progressbar.playing "#79a0f5"
+/media:config style.progressbar.paused "#dfae66"
+/media:config style.track.title "bold #bfc9f4"
+/media:config style.track.artist "italic #ba99f5"
+/media:config style.app "#555e87"
+/media:config style.time.elapsed "bold #7bcdfd"
+/media:config style.time.total "dim #555e87"
 ```
 
 ```
 ▶︎ Rented Sunsets — Modem Chorus (Aux)  ███████▌░░░░░░░░░░░░  1:32/4:07
 ```
 
-truecolor のないターミナル（例: Apple Terminal）では、hex のキーだけ named
-color に差し替えてください —
-このページのどのレシピにも同じパターンが使えます:
+truecolor が使えない場合（Apple Terminal など）は、hex のキーだけを
+named color に替えれば大丈夫 — このページのどのレシピでも同じ手が
+使えます:
 
 ```
 /media:config style.progressbar.playing bright-blue

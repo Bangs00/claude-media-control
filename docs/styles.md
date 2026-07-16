@@ -134,7 +134,7 @@ full at length 20 and 10:
 | Value | length 20 | length 10 | |
 | --- | --- | --- | --- |
 | `wave` | `▁▃▅▇█▆▄▂▁▃▅▇█▆▄▂▁▃▅▇` | `▅▂▂▆█▅▂▂▆█` | a rolling sine swell |
-| `pulse` | `▁▁▁▁█▁▁▄▁▁▁▁▁▁█▁▁▄▁▁` | `▁▁█▁▁▄▁▁█▁` | an ECG trace — flatline, a QRS spike, a soft T wave |
+| `pulse` | `▁▁▁▁█▁▁▄▁▁▁▁▁▁█▁▁▄▁▁` | `▁▁█▁▁▄▁▁█▁` | an ECG trace — an isoelectric line, a QRS spike, a soft T wave |
 | `eq` | `▆▄▅▄▄▇▆▅▄▂▂▄▅▅▆▄▄▅▅▇` | `▅▂▃▄▆▅▄▅▅▇` | a multi-frequency equalizer |
 | `notes` | `··♪♫♪♫♪···♪♫♪♫♪···♪♫` | `♪··♫♪♫··♪♫` | ♪♫ note density |
 
@@ -187,7 +187,8 @@ stretched beat; at length 60 a length-adaptive beat would leave some 20 cells
 of empty line between peaks.
 
 They span the whole bar like the rest, but the colors-off tail settles back
-onto the baseline rather than shrinking in height — it flatlines:
+onto the baseline rather than shrinking in height — it runs isoelectric,
+the way a real trace rests between beats:
 
 ```
 heartbeat  40%  ━━━━┻┳━━━━━━━━━━━━━━
@@ -305,7 +306,7 @@ since the segment shares one accent. Empty cells stay dim.
 
 ```
 /media:config style.progressbar.playing bright-cyan
-/media:config style.progressbar.playing "#1db954"   # or any exact hex color
+/media:config style.progressbar.playing "#3ddc84"   # or any exact hex color
 /media:config style.progressbar.paused magenta
 ```
 
@@ -382,9 +383,10 @@ regardless.
 ## Recipes
 
 Full ready-to-paste looks — a phosphor terminal, a tape deck, a mixing
-console, synthwave neon, and more — live on their own page now, each with a
-GIF, the exact config block, and a plain-text preview:
-**[docs/recipes.md](recipes.md)**.
+console, a neon plasma panel, a vernier scale, an ECG at chart speed,
+synthwave neon, and more — live on their own page now, each with a GIF, the
+exact config block, and a plain-text preview: **[docs/recipes.md](recipes.md)**.
+Between them the twenty-four recipes reach every preset on this page.
 
 ## Back to defaults
 

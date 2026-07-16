@@ -188,7 +188,8 @@ dash     46%  ━━━━━━━━━╍╌╌╌╌╌╌╌╌╌╌      
 線が残ってしまいます。
 
 ほかと同じくバー全体に広がりますが、色をオフにしたときの末尾は、高さを
-抑えるのではなくベースラインに戻って落ち着きます — フラットラインです:
+抑えるのではなくベースラインに戻って落ち着きます — 実際のトレースが
+拍と拍のあいだで休むのと同じ、等電位線になります:
 
 ```
 heartbeat  40%  ━━━━┻┳━━━━━━━━━━━━━━
@@ -307,7 +308,7 @@ monitor    40%  ⠤⠤⠤⠴⠼⡦⠤⠶⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤
 
 ```
 /media:config style.progressbar.playing bright-cyan
-/media:config style.progressbar.playing "#1db954"   # 任意の hex カラーも
+/media:config style.progressbar.playing "#3ddc84"   # 任意の hex カラーも
 /media:config style.progressbar.paused magenta
 ```
 
@@ -384,9 +385,11 @@ monitor    40%  ⠤⠤⠤⠴⠼⡦⠤⠶⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤
 ## レシピ
 
 そのまま貼れる完成ルック — 蛍光体ターミナル、テープデッキ、ミキシング
-コンソール、synthwave ネオンなど — は専用ページに移りました。各レシピに
-GIF、正確な config ブロック、プレーンテキストのプレビュー付き:
-**[docs/recipes.ja.md](recipes.ja.md)**。
+コンソール、ネオンのプラズマパネル、バーニヤ目盛、記録紙速度の心電図、
+synthwave ネオンなど — は専用ページに移りました。各レシピに GIF、正確な
+config ブロック、プレーンテキストのプレビュー付き:
+**[docs/recipes.ja.md](recipes.ja.md)**。24 のレシピで、このページの
+プリセットはすべて網羅されます。
 
 ## デフォルトに戻す
 
