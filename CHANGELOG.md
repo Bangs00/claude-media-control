@@ -5,6 +5,46 @@ All notable changes to this project are documented here. The format follows
 [SemVer](https://semver.org/spec/v2.0.0.html), tracked in
 `.claude-plugin/plugin.json`.
 
+## [0.38.1] — 2026-07-16
+
+### Fixed
+
+- **The twelve recipes added in 0.38.0 now read like a native wrote them.**
+  The copyedit pass that polished this gallery shipped in 0.28.0; 0.38.0's
+  twelve new looks landed long after it and went out in raw translation. 45
+  prose lines across the Korean, Japanese and Chinese pages are rewritten —
+  the English page, every code block, config value and rendered example are
+  untouched.
+
+  The dominant defect was invented vocabulary: each new section coined a term
+  where the style gallery had long since settled one — `판` over `버전`, `머리`
+  over `헤드`, `융기` over `봉우리`, `중심선` over `기준선`; `系統` over `系`,
+  `進捗` over `進み具合`, `隆起` over `ふくらみ`, `相方` over `双子`; `小生灵`
+  over `小动物`, `底线`/`中线` over `底部`/`居中的基线`. The Korean page also
+  drifted between `셀` and `칸` for a terminal cell, which the style gallery
+  calls `칸` throughout. The rest was translation-ese — English colon-lists
+  left as trailing fragments in Korean (`문서로 남은 표준에서요`), noun-phrase
+  headlines flattened into predicates in Japanese so the em-dash apposition
+  had nothing left to attach to, a stacked-`的` relative clause and a needless
+  `被` in Chinese.
+
+  Three of the fixes are factual rather than stylistic:
+
+  - **`stipple` is not a half-cell preset.** The Chinese page called it
+    `半格孪生`, but `半格` is this project's ½ term for `glide` — the word the
+    Vernier recipe itself uses two sections later. `stipple` is a `子格` preset
+    at ⅙, and now says so.
+  - **A seiche shows 2.5 waves, not two half-waves.** `两个半波` reads as two
+    `半波`, which is a real term in a standing-wave context. The rendered bar
+    runs a period of 8 cells across 20, so 2.5 cycles is the number.
+  - **A power amp has no tuner dial.** Dial's Chinese text called the
+    silver-face receiver a `功放` and its scale a `调谐盘`, contradicting both
+    itself and the page's own intro, which says `调谐刻度盘`.
+
+  0.38.0 had also re-touched two lines the 0.28.0 pass already polished,
+  reverting `앰버 인광 버전` to `앰버 인광 사촌` and `调谐刻度盘` to `调谐盘`.
+  Both are restored.
+
 ## [0.38.0] — 2026-07-16
 
 ### Added
